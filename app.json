@@ -17,6 +17,15 @@
         "backgroundColor": "#0D0D1A"
       },
       "package": "com.healthrpg.app"
+    },
+    "web": {
+      "bundler": "metro",
+      "favicon": "./assets/favicon.png",
+      "name": "Health RPG",
+      "shortName": "HealthRPG",
+      "lang": "ko",
+      "backgroundColor": "#0D0D1A",
+      "themeColor": "#7B2FBE"
     }
   }
 }
