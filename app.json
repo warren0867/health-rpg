@@ -26,6 +26,9 @@
       "lang": "ko",
       "backgroundColor": "#0D0D1A",
       "themeColor": "#7B2FBE"
+    },
+    "experiments": {
+      "baseUrl": "/health-rpg"
     }
   }
 }
