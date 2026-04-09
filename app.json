@@ -1,0 +1,22 @@
+{
+  "expo": {
+    "name": "Health RPG",
+    "slug": "health-rpg",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "backgroundColor": "#0D0D1A"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.healthrpg.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0D0D1A"
+      },
+      "package": "com.healthrpg.app"
+    }
+  }
+}
