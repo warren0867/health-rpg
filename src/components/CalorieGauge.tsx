@@ -165,8 +165,6 @@ const styles = StyleSheet.create({
   },
   halfCircleRight: {
     right: 0,
-    borderRightColor: 'inherit',
-    borderTopColor: 'inherit',
     borderLeftColor: 'transparent',
     borderBottomColor: 'transparent',
   },

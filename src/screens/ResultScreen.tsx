@@ -33,7 +33,7 @@ export default function ResultScreen() {
   useEffect(() => {
     Animated.parallel([
       Animated.timing(scoreAnim, { toValue: conditionScore, duration: 1000, useNativeDriver: false }),
-      Animated.timing(fadeIn, { toValue: 1, duration: 800, useNativeDriver: true }),
+      Animated.timing(fadeIn, { toValue: 1, duration: 800, useNativeDriver: false }),
     ]).start();
   }, []);
 
