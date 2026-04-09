@@ -49,6 +49,30 @@ export interface FoodItem {
   fat: number;           // g
   gi: GlycemicIndex;
   category: FoodCategory;
+  isCustom?: boolean;    // 사용자 직접 입력 여부
+}
+
+// ─────────────────────────────────────────────
+//  즐겨찾기 / 최근 음식
+// ─────────────────────────────────────────────
+
+export interface RecentFoodEntry {
+  foodId: string;
+  foodName: string;
+  lastUsed: string;      // ISO timestamp
+  useCount: number;
+}
+
+export interface MealTemplate {
+  id: string;
+  name: string;          // "내 점심 세트"
+  entries: {
+    foodId: string;
+    foodName: string;
+    servings: number;
+    mealTime: FoodEntry['mealTime'];
+  }[];
+  createdAt: string;
 }
 
 export interface FoodEntry {

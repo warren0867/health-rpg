@@ -2,20 +2,23 @@ import { useFocusEffect } from '@react-navigation/native';
 import React, { useCallback, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import MiniGraph from '../components/MiniGraph';
 import { COLORS, FONTS, getRank, RADIUS, SPACING } from '../constants/theme';
-import { DailyLog } from '../types';
-import { formatDate, getAllDailyLogs } from '../utils/storage';
+import { DailyLog, MorningBloodSugar } from '../types';
+import { calcAvgBS, formatDate, getAllDailyLogs, getRecentMorningBS } from '../utils/storage';
 
 export default function HistoryScreen() {
   const [logs, setLogs] = useState<DailyLog[]>([]);
+  const [recentBS, setRecentBS] = useState<MorningBloodSugar[]>([]);
   const [loading, setLoading] = useState(true);
 
   useFocusEffect(
     useCallback(() => {
       (async () => {
         setLoading(true);
-        const all = await getAllDailyLogs();
+        const [all, bs] = await Promise.all([getAllDailyLogs(), getRecentMorningBS(7)]);
         setLogs(all);
+        setRecentBS(bs);
         setLoading(false);
       })();
     }, [])
@@ -29,39 +32,71 @@ export default function HistoryScreen() {
     );
   }
 
-  // 평균 점수
   const avg = logs.length > 0
     ? Math.round(logs.reduce((s, l) => s + l.conditionScore, 0) / logs.length)
     : null;
+
+  // 주간 리포트 (최근 7일)
+  const weekLogs = logs.slice(0, 7);
+  const weekReport = calcWeekReport(weekLogs);
+  const avgBS = calcAvgBS(recentBS);
 
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <Text style={styles.pageTitle}>전체 기록</Text>
 
-        {/* 요약 */}
+        {/* 전체 요약 */}
         {avg !== null && (
           <View style={styles.summaryCard}>
-            <View style={styles.summaryItem}>
-              <Text style={styles.summaryValue}>{logs.length}</Text>
-              <Text style={styles.summaryLabel}>총 기록일</Text>
-            </View>
+            <SummaryItem value={String(logs.length)} label="총 기록일" />
             <View style={styles.divider} />
-            <View style={styles.summaryItem}>
-              <Text style={[styles.summaryValue, { color: getRank(avg).color }]}>{avg}</Text>
-              <Text style={styles.summaryLabel}>평균 점수</Text>
-            </View>
+            <SummaryItem value={String(avg)} label="평균 점수" color={getRank(avg).color} />
             <View style={styles.divider} />
-            <View style={styles.summaryItem}>
-              <Text style={[styles.summaryValue, { color: getRank(avg).color }]}>
-                {getRank(avg).rank}
-              </Text>
-              <Text style={styles.summaryLabel}>평균 등급</Text>
+            <SummaryItem value={getRank(avg).rank} label="평균 등급" color={getRank(avg).color} />
+            {avgBS !== null && (
+              <>
+                <View style={styles.divider} />
+                <SummaryItem
+                  value={String(avgBS)}
+                  label="평균 혈당"
+                  color={avgBS < 100 ? COLORS.green : avgBS < 126 ? COLORS.gold : COLORS.red}
+                  unit="mg/dL"
+                />
+              </>
+            )}
+          </View>
+        )}
+
+        {/* 주간 리포트 */}
+        {weekLogs.length >= 3 && (
+          <View style={styles.card}>
+            <Text style={styles.sectionTitle}>📊 주간 리포트</Text>
+            <View style={styles.reportGrid}>
+              <ReportItem emoji="🏆" label="최고 점수" value={`${weekReport.best}점`} color={COLORS.gold} />
+              <ReportItem emoji="😔" label="최저 점수" value={`${weekReport.worst}점`} color={COLORS.textMuted} />
+              <ReportItem emoji="😴" label="평균 수면" value={`${weekReport.avgSleep}h`} color={COLORS.blue} />
+              <ReportItem emoji="💪" label="운동한 날" value={`${weekReport.exerciseDays}일`} color={COLORS.teal} />
+              <ReportItem emoji="🍺" label="음주한 날" value={`${weekReport.alcoholDays}일`} color={weekReport.alcoholDays > 2 ? COLORS.red : COLORS.textMuted} />
+              <ReportItem emoji="📈" label="7일 추세" value={weekReport.trend} color={weekReport.trend === '상승↑' ? COLORS.teal : weekReport.trend === '하락↓' ? COLORS.red : COLORS.gold} />
+            </View>
+
+            {/* 주간 조언 */}
+            <View style={styles.weekAdvice}>
+              <Text style={styles.weekAdviceText}>{weekReport.advice}</Text>
             </View>
           </View>
         )}
 
-        {/* 로그 리스트 */}
+        {/* 최근 7일 그래프 */}
+        {weekLogs.length > 0 && (
+          <View style={styles.card}>
+            <Text style={styles.sectionTitle}>최근 컨디션 추이</Text>
+            <MiniGraph logs={[...weekLogs].reverse()} />
+          </View>
+        )}
+
+        {/* 전체 로그 리스트 */}
         {logs.length === 0 ? (
           <Text style={styles.emptyText}>아직 기록이 없어요{'\n'}입력 탭에서 첫 기록을 남겨보세요!</Text>
         ) : (
@@ -71,24 +106,16 @@ export default function HistoryScreen() {
               <View key={log.date} style={styles.logCard}>
                 <View style={styles.logHeader}>
                   <Text style={styles.logDate}>{formatDate(log.date)}</Text>
-                  <View style={styles.logRankBadge}>
+                  <View style={[styles.logRankBadge, { backgroundColor: rank.color + '22' }]}>
                     <Text style={[styles.logRank, { color: rank.color }]}>{rank.rank}</Text>
                   </View>
                   <Text style={[styles.logScore, { color: rank.color }]}>{log.conditionScore}점</Text>
                 </View>
                 <View style={styles.logStats}>
                   <LogStat label="수면" value={`${log.sleep.hours}h`} />
-                  <LogStat
-                    label="운동"
-                    value={log.exercise.type === 'none' ? '없음' : `${log.exercise.minutes}분`}
-                  />
-                  <LogStat
-                    label="음주"
-                    value={log.alcohol.consumed ? `${log.alcohol.liters}L` : '없음'}
-                    danger={log.alcohol.consumed}
-                  />
+                  <LogStat label="운동" value={log.exercise.type === 'none' ? '없음' : `${log.exercise.minutes}분`} />
+                  <LogStat label="음주" value={log.alcohol.consumed ? `${log.alcohol.liters}L` : '없음'} danger={log.alcohol.consumed} />
                 </View>
-                {/* 스탯 미니 바 */}
                 <View style={styles.miniStatRow}>
                   {[
                     { label: 'HP', value: log.stats.hp, color: COLORS.teal },
@@ -113,6 +140,55 @@ export default function HistoryScreen() {
   );
 }
 
+// ── 주간 리포트 계산 ──
+function calcWeekReport(logs: DailyLog[]) {
+  if (logs.length === 0) return { best: 0, worst: 0, avgSleep: 0, exerciseDays: 0, alcoholDays: 0, trend: '-', advice: '' };
+  const scores = logs.map(l => l.conditionScore);
+  const best = Math.max(...scores);
+  const worst = Math.min(...scores);
+  const avgSleep = Math.round(logs.reduce((s, l) => s + l.sleep.hours, 0) / logs.length * 10) / 10;
+  const exerciseDays = logs.filter(l => l.exercise.type !== 'none').length;
+  const alcoholDays = logs.filter(l => l.alcohol.consumed).length;
+
+  let trend = '유지→';
+  if (logs.length >= 3) {
+    const recent = logs.slice(0, 3).reduce((s, l) => s + l.conditionScore, 0) / 3;
+    const old = logs.slice(-3).reduce((s, l) => s + l.conditionScore, 0) / 3;
+    if (recent - old > 5) trend = '상승↑';
+    else if (old - recent > 5) trend = '하락↓';
+  }
+
+  let advice = '';
+  if (alcoholDays >= 3) advice = '🍺 음주 빈도가 높아요. 혈당 관리에 음주가 가장 큰 영향을 줍니다.';
+  else if (exerciseDays <= 1) advice = '🚶 이번 주 운동이 부족했어요. 하루 30분 걷기부터 시작해보세요.';
+  else if (avgSleep < 6.5) advice = '😴 평균 수면이 부족해요. 7시간 수면이 혈당 조절에도 중요합니다.';
+  else if (trend === '상승↑') advice = '🔥 컨디션이 오르고 있어요! 지금 루틴을 계속 유지하세요.';
+  else advice = '✅ 꾸준히 잘 관리하고 있어요. 이번 주도 화이팅!';
+
+  return { best, worst, avgSleep, exerciseDays, alcoholDays, trend, advice };
+}
+
+// ── 공통 컴포넌트 ──
+function SummaryItem({ value, label, color = COLORS.text, unit }: { value: string; label: string; color?: string; unit?: string }) {
+  return (
+    <View style={styles.summaryItem}>
+      <Text style={[styles.summaryValue, { color }]}>{value}</Text>
+      {unit && <Text style={styles.summaryUnit}>{unit}</Text>}
+      <Text style={styles.summaryLabel}>{label}</Text>
+    </View>
+  );
+}
+
+function ReportItem({ emoji, label, value, color }: { emoji: string; label: string; value: string; color: string }) {
+  return (
+    <View style={styles.reportItem}>
+      <Text style={styles.reportEmoji}>{emoji}</Text>
+      <Text style={[styles.reportValue, { color }]}>{value}</Text>
+      <Text style={styles.reportLabel}>{label}</Text>
+    </View>
+  );
+}
+
 function LogStat({ label, value, danger }: { label: string; value: string; danger?: boolean }) {
   return (
     <View style={styles.logStatItem}>
@@ -125,56 +201,45 @@ function LogStat({ label, value, danger }: { label: string; value: string; dange
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: COLORS.bg },
   scroll: { padding: SPACING.md },
-  pageTitle: {
-    fontSize: FONTS.xxl,
-    fontWeight: '900',
-    color: COLORS.text,
-    marginBottom: SPACING.md,
-  },
+  pageTitle: { fontSize: FONTS.xxl, fontWeight: '900', color: COLORS.text, marginBottom: SPACING.md },
   summaryCard: {
-    backgroundColor: COLORS.bgCard,
-    borderRadius: RADIUS.lg,
-    padding: SPACING.md,
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginBottom: SPACING.md,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    backgroundColor: COLORS.bgCard, borderRadius: RADIUS.lg, padding: SPACING.md,
+    flexDirection: 'row', justifyContent: 'space-around', flexWrap: 'wrap',
+    marginBottom: SPACING.md, borderWidth: 1, borderColor: COLORS.border, gap: 8,
   },
-  summaryItem: { alignItems: 'center' },
-  summaryValue: { fontSize: FONTS.xxl, fontWeight: '900', color: COLORS.text },
+  summaryItem: { alignItems: 'center', minWidth: 60 },
+  summaryValue: { fontSize: FONTS.xl, fontWeight: '900', color: COLORS.text },
+  summaryUnit: { color: COLORS.textMuted, fontSize: 9 },
   summaryLabel: { color: COLORS.textMuted, fontSize: FONTS.xs, marginTop: 2 },
   divider: { width: 1, backgroundColor: COLORS.border },
-  emptyText: {
-    color: COLORS.textMuted,
-    fontSize: FONTS.md,
-    textAlign: 'center',
-    marginTop: SPACING.xl,
-    lineHeight: 24,
+  card: {
+    backgroundColor: COLORS.bgCard, borderRadius: RADIUS.lg,
+    padding: SPACING.md, marginBottom: SPACING.md,
+    borderWidth: 1, borderColor: COLORS.border,
   },
+  sectionTitle: { color: COLORS.text, fontSize: FONTS.md, fontWeight: '700', marginBottom: SPACING.sm },
+  reportGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  reportItem: {
+    width: '30%', backgroundColor: COLORS.bgHighlight,
+    borderRadius: RADIUS.md, padding: SPACING.sm, alignItems: 'center', gap: 2,
+  },
+  reportEmoji: { fontSize: 20 },
+  reportValue: { fontSize: FONTS.md, fontWeight: '900' },
+  reportLabel: { color: COLORS.textMuted, fontSize: 10 },
+  weekAdvice: {
+    backgroundColor: COLORS.bgHighlight, borderRadius: RADIUS.md,
+    padding: SPACING.sm, marginTop: SPACING.sm,
+  },
+  weekAdviceText: { color: COLORS.text, fontSize: FONTS.sm, lineHeight: 20 },
+  emptyText: { color: COLORS.textMuted, fontSize: FONTS.md, textAlign: 'center', marginTop: SPACING.xl, lineHeight: 24 },
   logCard: {
-    backgroundColor: COLORS.bgCard,
-    borderRadius: RADIUS.lg,
-    padding: SPACING.md,
-    marginBottom: SPACING.sm,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    gap: SPACING.sm,
+    backgroundColor: COLORS.bgCard, borderRadius: RADIUS.lg,
+    padding: SPACING.md, marginBottom: SPACING.sm,
+    borderWidth: 1, borderColor: COLORS.border, gap: SPACING.sm,
   },
-  logHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.sm,
-  },
+  logHeader: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
   logDate: { flex: 1, color: COLORS.text, fontWeight: '700', fontSize: FONTS.md },
-  logRankBadge: {
-    backgroundColor: COLORS.bgHighlight,
-    borderRadius: RADIUS.full,
-    width: 28,
-    height: 28,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
+  logRankBadge: { borderRadius: RADIUS.full, width: 28, height: 28, justifyContent: 'center', alignItems: 'center' },
   logRank: { fontWeight: '900', fontSize: FONTS.sm },
   logScore: { fontSize: FONTS.lg, fontWeight: '900' },
   logStats: { flexDirection: 'row', gap: SPACING.md },
@@ -182,11 +247,8 @@ const styles = StyleSheet.create({
   logStatLabel: { color: COLORS.textMuted, fontSize: FONTS.xs },
   logStatValue: { color: COLORS.text, fontSize: FONTS.sm, fontWeight: '600' },
   miniStatRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    backgroundColor: COLORS.bgHighlight,
-    borderRadius: RADIUS.md,
-    padding: SPACING.sm,
+    flexDirection: 'row', justifyContent: 'space-around',
+    backgroundColor: COLORS.bgHighlight, borderRadius: RADIUS.md, padding: SPACING.sm,
   },
   miniStat: { alignItems: 'center' },
   miniStatVal: { fontSize: FONTS.sm, fontWeight: '900' },

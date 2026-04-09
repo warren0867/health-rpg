@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { BloodSugarEntry, DailyLog, FoodEntry, MorningBloodSugar, UserProfile } from '../types';
+import { BloodSugarEntry, DailyLog, FoodEntry, FoodItem, MorningBloodSugar, RecentFoodEntry, UserProfile } from '../types';
 
 const KEYS = {
   USER_PROFILE: 'hrpg_profile',
@@ -7,6 +7,9 @@ const KEYS = {
   FOOD_ENTRIES: 'hrpg_food_entries',
   MORNING_BS: 'hrpg_morning_bs',
   BLOOD_SUGAR: 'hrpg_blood_sugar',
+  RECENT_FOODS: 'hrpg_recent_foods',
+  FAVORITE_FOODS: 'hrpg_favorite_foods',
+  CUSTOM_FOODS: 'hrpg_custom_foods',
 } as const;
 
 // ─────────────────────────────────────────────
@@ -112,6 +115,91 @@ export function sumFoodEntries(entries: FoodEntry[]) {
     }),
     { calories: 0, carbs: 0, protein: 0, fat: 0 }
   );
+}
+
+// 어제 식단 복사
+export async function copyYesterdayMeals(today: string, yesterday: string): Promise<number> {
+  const raw = await AsyncStorage.getItem(KEYS.FOOD_ENTRIES);
+  const all: FoodEntry[] = raw ? JSON.parse(raw) : [];
+  const yesterdayEntries = all.filter(e => e.date === yesterday);
+  if (yesterdayEntries.length === 0) return 0;
+  const copied = yesterdayEntries.map(e => ({
+    ...e,
+    id: generateId(),
+    date: today,
+    timestamp: new Date().toISOString(),
+  }));
+  await AsyncStorage.setItem(KEYS.FOOD_ENTRIES, JSON.stringify([...all, ...copied]));
+  return copied.length;
+}
+
+// ─────────────────────────────────────────────
+//  최근 음식
+// ─────────────────────────────────────────────
+
+export async function trackRecentFood(foodId: string, foodName: string): Promise<void> {
+  const raw = await AsyncStorage.getItem(KEYS.RECENT_FOODS);
+  const recents: RecentFoodEntry[] = raw ? JSON.parse(raw) : [];
+  const idx = recents.findIndex(r => r.foodId === foodId);
+  if (idx >= 0) {
+    recents[idx].lastUsed = new Date().toISOString();
+    recents[idx].useCount += 1;
+  } else {
+    recents.unshift({ foodId, foodName, lastUsed: new Date().toISOString(), useCount: 1 });
+  }
+  // 최대 20개 유지
+  const trimmed = recents.sort((a, b) => b.lastUsed.localeCompare(a.lastUsed)).slice(0, 20);
+  await AsyncStorage.setItem(KEYS.RECENT_FOODS, JSON.stringify(trimmed));
+}
+
+export async function getRecentFoods(): Promise<RecentFoodEntry[]> {
+  const raw = await AsyncStorage.getItem(KEYS.RECENT_FOODS);
+  if (!raw) return [];
+  return (JSON.parse(raw) as RecentFoodEntry[])
+    .sort((a, b) => b.lastUsed.localeCompare(a.lastUsed))
+    .slice(0, 10);
+}
+
+// ─────────────────────────────────────────────
+//  즐겨찾기
+// ─────────────────────────────────────────────
+
+export async function getFavoriteFoodIds(): Promise<string[]> {
+  const raw = await AsyncStorage.getItem(KEYS.FAVORITE_FOODS);
+  return raw ? JSON.parse(raw) : [];
+}
+
+export async function toggleFavoriteFood(foodId: string): Promise<boolean> {
+  const favs = await getFavoriteFoodIds();
+  const isNowFav = !favs.includes(foodId);
+  const updated = isNowFav ? [...favs, foodId] : favs.filter(id => id !== foodId);
+  await AsyncStorage.setItem(KEYS.FAVORITE_FOODS, JSON.stringify(updated));
+  return isNowFav;
+}
+
+// ─────────────────────────────────────────────
+//  커스텀 음식
+// ─────────────────────────────────────────────
+
+export async function saveCustomFood(food: FoodItem): Promise<void> {
+  const raw = await AsyncStorage.getItem(KEYS.CUSTOM_FOODS);
+  const customs: FoodItem[] = raw ? JSON.parse(raw) : [];
+  const idx = customs.findIndex(f => f.id === food.id);
+  if (idx >= 0) customs[idx] = food;
+  else customs.push(food);
+  await AsyncStorage.setItem(KEYS.CUSTOM_FOODS, JSON.stringify(customs));
+}
+
+export async function getCustomFoods(): Promise<FoodItem[]> {
+  const raw = await AsyncStorage.getItem(KEYS.CUSTOM_FOODS);
+  return raw ? JSON.parse(raw) : [];
+}
+
+export async function deleteCustomFood(id: string): Promise<void> {
+  const raw = await AsyncStorage.getItem(KEYS.CUSTOM_FOODS);
+  if (!raw) return;
+  const filtered = (JSON.parse(raw) as FoodItem[]).filter(f => f.id !== id);
+  await AsyncStorage.setItem(KEYS.CUSTOM_FOODS, JSON.stringify(filtered));
 }
 
 // ─────────────────────────────────────────────
