@@ -58,7 +58,7 @@ export const SPACING = {
   xl: 32,
 } as const;
 
-// 혈당 기준값 (당뇨 전단계 기준)
+// 혈당 기준값
 export const BLOOD_SUGAR_RANGES = {
   fasting: {
     low: { max: 70, label: '저혈당', color: '#4ECDC4' },

@@ -259,7 +259,7 @@ export default function OnboardingScreen() {
                   />
                 ))}
               </View>
-              <Text style={styles.hint}>당뇨 전단계에는 체중 감량이 혈당 개선에 효과적이에요</Text>
+              <Text style={styles.hint}>체중 감량은 혈당 개선에 효과적이에요</Text>
             </View>
           )}
 

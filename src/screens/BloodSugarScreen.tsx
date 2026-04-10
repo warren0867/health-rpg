@@ -145,7 +145,7 @@ export default function BloodSugarScreen() {
           <View>
             <Text style={styles.pageTitle}>혈당 관리</Text>
             <View style={styles.diabetesTag}>
-              <Text style={styles.diabetesTagText}>당뇨 전단계 모드</Text>
+              <Text style={styles.diabetesTagText}>혈당 관리</Text>
             </View>
           </View>
           <TouchableOpacity style={styles.addBtn} onPress={() => setShowModal(true)}>

@@ -214,8 +214,19 @@ export const KOREAN_FOODS: FoodItem[] = [
   { id: 'sn14', name: '젤리', nameSearch: '젤리 jelly gummy', cal: 120, serving: '1봉', carbs: 30, protein: 0, fat: 0, gi: 'high', category: 'snack' },
   { id: 'sn15', name: '빵 (식빵)', nameSearch: '식빵 bread toast 토스트', cal: 130, serving: '2장', carbs: 24, protein: 5, fat: 2, gi: 'high', category: 'snack' },
 
-  // ─── 운동 후 식품 ───
-  { id: 'sp01', name: '프로틴 쉐이크', nameSearch: '프로틴 쉐이크 protein shake whey', cal: 150, serving: '1스쿱 (물 250ml)', carbs: 5, protein: 25, fat: 2, gi: 'low', category: 'protein' },
+  // ─── 단백질 음료 & 운동 후 식품 ───
+  { id: 'sp01', name: '프로틴 쉐이크 (초코)', nameSearch: '프로틴 쉐이크 초코 protein shake chocolate whey 단백질', cal: 150, serving: '1스쿱 (물 250ml)', carbs: 5, protein: 25, fat: 2, gi: 'low', category: 'protein' },
+  { id: 'sp06', name: '프로틴 쉐이크 (바닐라)', nameSearch: '프로틴 쉐이크 바닐라 protein shake vanilla whey 단백질', cal: 145, serving: '1스쿱 (물 250ml)', carbs: 4, protein: 25, fat: 2, gi: 'low', category: 'protein' },
+  { id: 'sp07', name: '프로틴 쉐이크 (딸기)', nameSearch: '프로틴 쉐이크 딸기 protein shake strawberry 단백질', cal: 148, serving: '1스쿱 (물 250ml)', carbs: 6, protein: 24, fat: 2, gi: 'low', category: 'protein' },
+  { id: 'sp08', name: 'RTD 프로틴 음료', nameSearch: 'RTD 단백질 음료 ready to drink protein 닭가슴살 음료', cal: 130, serving: '1병 (250ml)', carbs: 5, protein: 22, fat: 2, gi: 'low', category: 'protein' },
+  { id: 'sp09', name: '그릭 요거트', nameSearch: '그릭 요거트 greek yogurt 플레인', cal: 100, serving: '1개 (150g)', carbs: 6, protein: 15, fat: 1, gi: 'low', category: 'protein' },
+  { id: 'sp10', name: '그릭 요거트 (과일)', nameSearch: '그릭 요거트 과일 greek yogurt fruit', cal: 140, serving: '1개 (150g)', carbs: 18, protein: 12, fat: 1, gi: 'medium', category: 'protein' },
+  { id: 'sp11', name: '프로틴바', nameSearch: '프로틴바 protein bar 단백질바 에너지바', cal: 210, serving: '1개 (60g)', carbs: 20, protein: 20, fat: 7, gi: 'medium', category: 'protein' },
+  { id: 'sp12', name: '이온 음료 (포카리스웨트)', nameSearch: '이온 포카리스웨트 pocari sweat sports drink', cal: 45, serving: '1캔 (240ml)', carbs: 11, protein: 0, fat: 0, gi: 'medium', category: 'protein' },
+  { id: 'sp13', name: '이온 음료 (게토레이)', nameSearch: '게토레이 gatorade sports drink 스포츠', cal: 50, serving: '1병 (240ml)', carbs: 14, protein: 0, fat: 0, gi: 'medium', category: 'protein' },
+  { id: 'sp14', name: '아몬드 브리즈', nameSearch: '아몬드 브리즈 almond breeze 아몬드밀크', cal: 30, serving: '1팩 (190ml)', carbs: 3, protein: 1, fat: 2, gi: 'low', category: 'protein' },
+  { id: 'sp15', name: '귀리 우유 (오트밀크)', nameSearch: '오트밀크 귀리우유 oat milk', cal: 90, serving: '1팩 (200ml)', carbs: 16, protein: 3, fat: 2, gi: 'medium', category: 'protein' },
+  { id: 'sp16', name: '소이 프로틴 (두유단백질)', nameSearch: '소이 프로틴 두유 soy protein isolate', cal: 120, serving: '1스쿱 (물 250ml)', carbs: 3, protein: 22, fat: 1, gi: 'low', category: 'protein' },
   { id: 'sp02', name: '닭가슴살 샐러드', nameSearch: '닭가슴살 샐러드 chicken salad', cal: 220, serving: '1인분', carbs: 12, protein: 28, fat: 6, gi: 'low', category: 'meat' },
   { id: 'sp03', name: '고구마 + 닭가슴살', nameSearch: '고구마 닭가슴살 sweet potato chicken', cal: 280, serving: '1세트', carbs: 32, protein: 25, fat: 3, gi: 'medium', category: 'meat' },
   { id: 'sp04', name: '오트밀', nameSearch: '오트밀 oatmeal 귀리', cal: 150, serving: '1인분 (40g)', carbs: 27, protein: 5, fat: 3, gi: 'low', category: 'snack' },

@@ -33,7 +33,7 @@ export function calcTDEE(profile: Omit<UserProfile, 'targetCalories' | 'goal' | 
 // ─────────────────────────────────────────────
 
 const GOAL_DELTA: Record<Goal, number> = {
-  lose: -300,      // 당뇨 전단계 체중 감량
+  lose: -300,      // 체중 감량 (혈당 개선)
   maintain: 0,
   gain: +300,
 };
@@ -91,7 +91,7 @@ export function calcGaugeData(consumed: number, goal: number): CalorieGaugeData 
 }
 
 // ─────────────────────────────────────────────
-//  매크로 비율 (당뇨 전단계 권장: 저탄고단)
+//  매크로 비율 (저탄고단 권장)
 // ─────────────────────────────────────────────
 
 export interface MacroGoal {
@@ -101,7 +101,7 @@ export interface MacroGoal {
 }
 
 export function calcMacroGoal(targetCalories: number): MacroGoal {
-  // 당뇨 전단계 권장: 탄수화물 40%, 단백질 30%, 지방 30%
+  // 탄수화물 40%, 단백질 30%, 지방 30% 권장
   return {
     carbs: Math.round((targetCalories * 0.40) / 4),    // 4kcal/g
     protein: Math.round((targetCalories * 0.30) / 4),  // 4kcal/g
