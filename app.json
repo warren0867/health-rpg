@@ -2,7 +2,7 @@
   "expo": {
     "name": "Health RPG",
     "slug": "health-rpg",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
     "splash": {
@@ -25,7 +25,7 @@
       "shortName": "HealthRPG",
       "lang": "ko",
       "backgroundColor": "#0D0D1A",
-      "themeColor": "#7B2FBE"
+      "themeColor": "#8B45D4"
     },
     "experiments": {
       "baseUrl": "/health-rpg"
