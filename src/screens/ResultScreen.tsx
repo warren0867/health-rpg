@@ -1,20 +1,44 @@
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import React, { useEffect, useRef } from 'react';
-import {
-  Animated,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import { Animated, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import StatBar from '../components/StatBar';
-import { COLORS, FONTS, getRank, RADIUS, SPACING } from '../constants/theme';
+import { COLORS, FONTS, getAvatar, getRank, RADIUS, SPACING } from '../constants/theme';
 import { RootStackParamList, ScoreFactor } from '../types';
-import { getConditionFeedback, getScoreFactors, getTodayFortune } from '../utils/feedback';
+import { getConditionFeedback, getScoreFactors } from '../utils/feedback';
 
 type Route = RouteProp<RootStackParamList, 'Result'>;
+
+// ─── RPG 스탯 바 ──────────────────────────────────────────
+function RPGStatBar({ label, abbr, value, color }: { label: string; abbr: string; value: number; color: string }) {
+  const pct = Math.min(100, value);
+  return (
+    <View style={r.statRow}>
+      <Text style={r.statAbbr}>{abbr}</Text>
+      <Text style={r.statLabel}>{label}</Text>
+      <View style={r.statTrack}>
+        <View style={[r.statFill, { width: `${pct}%` as any, backgroundColor: color }]} />
+      </View>
+      <Text style={[r.statVal, { color }]}>{value}</Text>
+    </View>
+  );
+}
+
+// ─── 데미지/힐 숫자 ───────────────────────────────────────
+function DamageNum({ value, label, emoji }: { value: number; label: string; emoji: string }) {
+  const isGain = value > 0;
+  const color = isGain ? COLORS.teal : COLORS.red;
+  return (
+    <View style={r.dmgRow}>
+      <Text style={r.dmgEmoji}>{emoji}</Text>
+      <Text style={r.dmgLabel}>{label}</Text>
+      <View style={[r.dmgBadge, { backgroundColor: color + '18' }]}>
+        <Text style={[r.dmgVal, { color }]}>
+          {isGain ? '+' : ''}{value}
+        </Text>
+      </View>
+    </View>
+  );
+}
 
 export default function ResultScreen() {
   const navigation = useNavigation();
@@ -22,122 +46,107 @@ export default function ResultScreen() {
   const { conditionScore, scoreBreakdown, stats } = log;
 
   const rank = getRank(conditionScore);
+  const avatar = getAvatar(conditionScore);
   const feedback = getConditionFeedback(conditionScore);
   const factors: ScoreFactor[] = getScoreFactors(scoreBreakdown, log);
-  const fortune = getTodayFortune(log.date);
 
-  // 점수 카운트업 애니메이션
   const scoreAnim = useRef(new Animated.Value(0)).current;
   const fadeIn = useRef(new Animated.Value(0)).current;
+  const slideUp = useRef(new Animated.Value(30)).current;
 
   useEffect(() => {
     Animated.parallel([
-      Animated.timing(scoreAnim, { toValue: conditionScore, duration: 1000, useNativeDriver: false }),
-      Animated.timing(fadeIn, { toValue: 1, duration: 800, useNativeDriver: false }),
+      Animated.timing(scoreAnim, { toValue: conditionScore, duration: 1200, useNativeDriver: false }),
+      Animated.timing(fadeIn, { toValue: 1, duration: 600, useNativeDriver: false }),
+      Animated.spring(slideUp, { toValue: 0, tension: 80, friction: 12, useNativeDriver: false }),
     ]).start();
   }, []);
 
-  const animatedScore = scoreAnim.interpolate({
-    inputRange: [0, 100],
-    outputRange: ['0', '100'],
-  });
-
+  const animatedScore = scoreAnim.interpolate({ inputRange: [0, 100], outputRange: ['0', '100'] });
   const gains = factors.filter(f => f.value > 0);
   const losses = factors.filter(f => f.value < 0);
+  const neutral = factors.filter(f => f.value === 0);
+
+  const isVictory = conditionScore >= 60;
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+    <SafeAreaView style={r.safe}>
+      <ScrollView contentContainerStyle={r.scroll} showsVerticalScrollIndicator={false}>
 
-        {/* 점수 히어로 섹션 */}
-        <Animated.View style={[styles.heroCard, { opacity: fadeIn }]}>
-          <Text style={styles.heroEmoji}>
-            {conditionScore >= 90 ? '🦸' : conditionScore >= 75 ? '⚔️' : conditionScore >= 55 ? '🧑‍🌾' : conditionScore >= 35 ? '😮‍💨' : '😵'}
+        {/* ── 전투 결과 헤더 ── */}
+        <Animated.View style={[r.resultBanner, { opacity: fadeIn, transform: [{ translateY: slideUp }] }, { borderColor: rank.color + '66' }]}>
+          <Text style={[r.resultLabel, { color: rank.color }]}>
+            {isVictory ? '⚔️  VICTORY' : '💀  DEFEAT'}
           </Text>
-          <Text style={styles.heroLabel}>오늘의 컨디션 점수</Text>
-          <Animated.Text style={[styles.heroScore, { color: rank.color }]}>
+          <Text style={r.avatarText}>{avatar}</Text>
+          <Animated.Text style={[r.scoreNum, { color: rank.color }]}>
             {animatedScore}
           </Animated.Text>
-          <View style={[styles.rankBadge, { borderColor: rank.color }]}>
-            <Text style={[styles.rankText, { color: rank.color }]}>
-              {rank.rank} 등급 — {rank.label}
-            </Text>
+          <Text style={r.scoreUnit}>/ 100</Text>
+          <View style={[r.rankPill, { backgroundColor: rank.glow, borderColor: rank.color + '66' }]}>
+            <Text style={[r.rankPillText, { color: rank.color }]}>{rank.rank}  {rank.label}</Text>
           </View>
-          <Text style={styles.feedbackText}>"{feedback}"</Text>
+          <Text style={r.feedbackText}>"{feedback}"</Text>
         </Animated.View>
 
-        {/* 점수 분석 */}
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>점수 분석</Text>
-          <View style={styles.baseRow}>
-            <Text style={styles.baseLabel}>기본 점수</Text>
-            <Text style={styles.baseValue}>+{scoreBreakdown.base}</Text>
+        {/* ── 전투 로그 (데미지/힐) ── */}
+        <View style={r.card}>
+          <Text style={r.sectionTitle}>⚔️ 전투 로그</Text>
+          <View style={r.baseRow}>
+            <Text style={r.baseLabel}>기본</Text>
+            <Text style={r.baseVal}>+{scoreBreakdown.base} pts</Text>
           </View>
 
           {gains.length > 0 && (
             <>
-              <Text style={styles.factorGroupLabel}>가점 요인</Text>
-              {gains.map((f, i) => (
-                <View key={i} style={styles.factorRow}>
-                  <Text style={styles.factorEmoji}>{f.emoji}</Text>
-                  <Text style={styles.factorLabel}>{f.label}</Text>
-                  <Text style={[styles.factorValue, { color: COLORS.teal }]}>+{f.value}</Text>
-                </View>
-              ))}
+              <Text style={[r.groupLabel, { color: COLORS.teal }]}>✨ BUFF  가점</Text>
+              {gains.map((f, i) => <DamageNum key={i} value={f.value} label={f.label} emoji={f.emoji} />)}
             </>
           )}
-
           {losses.length > 0 && (
             <>
-              <Text style={[styles.factorGroupLabel, { color: COLORS.red }]}>감점 요인</Text>
-              {losses.map((f, i) => (
-                <View key={i} style={styles.factorRow}>
-                  <Text style={styles.factorEmoji}>{f.emoji}</Text>
-                  <Text style={styles.factorLabel}>{f.label}</Text>
-                  <Text style={[styles.factorValue, { color: COLORS.red }]}>{f.value}</Text>
-                </View>
-              ))}
+              <Text style={[r.groupLabel, { color: COLORS.red }]}>💀 DEBUFF  감점</Text>
+              {losses.map((f, i) => <DamageNum key={i} value={f.value} label={f.label} emoji={f.emoji} />)}
             </>
           )}
+          {neutral.length > 0 && neutral.map((f, i) => (
+            <DamageNum key={i} value={f.value} label={f.label} emoji={f.emoji} />
+          ))}
 
-          <View style={styles.divider} />
-          <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>최종 점수</Text>
-            <Text style={[styles.totalValue, { color: rank.color }]}>{conditionScore}</Text>
+          <View style={r.divider} />
+          <View style={r.totalRow}>
+            <Text style={r.totalLabel}>TOTAL SCORE</Text>
+            <Text style={[r.totalVal, { color: rank.color }]}>{conditionScore} pts</Text>
           </View>
         </View>
 
-        {/* 캐릭터 스탯 */}
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>캐릭터 스탯 업데이트</Text>
-          <StatBar label="체력 (HP)" value={stats.hp} color={COLORS.teal} />
-          <StatBar label="컨디션" value={stats.condition} color={COLORS.purple} />
-          <StatBar label="지구력" value={stats.stamina} color={COLORS.gold} />
-          <StatBar label="회복력" value={stats.recovery} color={COLORS.blue} />
-          <StatBar label="혈당 조절력" value={stats.bloodSugarControl} color={COLORS.green} />
+        {/* ── 스탯 업데이트 ── */}
+        <View style={r.card}>
+          <Text style={r.sectionTitle}>📊 스탯 업데이트</Text>
+          <RPGStatBar abbr="HP" label="체력" value={stats.hp} color={COLORS.hp} />
+          <RPGStatBar abbr="MP" label="혈당 조절력" value={stats.bloodSugarControl} color={COLORS.mp} />
+          <RPGStatBar abbr="STR" label="지구력" value={stats.stamina} color={COLORS.str} />
+          <RPGStatBar abbr="VIT" label="회복력" value={stats.recovery} color={COLORS.vit} />
+          <RPGStatBar abbr="CON" label="종합 컨디션" value={stats.condition} color={COLORS.agi} />
         </View>
 
-        {/* 오늘의 운세 */}
-        <View style={[styles.card, { borderColor: COLORS.gold + '44' }]}>
-          <Text style={styles.sectionTitle}>오늘의 운세</Text>
-          <Text style={styles.fortuneText}>{fortune.text}</Text>
-          <Text style={[styles.fortuneLucky, { color: COLORS.gold }]}>행운의 아이템: {fortune.lucky}</Text>
+        {/* ── 내일 퀘스트 제안 ── */}
+        <View style={r.card}>
+          <Text style={r.sectionTitle}>📋 내일의 퀘스트</Text>
+          {conditionScore < 60 && <QuestTip icon="😴" tip="7-8시간 수면으로 VIT를 회복하세요" />}
+          {scoreBreakdown.alcoholPenalty < -10 && <QuestTip icon="🚫" tip="오늘 하루 금주로 디버프를 해제하세요" />}
+          {stats.stamina < 50 && <QuestTip icon="🚴" tip="자전거 30분으로 STR을 올려보세요" />}
+          {scoreBreakdown.calorieBonus < 0 && <QuestTip icon="🍱" tip="목표 칼로리 범위에 맞춰 포션을 조절하세요" />}
+          {stats.bloodSugarControl < 60 && <QuestTip icon="💧" tip="식후 10분 걷기로 MP를 높이세요" />}
+          {conditionScore >= 80 && <QuestTip icon="🌟" tip="완벽한 루틴! 이 상태를 유지하세요" />}
         </View>
 
-        {/* 내일 목표 제안 */}
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>내일 이것만 해봐요</Text>
-          {conditionScore < 60 && <TipRow emoji="😴" tip="오늘 일찍 자서 7-8시간 채워보세요." />}
-          {scoreBreakdown.alcoholPenalty < -10 && <TipRow emoji="🚫" tip="내일은 술을 쉬어가요. 혈당이 안정됩니다." />}
-          {stats.stamina < 50 && <TipRow emoji="🚲" tip="자전거 30분이 혈당 조절에 효과적이에요." />}
-          {scoreBreakdown.mealBonus < 0 && <TipRow emoji="🥗" tip="채소 반찬 한 가지 추가만으로도 달라져요." />}
-          {stats.bloodSugarControl < 60 && <TipRow emoji="📊" tip="식후 2시간 혈당을 꼭 측정해보세요." />}
-          {conditionScore >= 80 && <TipRow emoji="🌟" tip="완벽한 루틴! 내일도 오늘처럼만 해주세요." />}
-        </View>
-
-        {/* 버튼 */}
-        <TouchableOpacity style={styles.homeBtn} onPress={() => (navigation as any).navigate('MainTabs')}>
-          <Text style={styles.homeBtnText}>홈으로 돌아가기</Text>
+        {/* ── 홈 버튼 ── */}
+        <TouchableOpacity
+          style={[r.homeBtn, { borderColor: rank.color + '44' }]}
+          onPress={() => (navigation as any).navigate('MainTabs')}
+        >
+          <Text style={[r.homeBtnText, { color: rank.color }]}>← 베이스 캠프로 귀환</Text>
         </TouchableOpacity>
 
         <View style={{ height: SPACING.xl * 2 }} />
@@ -146,109 +155,61 @@ export default function ResultScreen() {
   );
 }
 
-function TipRow({ emoji, tip }: { emoji: string; tip: string }) {
+function QuestTip({ icon, tip }: { icon: string; tip: string }) {
   return (
-    <View style={styles.tipRow}>
-      <Text style={styles.tipEmoji}>{emoji}</Text>
-      <Text style={styles.tipText}>{tip}</Text>
+    <View style={r.questTip}>
+      <Text style={{ fontSize: 14 }}>{icon}</Text>
+      <Text style={r.questTipText}>{tip}</Text>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const r = StyleSheet.create({
   safe: { flex: 1, backgroundColor: COLORS.bg },
   scroll: { padding: SPACING.md },
-  heroCard: {
-    backgroundColor: COLORS.bgCard,
-    borderRadius: RADIUS.xl,
-    padding: SPACING.lg,
-    alignItems: 'center',
-    marginBottom: SPACING.md,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  heroEmoji: { fontSize: 72, marginBottom: 4 },
-  heroLabel: { color: COLORS.textMuted, fontSize: FONTS.sm },
-  heroScore: {
-    fontSize: 88,
-    fontWeight: '900',
-    lineHeight: 96,
-    marginVertical: 4,
-  },
-  rankBadge: {
-    borderWidth: 1.5,
-    borderRadius: RADIUS.full,
-    paddingHorizontal: 16,
-    paddingVertical: 5,
-    marginTop: 4,
-  },
-  rankText: { fontSize: FONTS.sm, fontWeight: '700' },
-  feedbackText: {
-    color: COLORS.textMuted,
-    fontSize: FONTS.md,
-    fontStyle: 'italic',
-    marginTop: SPACING.sm,
-    textAlign: 'center',
-  },
-  card: {
-    backgroundColor: COLORS.bgCard,
-    borderRadius: RADIUS.lg,
-    padding: SPACING.md,
-    marginBottom: SPACING.md,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  sectionTitle: {
-    fontSize: FONTS.md,
-    fontWeight: '700',
-    color: COLORS.text,
-    marginBottom: SPACING.sm,
-  },
-  baseRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 4,
-  },
-  baseLabel: { color: COLORS.textMuted, fontSize: FONTS.sm },
-  baseValue: { color: COLORS.textMuted, fontSize: FONTS.sm, fontWeight: '600' },
-  factorGroupLabel: {
-    color: COLORS.teal,
-    fontSize: FONTS.xs,
-    fontWeight: '700',
-    marginTop: 8,
-    marginBottom: 4,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
-  factorRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 4,
-    gap: 8,
-  },
-  factorEmoji: { fontSize: 18, width: 24, textAlign: 'center' },
-  factorLabel: { flex: 1, color: COLORS.text, fontSize: FONTS.sm },
-  factorValue: { fontSize: FONTS.sm, fontWeight: '700' },
+
+  // 결과 배너
+  resultBanner: { backgroundColor: COLORS.bgCard, borderRadius: RADIUS.xl, padding: SPACING.lg, alignItems: 'center', marginBottom: SPACING.sm, borderWidth: 1 },
+  resultLabel: { fontSize: FONTS.xs, fontWeight: '900', letterSpacing: 4, marginBottom: 8 },
+  avatarText: { fontSize: 60, marginBottom: 4 },
+  scoreNum: { fontSize: 80, fontWeight: '900', lineHeight: 86, fontFamily: 'monospace' },
+  scoreUnit: { color: COLORS.textMuted, fontSize: FONTS.sm, marginBottom: 10 },
+  rankPill: { borderRadius: RADIUS.full, borderWidth: 1, paddingHorizontal: 16, paddingVertical: 5, marginBottom: 12 },
+  rankPillText: { fontSize: FONTS.sm, fontWeight: '700', letterSpacing: 1 },
+  feedbackText: { color: COLORS.textMuted, fontSize: FONTS.sm, fontStyle: 'italic', textAlign: 'center', lineHeight: 20 },
+
+  // 카드
+  card: { backgroundColor: COLORS.bgCard, borderRadius: RADIUS.lg, padding: SPACING.md, marginBottom: SPACING.sm, borderWidth: 1, borderColor: COLORS.border },
+  sectionTitle: { color: COLORS.text, fontSize: FONTS.sm, fontWeight: '800', marginBottom: 10, letterSpacing: 0.5 },
+
+  // 전투로그
+  baseRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 5, borderBottomWidth: 1, borderBottomColor: COLORS.borderSub, marginBottom: 4 },
+  baseLabel: { color: COLORS.textMuted, fontSize: FONTS.xs },
+  baseVal: { color: COLORS.textMuted, fontSize: FONTS.xs, fontWeight: '700' },
+  groupLabel: { fontSize: FONTS.xxs, fontWeight: '900', letterSpacing: 2, marginTop: 10, marginBottom: 4 },
+  dmgRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 5, gap: 8, borderBottomWidth: 1, borderBottomColor: COLORS.borderSub },
+  dmgEmoji: { fontSize: 14, width: 20, textAlign: 'center' },
+  dmgLabel: { flex: 1, color: COLORS.text, fontSize: FONTS.xs },
+  dmgBadge: { borderRadius: RADIUS.xs, paddingHorizontal: 8, paddingVertical: 3 },
+  dmgVal: { fontSize: FONTS.xs, fontWeight: '900', fontFamily: 'monospace' },
   divider: { height: 1, backgroundColor: COLORS.border, marginVertical: 8 },
-  totalRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  totalLabel: { color: COLORS.text, fontWeight: '700', fontSize: FONTS.md },
-  totalValue: { fontSize: FONTS.xl, fontWeight: '900' },
-  fortuneText: { color: COLORS.text, fontSize: FONTS.md, lineHeight: 22 },
-  fortuneLucky: { fontSize: FONTS.sm, marginTop: 6, fontWeight: '600' },
-  tipRow: { flexDirection: 'row', gap: 10, paddingVertical: 5 },
-  tipEmoji: { fontSize: 18 },
-  tipText: { flex: 1, color: COLORS.textMuted, fontSize: FONTS.sm, lineHeight: 20 },
-  homeBtn: {
-    backgroundColor: COLORS.bgCard,
-    borderRadius: RADIUS.xl,
-    paddingVertical: 16,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  homeBtnText: { color: COLORS.textMuted, fontSize: FONTS.md, fontWeight: '600' },
+  totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  totalLabel: { color: COLORS.text, fontSize: FONTS.xs, fontWeight: '900', letterSpacing: 2 },
+  totalVal: { fontSize: FONTS.xl, fontWeight: '900', fontFamily: 'monospace' },
+
+  // 스탯 바
+  statRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
+  statAbbr: { color: COLORS.textMuted, fontSize: FONTS.xxs, fontWeight: '900', width: 28, fontFamily: 'monospace' },
+  statLabel: { color: COLORS.textSub, fontSize: FONTS.xxs, width: 60 },
+  statTrack: { flex: 1, height: 6, backgroundColor: COLORS.bgHighlight, borderRadius: 3, overflow: 'hidden' },
+  statFill: { height: '100%', borderRadius: 3 },
+  statVal: { fontSize: FONTS.xxs, fontWeight: '900', width: 26, textAlign: 'right', fontFamily: 'monospace' },
+
+  // 퀘스트 팁
+  questTip: { flexDirection: 'row', gap: 8, paddingVertical: 7, borderBottomWidth: 1, borderBottomColor: COLORS.borderSub, alignItems: 'flex-start' },
+  questTipText: { flex: 1, color: COLORS.textSub, fontSize: FONTS.xs, lineHeight: 18 },
+
+  // 귀환 버튼
+  homeBtn: { borderRadius: RADIUS.lg, paddingVertical: 14, alignItems: 'center', borderWidth: 1, backgroundColor: COLORS.bgCard },
+  homeBtnText: { fontSize: FONTS.sm, fontWeight: '700', letterSpacing: 1 },
 });
