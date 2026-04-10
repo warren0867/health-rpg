@@ -14,7 +14,8 @@ export interface UserProfile {
   weightKg: number;
   activityLevel: ActivityLevel;
   goal: Goal;
-  targetCalories: number; // TDEE 기반 자동 계산 or 수동 설정
+  targetCalories: number;
+  birthDate?: string;   // YYYY-MM-DD (운세용)
   createdAt: string;
 }
 
@@ -23,33 +24,33 @@ export interface UserProfile {
 // ─────────────────────────────────────────────
 
 export type FoodCategory =
-  | 'rice'        // 밥류
-  | 'soup'        // 국/찌개
-  | 'noodle'      // 면류
-  | 'meat'        // 육류
-  | 'seafood'     // 해산물
-  | 'protein'     // 단백질 (두부/계란)
-  | 'vegetable'   // 채소
-  | 'fruit'       // 과일
-  | 'snack'       // 간식/빵
-  | 'fastfood'    // 패스트푸드
-  | 'beverage'    // 음료
-  | 'korean';     // 기타 한식
+  | 'rice'
+  | 'soup'
+  | 'noodle'
+  | 'meat'
+  | 'seafood'
+  | 'protein'
+  | 'vegetable'
+  | 'fruit'
+  | 'snack'
+  | 'fastfood'
+  | 'beverage'
+  | 'korean';
 
 export type GlycemicIndex = 'low' | 'medium' | 'high';
 
 export interface FoodItem {
   id: string;
   name: string;
-  nameSearch: string;    // 검색용 (소문자 + 별칭)
-  cal: number;           // kcal per serving
-  serving: string;       // "1공기 (210g)"
-  carbs: number;         // g
-  protein: number;       // g
-  fat: number;           // g
+  nameSearch: string;
+  cal: number;
+  serving: string;
+  carbs: number;
+  protein: number;
+  fat: number;
   gi: GlycemicIndex;
   category: FoodCategory;
-  isCustom?: boolean;    // 사용자 직접 입력 여부
+  isCustom?: boolean;
 }
 
 // ─────────────────────────────────────────────
@@ -59,13 +60,13 @@ export interface FoodItem {
 export interface RecentFoodEntry {
   foodId: string;
   foodName: string;
-  lastUsed: string;      // ISO timestamp
+  lastUsed: string;
   useCount: number;
 }
 
 export interface MealTemplate {
   id: string;
-  name: string;          // "내 점심 세트"
+  name: string;
   entries: {
     foodId: string;
     foodName: string;
@@ -77,11 +78,11 @@ export interface MealTemplate {
 
 export interface FoodEntry {
   id: string;
-  date: string;          // YYYY-MM-DD
+  date: string;
   timestamp: string;
   foodId: string;
   foodName: string;
-  servings: number;      // 0.5, 1, 1.5, 2 ...
+  servings: number;
   calories: number;
   carbs: number;
   protein: number;
@@ -93,28 +94,27 @@ export interface FoodEntry {
 //  혈당 (공복 + 식후 멀티 타이밍)
 // ─────────────────────────────────────────────
 
-// 레거시: 홈화면 공복혈당 빠른 입력용
 export interface MorningBloodSugar {
   id: string;
   date: string;
-  value: number;         // mg/dL
+  value: number;
   timestamp: string;
   note?: string;
 }
 
 export type BloodSugarTiming =
-  | 'fasting'         // 공복
-  | 'before_meal'     // 식전
-  | 'after_meal_1h'   // 식후 1시간
-  | 'after_meal_2h'   // 식후 2시간
-  | 'bedtime'         // 취침 전
-  | 'random';         // 기타
+  | 'fasting'
+  | 'before_meal'
+  | 'after_meal_1h'
+  | 'after_meal_2h'
+  | 'bedtime'
+  | 'random';
 
 export interface BloodSugarEntry {
   id: string;
   date: string;
   timestamp: string;
-  value: number;          // mg/dL
+  value: number;
   timing: BloodSugarTiming;
   note?: string;
 }
@@ -122,19 +122,52 @@ export interface BloodSugarEntry {
 export type BloodSugarStatus = 'low' | 'normal' | 'warning' | 'danger';
 
 // ─────────────────────────────────────────────
-//  일일 건강 입력 (수면/운동/음주)
+//  운동 (다중 선택)
 // ─────────────────────────────────────────────
+
+export type ExerciseType =
+  | 'none'
+  | 'walk'      // 걷기/산책
+  | 'run'       // 달리기
+  | 'cycling'   // 자전거
+  | 'gym'       // 헬스/웨이트
+  | 'swim'      // 수영
+  | 'hiking'    // 등산
+  | 'yoga'      // 요가/스트레칭
+  | 'pilates'   // 필라테스
+  | 'tennis'    // 테니스/배드민턴
+  | 'soccer'    // 축구/농구
+  | 'both';     // (레거시 호환)
+
+export interface ExerciseInput {
+  types: ExerciseType[];   // 복수 선택
+  minutes: number;         // 총 운동 시간
+  type?: ExerciseType;     // @deprecated 구버전 호환
+}
+
+// ─────────────────────────────────────────────
+//  음주 (주종별 상세)
+// ─────────────────────────────────────────────
+
+export type AlcoholType =
+  | 'beer_can'    // 맥주 캔 (355ml)
+  | 'beer_bottle' // 맥주 병 (500ml)
+  | 'soju'        // 소주 (0.5병 단위)
+  | 'makgeolli'   // 막걸리 (1컵 300ml)
+  | 'whiskey'     // 위스키 (1잔 40ml)
+  | 'wine'        // 와인 (1잔 150ml)
+  | 'highball'    // 하이볼 (1잔 200ml)
+  | 'bomb';       // 폭탄주 (1잔)
+
+export interface AlcoholItem {
+  type: AlcoholType;
+  amount: number;  // 단위 수량
+}
 
 export interface AlcoholInput {
   consumed: boolean;
-  liters: number;
-}
-
-export type ExerciseType = 'none' | 'cycling' | 'gym' | 'walk' | 'both';
-
-export interface ExerciseInput {
-  type: ExerciseType;
-  minutes: number;
+  items: AlcoholItem[];
+  liters?: number;   // @deprecated 구버전 호환
 }
 
 export interface SleepInput {
@@ -151,7 +184,6 @@ export interface CharacterStats {
   stamina: number;
   recovery: number;
   bloodSugarControl: number;
-  // 확장: bodyFat, muscle, hydration 등 추가 가능
 }
 
 // ─────────────────────────────────────────────
@@ -188,6 +220,8 @@ export interface DailyLog {
   conditionScore: number;
   scoreBreakdown: ScoreBreakdown;
   stats: CharacterStats;
+  exerciseCalories?: number;   // 운동 소모 칼로리
+  alcoholCalories?: number;    // 음주 칼로리
   createdAt: string;
   updatedAt: string;
 }

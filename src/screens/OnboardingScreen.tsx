@@ -25,7 +25,7 @@ import { generateId, saveUserProfile } from '../utils/storage';
 
 type Nav = StackNavigationProp<RootStackParamList>;
 
-const STEPS = ['이름', '신체 정보', '활동량 & 목표', '칼로리 확인'];
+const STEPS = ['이름 & 생년월일', '신체 정보', '활동량 & 목표', '칼로리 확인'];
 
 function ChoiceBtn({ label, sub, selected, onPress, color = COLORS.purple }: {
   label: string; sub?: string; selected: boolean; onPress: () => void; color?: string;
@@ -47,6 +47,9 @@ export default function OnboardingScreen() {
 
   const [step, setStep] = useState(0);
   const [name, setName] = useState('');
+  const [birthYear, setBirthYear] = useState('');
+  const [birthMonth, setBirthMonth] = useState('');
+  const [birthDay, setBirthDay] = useState('');
   const [gender, setGender] = useState<Gender>('male');
   const [age, setAge] = useState('');
   const [height, setHeight] = useState('');
@@ -62,6 +65,10 @@ export default function OnboardingScreen() {
   const bmi = height && weight
     ? calcBMI(parseFloat(weight), parseInt(height))
     : null;
+
+  const birthDate = birthYear && birthMonth && birthDay
+    ? `${birthYear}-${birthMonth.padStart(2, '0')}-${birthDay.padStart(2, '0')}`
+    : undefined;
 
   const canNext = () => {
     if (step === 0) return name.trim().length >= 1;
@@ -89,6 +96,7 @@ export default function OnboardingScreen() {
       activityLevel: activity,
       goal,
       targetCalories,
+      birthDate,
       createdAt: new Date().toISOString(),
     };
     await saveUserProfile(profile);
@@ -108,11 +116,13 @@ export default function OnboardingScreen() {
           </View>
           <Text style={styles.stepLabel}>STEP {step + 1} / {STEPS.length} — {STEPS[step]}</Text>
 
-          {/* ─ Step 0: 이름 ─ */}
+          {/* ─ Step 0: 이름 & 생년월일 ─ */}
           {step === 0 && (
             <View style={styles.stepContainer}>
               <Text style={styles.stepTitle}>안녕하세요!</Text>
-              <Text style={styles.stepSubtitle}>당신의 이름을 알려주세요{'\n'}매일 아침 인사해드릴게요</Text>
+              <Text style={styles.stepSubtitle}>이름과 생년월일을 알려주세요{'\n'}매일 맞춤 운세를 알려드릴게요 ✨</Text>
+
+              <Text style={styles.fieldLabel}>이름</Text>
               <TextInput
                 style={styles.textInput}
                 value={name}
@@ -122,9 +132,41 @@ export default function OnboardingScreen() {
                 autoFocus
                 maxLength={10}
               />
-              <Text style={styles.diabetesNote}>
-                당뇨 전단계 관리 모드로 설정돼있어요{'\n'}혈당 + 칼로리를 함께 추적합니다
-              </Text>
+
+              <Text style={styles.fieldLabel}>생년월일 (운세용, 선택)</Text>
+              <View style={styles.birthRow}>
+                <TextInput
+                  style={[styles.textInput, styles.birthInput]}
+                  value={birthYear}
+                  onChangeText={setBirthYear}
+                  placeholder="1990"
+                  placeholderTextColor={COLORS.textDisabled}
+                  keyboardType="numeric"
+                  maxLength={4}
+                />
+                <Text style={styles.birthSep}>년</Text>
+                <TextInput
+                  style={[styles.textInput, styles.birthInputSm]}
+                  value={birthMonth}
+                  onChangeText={setBirthMonth}
+                  placeholder="01"
+                  placeholderTextColor={COLORS.textDisabled}
+                  keyboardType="numeric"
+                  maxLength={2}
+                />
+                <Text style={styles.birthSep}>월</Text>
+                <TextInput
+                  style={[styles.textInput, styles.birthInputSm]}
+                  value={birthDay}
+                  onChangeText={setBirthDay}
+                  placeholder="01"
+                  placeholderTextColor={COLORS.textDisabled}
+                  keyboardType="numeric"
+                  maxLength={2}
+                />
+                <Text style={styles.birthSep}>일</Text>
+              </View>
+              <Text style={styles.hint}>생년월일로 매일 달라지는 맞춤 운세를 제공합니다</Text>
             </View>
           )}
 
@@ -235,12 +277,12 @@ export default function OnboardingScreen() {
               </View>
 
               <View style={styles.diabetesInfoCard}>
-                <Text style={styles.diabetesInfoTitle}>혈당 관리 안내</Text>
+                <Text style={styles.diabetesInfoTitle}>건강 관리 시작 안내</Text>
                 <Text style={styles.diabetesInfoText}>
-                  • 매일 아침 공복혈당을 기록하세요{'\n'}
+                  • 매일 아침 공복혈당을 기록해보세요{'\n'}
                   • 목표: 공복혈당 100 mg/dL 미만{'\n'}
                   • 탄수화물 섭취는 하루 {Math.round((targetCalories * 0.4) / 4)}g 이하 권장{'\n'}
-                  • 식후 10분 산책이 혈당을 낮춰요
+                  • 식후 10분 산책이 혈당·컨디션에 도움돼요
                 </Text>
               </View>
             </View>
@@ -310,6 +352,10 @@ const styles = StyleSheet.create({
   },
   choiceBtnText: { color: COLORS.textMuted, fontSize: FONTS.sm, fontWeight: '600' },
   choiceBtnSub: { color: COLORS.textDisabled, fontSize: 10 },
+  birthRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  birthInput: { flex: 2, fontSize: FONTS.md },
+  birthInputSm: { flex: 1, fontSize: FONTS.md },
+  birthSep: { color: COLORS.textMuted, fontSize: FONTS.md, fontWeight: '600' },
   bmiCard: { backgroundColor: COLORS.bgInput, borderRadius: RADIUS.md, padding: SPACING.sm, alignItems: 'center' },
   bmiText: { color: COLORS.text, fontWeight: '700', fontSize: FONTS.md },
   hint: { color: COLORS.textMuted, fontSize: FONTS.xs, fontStyle: 'italic' },

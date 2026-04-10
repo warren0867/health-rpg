@@ -1,10 +1,9 @@
 import * as Haptics from 'expo-haptics';
 import { useFocusEffect } from '@react-navigation/native';
 import { useNavigation } from '@react-navigation/native';
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   Alert,
-  Animated,
   Modal,
   ScrollView,
   StyleSheet,
@@ -14,14 +13,13 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import CalorieGauge from '../components/CalorieGauge';
 import MiniGraph from '../components/MiniGraph';
 import StatBar from '../components/StatBar';
 import { COLORS, FONTS, getRank, RADIUS, SPACING } from '../constants/theme';
 import { UserProfile } from '../types';
 import { getTodayFortune } from '../utils/feedback';
 import { calcGaugeData, calcMacroGoal } from '../utils/calorieCalculator';
-import { BS_STATUS_COLOR, getBSStatus, getBSStatusLabel } from '../utils/scoreCalculator';
+import { BS_STATUS_COLOR, getBSStatus, getBSStatusLabel, calcExerciseCalories } from '../utils/scoreCalculator';
 import {
   calcAvgBS,
   generateId,
@@ -30,6 +28,7 @@ import {
   getMorningBS,
   getRecentDailyLogs,
   getRecentMorningBS,
+  getStreak,
   getTodayKey,
   getUserProfile,
   saveMorningBS,
@@ -39,7 +38,6 @@ import {
 
 export default function HomeScreen() {
   const today = getTodayKey();
-  const fortune = getTodayFortune(today);
   const navigation = useNavigation<any>();
 
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -52,15 +50,19 @@ export default function HomeScreen() {
   const [showBSModal, setShowBSModal] = useState(false);
   const [bsInput, setBsInput] = useState('');
   const [loading, setLoading] = useState(true);
+  const [streak, setStreak] = useState(0);
+  const [exerciseCalToday, setExerciseCalToday] = useState(0);
+  const [fortune, setFortune] = useState(getTodayFortune(today));
 
   const load = useCallback(async () => {
-    const [p, log, foods, mbs, recentMbs, recent] = await Promise.all([
+    const [p, log, foods, mbs, recentMbs, recent, str] = await Promise.all([
       getUserProfile(),
       getDailyLog(today),
       getFoodEntriesByDate(today),
       getMorningBS(today),
       getRecentMorningBS(7),
       getRecentDailyLogs(7),
+      getStreak(),
     ]);
     setProfile(p);
     setScore(log?.conditionScore ?? null);
@@ -69,6 +71,15 @@ export default function HomeScreen() {
     setMorningBS(mbs);
     setRecentBS(recentMbs);
     setRecentLogs([...recent].reverse());
+    setStreak(str);
+    setFortune(getTodayFortune(today, p?.birthDate));
+    if (log?.exercise) {
+      setExerciseCalToday(
+        log.exerciseCalories ?? calcExerciseCalories(log.exercise, p?.weightKg ?? 70)
+      );
+    } else {
+      setExerciseCalToday(0);
+    }
     setLoading(false);
   }, [today]);
 
@@ -93,6 +104,7 @@ export default function HomeScreen() {
   const gaugeData = calcGaugeData(foodSummary.calories, targetCal);
   const bsTrend = getBSTrend(recentBS);
   const avgBS = calcAvgBS(recentBS);
+  const netCalories = foodSummary.calories - exerciseCalToday;
 
   const trendIcon = bsTrend === 'up' ? '↑' : bsTrend === 'down' ? '↓' : '→';
   const trendColor = bsTrend === 'up' ? COLORS.red : bsTrend === 'down' ? COLORS.teal : COLORS.textMuted;
@@ -108,17 +120,24 @@ export default function HomeScreen() {
         {/* 헤더 */}
         <View style={styles.header}>
           <View>
-            <Text style={styles.greeting}>안녕하세요, {profile?.name ?? '용사'}님</Text>
+            <Text style={styles.greeting}>안녕하세요, {profile?.name ?? '용사'}님 👋</Text>
             <Text style={styles.dateText}>{today.replace(/-/g, '.')}</Text>
           </View>
-          <Text style={styles.appTitle}>HEALTH RPG</Text>
+          <View style={styles.headerRight}>
+            {streak > 0 && (
+              <View style={styles.streakBadge}>
+                <Text style={styles.streakEmoji}>🔥</Text>
+                <Text style={styles.streakNum}>{streak}</Text>
+              </View>
+            )}
+            <Text style={styles.appTitle}>HEALTH RPG</Text>
+          </View>
         </View>
 
-        {/* 컨디션 + 혈당 상단 요약 */}
+        {/* 컨디션 + 혈당 상단 */}
         <View style={styles.topRow}>
-          {/* 컨디션 점수 */}
           <View style={[styles.topCard, { flex: 1 }]}>
-            <Text style={styles.topCardLabel}>컨디션</Text>
+            <Text style={styles.topCardLabel}>오늘 컨디션</Text>
             {score !== null ? (
               <>
                 <Text style={[styles.topCardValue, { color: rank!.color }]}>{score}</Text>
@@ -131,7 +150,6 @@ export default function HomeScreen() {
             )}
           </View>
 
-          {/* 공복혈당 */}
           <TouchableOpacity
             style={[styles.topCard, { flex: 1 }]}
             onPress={() => setShowBSModal(true)}
@@ -156,7 +174,7 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* 칼로리 게이지 카드 */}
+        {/* 칼로리 인/아웃 */}
         <View style={styles.card}>
           <View style={styles.cardHeader}>
             <Text style={styles.sectionTitle}>오늘 칼로리</Text>
@@ -164,23 +182,61 @@ export default function HomeScreen() {
               <Text style={styles.seeMore}>음식 추가 →</Text>
             </TouchableOpacity>
           </View>
-          <CalorieGauge
-            data={gaugeData}
-            carbs={Math.round(foodSummary.carbs)}
-            protein={Math.round(foodSummary.protein)}
-            fat={Math.round(foodSummary.fat)}
-            carbsGoal={macroGoal.carbs}
-            proteinGoal={macroGoal.protein}
-            fatGoal={macroGoal.fat}
-            compact
-          />
+
+          {/* 인/아웃 3단 요약 */}
+          <View style={styles.calRow}>
+            <View style={styles.calItem}>
+              <Text style={styles.calLabel}>섭취</Text>
+              <Text style={[styles.calValue, { color: COLORS.teal }]}>{foodSummary.calories}</Text>
+              <Text style={styles.calUnit}>kcal</Text>
+            </View>
+            <View style={styles.calDivider} />
+            <View style={styles.calItem}>
+              <Text style={styles.calLabel}>소모</Text>
+              <Text style={[styles.calValue, { color: COLORS.gold }]}>{exerciseCalToday}</Text>
+              <Text style={styles.calUnit}>kcal</Text>
+            </View>
+            <View style={styles.calDivider} />
+            <View style={styles.calItem}>
+              <Text style={styles.calLabel}>순 칼로리</Text>
+              <Text style={[styles.calValue, { color: netCalories > targetCal * 1.1 ? COLORS.red : COLORS.blue }]}>
+                {netCalories}
+              </Text>
+              <Text style={styles.calUnit}>kcal</Text>
+            </View>
+          </View>
+
+          {/* 섭취 프로그레스 */}
+          <View style={styles.calProgressBg}>
+            <View style={[styles.calProgressBar, {
+              width: `${Math.min(100, (foodSummary.calories / targetCal) * 100)}%` as any,
+              backgroundColor: foodSummary.calories > targetCal * 1.1 ? COLORS.red : COLORS.teal,
+            }]} />
+          </View>
+          <View style={styles.calProgressLabel}>
+            <Text style={styles.calProgressText}>목표 {targetCal} kcal</Text>
+            <Text style={styles.calProgressText}>
+              {Math.round((foodSummary.calories / targetCal) * 100)}%
+            </Text>
+          </View>
+
+          {/* 매크로 */}
+          <View style={styles.macroRow}>
+            <MacroChip label="탄수화물" value={Math.round(foodSummary.carbs)} goal={macroGoal.carbs} color={COLORS.teal} />
+            <MacroChip label="단백질" value={Math.round(foodSummary.protein)} goal={macroGoal.protein} color={COLORS.gold} />
+            <MacroChip label="지방" value={Math.round(foodSummary.fat)} goal={macroGoal.fat} color={COLORS.red} />
+          </View>
         </View>
 
         {/* 오늘의 운세 */}
         <View style={[styles.card, styles.fortuneCard]}>
-          <Text style={[styles.sectionTitle, { color: COLORS.gold }]}>오늘의 운세</Text>
+          <View style={styles.fortuneHeader}>
+            <Text style={[styles.sectionTitle, { color: COLORS.gold }]}>✨ 오늘의 운세</Text>
+            <View style={[styles.luckyBadge, { backgroundColor: fortune.color + '22' }]}>
+              <Text style={[styles.luckyText, { color: fortune.color }]}>🍀 {fortune.lucky}</Text>
+            </View>
+          </View>
           <Text style={styles.fortuneText}>{fortune.text}</Text>
-          <Text style={styles.fortuneLucky}>행운의 아이템: {fortune.lucky}</Text>
         </View>
 
         {/* 캐릭터 스탯 */}
@@ -197,7 +253,7 @@ export default function HomeScreen() {
           </View>
         )}
 
-        {/* 혈당 7일 추이 */}
+        {/* 공복혈당 추이 */}
         {recentBS.length > 0 && (
           <View style={styles.card}>
             <View style={styles.cardHeader}>
@@ -210,27 +266,26 @@ export default function HomeScreen() {
             </View>
             <BSMiniGraph entries={recentBS} />
             <View style={styles.bsGuide}>
-              <View style={styles.bsGuideItem}>
-                <View style={[styles.bsDot, { backgroundColor: COLORS.green }]} />
-                <Text style={styles.bsGuideText}>정상 &lt;100</Text>
-              </View>
-              <View style={styles.bsGuideItem}>
-                <View style={[styles.bsDot, { backgroundColor: COLORS.gold }]} />
-                <Text style={styles.bsGuideText}>주의 100-125</Text>
-              </View>
-              <View style={styles.bsGuideItem}>
-                <View style={[styles.bsDot, { backgroundColor: COLORS.red }]} />
-                <Text style={styles.bsGuideText}>위험 ≥126</Text>
-              </View>
+              <View style={styles.bsGuideItem}><View style={[styles.bsDot, { backgroundColor: COLORS.green }]} /><Text style={styles.bsGuideText}>정상 &lt;100</Text></View>
+              <View style={styles.bsGuideItem}><View style={[styles.bsDot, { backgroundColor: COLORS.gold }]} /><Text style={styles.bsGuideText}>주의 100-125</Text></View>
+              <View style={styles.bsGuideItem}><View style={[styles.bsDot, { backgroundColor: COLORS.red }]} /><Text style={styles.bsGuideText}>위험 ≥126</Text></View>
             </View>
           </View>
         )}
 
-        {/* 최근 기록 그래프 */}
+        {/* 최근 컨디션 그래프 */}
         {recentLogs.length > 0 && (
           <View style={styles.card}>
             <Text style={styles.sectionTitle}>최근 컨디션 기록</Text>
             <MiniGraph logs={recentLogs.slice(-7)} />
+          </View>
+        )}
+
+        {/* 스트릭 */}
+        {streak > 1 && (
+          <View style={[styles.card, styles.streakCard]}>
+            <Text style={styles.streakTitle}>🔥 {streak}일 연속 기록 중!</Text>
+            <Text style={styles.streakSub}>꾸준함이 가장 강력한 무기입니다</Text>
           </View>
         )}
 
@@ -241,7 +296,7 @@ export default function HomeScreen() {
       <Modal visible={showBSModal} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
-            <Text style={styles.modalTitle}>오늘 아침 공복혈당</Text>
+            <Text style={styles.modalTitle}>공복혈당 입력</Text>
             <Text style={styles.modalSub}>기상 직후, 식사 전 측정값</Text>
 
             <TextInput
@@ -263,9 +318,7 @@ export default function HomeScreen() {
                 <View style={[styles.liveStatus, { backgroundColor: color + '22' }]}>
                   <Text style={{ color, fontWeight: '700' }}>{getBSStatusLabel(status)}</Text>
                   <Text style={{ color: COLORS.textMuted, fontSize: FONTS.xs }}>
-                    {parseInt(bsInput) < 100 ? '좋아요!' :
-                      parseInt(bsInput) < 126 ? '전당뇨 범위 — 식단을 조심하세요' :
-                        '위험 — 의사 상담이 필요해요'}
+                    {parseInt(bsInput) < 100 ? '좋아요!' : parseInt(bsInput) < 126 ? '식단을 조심하세요' : '의사 상담을 권장해요'}
                   </Text>
                 </View>
               );
@@ -283,6 +336,20 @@ export default function HomeScreen() {
         </View>
       </Modal>
     </SafeAreaView>
+  );
+}
+
+function MacroChip({ label, value, goal, color }: { label: string; value: number; goal: number; color: string }) {
+  const pct = Math.min(100, Math.round((value / goal) * 100));
+  return (
+    <View style={macroStyles.item}>
+      <Text style={macroStyles.label}>{label}</Text>
+      <Text style={[macroStyles.value, { color }]}>{value}g</Text>
+      <View style={macroStyles.bar}>
+        <View style={[macroStyles.barFill, { width: `${pct}%` as any, backgroundColor: color }]} />
+      </View>
+      <Text style={macroStyles.goal}>/{goal}g</Text>
+    </View>
   );
 }
 
@@ -310,7 +377,6 @@ function BSMiniGraph({ entries }: { entries: any[] }) {
             <Text style={{ color, fontSize: 10, fontWeight: '700' }}>{e.value}</Text>
             <View style={{ width: '100%', height: BAR_H, justifyContent: 'flex-end', backgroundColor: COLORS.bgHighlight, borderRadius: 6 }}>
               <View style={{ width: '100%', height: h, backgroundColor: color, borderRadius: 6 }} />
-              {/* 100 기준선 */}
               <View style={{ position: 'absolute', left: 0, right: 0, bottom: (100 / maxVal) * BAR_H, height: 1, backgroundColor: COLORS.gold + '66' }} />
             </View>
             <Text style={{ color: COLORS.textMuted, fontSize: 10 }}>{e.date.slice(5)}</Text>
@@ -321,14 +387,17 @@ function BSMiniGraph({ entries }: { entries: any[] }) {
   );
 }
 
+const macroStyles = StyleSheet.create({
+  item: { flex: 1, alignItems: 'center', gap: 2 },
+  label: { color: COLORS.textMuted, fontSize: 10 },
+  value: { fontSize: FONTS.sm, fontWeight: '900' },
+  bar: { width: '100%', height: 4, backgroundColor: COLORS.bgHighlight, borderRadius: 2, overflow: 'hidden' },
+  barFill: { height: '100%', borderRadius: 2 },
+  goal: { color: COLORS.textDisabled, fontSize: 9 },
+});
+
 const statStyles = StyleSheet.create({
-  card: {
-    flex: 1,
-    backgroundColor: COLORS.bgHighlight,
-    borderRadius: RADIUS.md,
-    padding: SPACING.sm,
-    alignItems: 'center',
-  },
+  card: { flex: 1, backgroundColor: COLORS.bgHighlight, borderRadius: RADIUS.md, padding: SPACING.sm, alignItems: 'center' },
   value: { fontSize: FONTS.xl, fontWeight: '900' },
   label: { color: COLORS.textMuted, fontSize: FONTS.xs, marginTop: 2 },
 });
@@ -339,75 +408,68 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: SPACING.md },
   greeting: { color: COLORS.text, fontSize: FONTS.lg, fontWeight: '700' },
   dateText: { color: COLORS.textMuted, fontSize: FONTS.xs, marginTop: 2 },
-  appTitle: { color: COLORS.purple, fontSize: FONTS.md, fontWeight: '900', letterSpacing: 1.5 },
-  topRow: { flexDirection: 'row', gap: SPACING.sm, marginBottom: SPACING.md },
-  topCard: {
-    backgroundColor: COLORS.bgCard,
-    borderRadius: RADIUS.lg,
-    padding: SPACING.md,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+  headerRight: { alignItems: 'flex-end', gap: 4 },
+  streakBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 3,
+    backgroundColor: COLORS.gold + '22', borderRadius: RADIUS.full,
+    paddingHorizontal: 10, paddingVertical: 4,
+    borderWidth: 1, borderColor: COLORS.gold + '44',
   },
+  streakEmoji: { fontSize: 14 },
+  streakNum: { color: COLORS.gold, fontWeight: '900', fontSize: FONTS.sm },
+  appTitle: { color: COLORS.purple, fontSize: FONTS.sm, fontWeight: '900', letterSpacing: 1.5 },
+  topRow: { flexDirection: 'row', gap: SPACING.sm, marginBottom: SPACING.md },
+  topCard: { backgroundColor: COLORS.bgCard, borderRadius: RADIUS.lg, padding: SPACING.md, borderWidth: 1, borderColor: COLORS.border },
   topCardLabel: { color: COLORS.textMuted, fontSize: FONTS.xs, marginBottom: 4 },
   topCardValue: { fontSize: 36, fontWeight: '900', lineHeight: 40 },
   topCardSub: { fontSize: FONTS.xs, fontWeight: '600', marginTop: 2 },
   topCardEmpty: { color: COLORS.purple, fontSize: FONTS.md, fontWeight: '700', marginTop: 8 },
   bsRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   trendIcon: { fontSize: FONTS.xl, fontWeight: '900' },
-  card: {
-    backgroundColor: COLORS.bgCard,
-    borderRadius: RADIUS.lg,
-    padding: SPACING.md,
-    marginBottom: SPACING.md,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
+  card: { backgroundColor: COLORS.bgCard, borderRadius: RADIUS.lg, padding: SPACING.md, marginBottom: SPACING.md, borderWidth: 1, borderColor: COLORS.border },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.sm },
   sectionTitle: { color: COLORS.text, fontSize: FONTS.md, fontWeight: '700' },
   seeMore: { color: COLORS.purple, fontSize: FONTS.sm, fontWeight: '600' },
-  fortuneCard: { borderColor: COLORS.gold + '44' },
-  fortuneText: { color: COLORS.text, fontSize: FONTS.md, lineHeight: 22 },
-  fortuneLucky: { color: COLORS.gold, fontSize: FONTS.sm, marginTop: 6, fontWeight: '600' },
+  // 칼로리 인/아웃
+  calRow: { flexDirection: 'row', alignItems: 'center', marginBottom: SPACING.sm },
+  calItem: { flex: 1, alignItems: 'center' },
+  calLabel: { color: COLORS.textMuted, fontSize: FONTS.xs, marginBottom: 2 },
+  calValue: { fontSize: FONTS.xl, fontWeight: '900' },
+  calUnit: { color: COLORS.textMuted, fontSize: 9, marginTop: 1 },
+  calDivider: { width: 1, height: 40, backgroundColor: COLORS.border },
+  calProgressBg: { height: 6, backgroundColor: COLORS.bgHighlight, borderRadius: 3, marginBottom: 4, overflow: 'hidden' },
+  calProgressBar: { height: '100%', borderRadius: 3 },
+  calProgressLabel: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: SPACING.sm },
+  calProgressText: { color: COLORS.textMuted, fontSize: FONTS.xs },
+  macroRow: { flexDirection: 'row', gap: 8 },
+  // 운세
+  fortuneCard: { borderColor: COLORS.gold + '33' },
+  fortuneHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.sm },
+  luckyBadge: { borderRadius: RADIUS.full, paddingHorizontal: 10, paddingVertical: 4 },
+  luckyText: { fontSize: FONTS.xs, fontWeight: '700' },
+  fortuneText: { color: COLORS.text, fontSize: FONTS.md, lineHeight: 24 },
+  // 스탯
   statsGrid: { flexDirection: 'row', gap: SPACING.sm, marginBottom: SPACING.sm },
   avgBsText: { fontSize: FONTS.sm, fontWeight: '700' },
   bsGuide: { flexDirection: 'row', gap: 12, marginTop: 8 },
   bsGuideItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   bsDot: { width: 8, height: 8, borderRadius: 4 },
   bsGuideText: { color: COLORS.textMuted, fontSize: FONTS.xs },
+  // 스트릭 카드
+  streakCard: { borderColor: COLORS.gold + '44', backgroundColor: COLORS.gold + '0A' },
+  streakTitle: { color: COLORS.gold, fontSize: FONTS.lg, fontWeight: '900', textAlign: 'center' },
+  streakSub: { color: COLORS.textMuted, fontSize: FONTS.sm, textAlign: 'center', marginTop: 4 },
   // 모달
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
-  modalContainer: {
-    backgroundColor: COLORS.bgCard,
-    borderTopLeftRadius: RADIUS.xl,
-    borderTopRightRadius: RADIUS.xl,
-    padding: SPACING.lg,
-    borderTopWidth: 1,
-    borderColor: COLORS.border,
-  },
+  modalContainer: { backgroundColor: COLORS.bgCard, borderTopLeftRadius: RADIUS.xl, borderTopRightRadius: RADIUS.xl, padding: SPACING.lg, borderTopWidth: 1, borderColor: COLORS.border },
   modalTitle: { fontSize: FONTS.xl, fontWeight: '900', color: COLORS.text },
   modalSub: { color: COLORS.textMuted, fontSize: FONTS.sm, marginBottom: SPACING.md },
-  bsInput: {
-    backgroundColor: COLORS.bgInput,
-    borderRadius: RADIUS.md,
-    borderWidth: 1.5,
-    borderColor: COLORS.border,
-    color: COLORS.text,
-    fontSize: 56,
-    fontWeight: '900',
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-    textAlign: 'center',
-  },
+  bsInput: { backgroundColor: COLORS.bgInput, borderRadius: RADIUS.md, borderWidth: 1.5, borderColor: COLORS.border, color: COLORS.text, fontSize: 56, fontWeight: '900', paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm, textAlign: 'center' },
   unit: { color: COLORS.textMuted, fontSize: FONTS.sm, textAlign: 'center', marginTop: 4 },
   liveStatus: { borderRadius: RADIUS.md, padding: SPACING.sm, alignItems: 'center', marginTop: 8, gap: 2 },
   modalBtns: { flexDirection: 'row', gap: SPACING.sm, marginTop: SPACING.lg },
-  cancelBtn: {
-    flex: 1, backgroundColor: COLORS.bgHighlight, borderRadius: RADIUS.xl, paddingVertical: 14, alignItems: 'center'
-  },
+  cancelBtn: { flex: 1, backgroundColor: COLORS.bgHighlight, borderRadius: RADIUS.xl, paddingVertical: 14, alignItems: 'center' },
   cancelText: { color: COLORS.textMuted, fontWeight: '600', fontSize: FONTS.md },
-  confirmBtn: {
-    flex: 2, backgroundColor: COLORS.purple, borderRadius: RADIUS.xl, paddingVertical: 14, alignItems: 'center',
-    shadowColor: COLORS.purple, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.4, shadowRadius: 8, elevation: 4,
-  },
+  confirmBtn: { flex: 2, backgroundColor: COLORS.purple, borderRadius: RADIUS.xl, paddingVertical: 14, alignItems: 'center', shadowColor: COLORS.purple, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.4, shadowRadius: 8, elevation: 4 },
   confirmText: { color: '#fff', fontWeight: '900', fontSize: FONTS.md },
 });

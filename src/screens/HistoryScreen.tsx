@@ -6,6 +6,7 @@ import MiniGraph from '../components/MiniGraph';
 import { COLORS, FONTS, getRank, RADIUS, SPACING } from '../constants/theme';
 import { DailyLog, MorningBloodSugar } from '../types';
 import { calcAvgBS, formatDate, getAllDailyLogs, getRecentMorningBS } from '../utils/storage';
+import { EXERCISE_LABELS, calcAlcoholCalories } from '../utils/scoreCalculator';
 
 export default function HistoryScreen() {
   const [logs, setLogs] = useState<DailyLog[]>([]);
@@ -113,8 +114,13 @@ export default function HistoryScreen() {
                 </View>
                 <View style={styles.logStats}>
                   <LogStat label="수면" value={`${log.sleep.hours}h`} />
-                  <LogStat label="운동" value={log.exercise.type === 'none' ? '없음' : `${log.exercise.minutes}분`} />
-                  <LogStat label="음주" value={log.alcohol.consumed ? `${log.alcohol.liters}L` : '없음'} danger={log.alcohol.consumed} />
+                  <LogStat label="운동" value={(() => {
+                    const types = log.exercise.types?.filter(t => t !== 'none') ?? [];
+                    const legacyType = log.exercise.type;
+                    const active = types.length > 0 ? types : (legacyType && legacyType !== 'none' ? [legacyType] : []);
+                    return active.length > 0 ? `${log.exercise.minutes}분` : '없음';
+                  })()} />
+                  <LogStat label="음주" value={log.alcohol.consumed ? `${calcAlcoholCalories(log.alcohol)}kcal` : '없음'} danger={log.alcohol.consumed} />
                 </View>
                 <View style={styles.miniStatRow}>
                   {[
@@ -147,7 +153,10 @@ function calcWeekReport(logs: DailyLog[]) {
   const best = Math.max(...scores);
   const worst = Math.min(...scores);
   const avgSleep = Math.round(logs.reduce((s, l) => s + l.sleep.hours, 0) / logs.length * 10) / 10;
-  const exerciseDays = logs.filter(l => l.exercise.type !== 'none').length;
+  const exerciseDays = logs.filter(l => {
+    const types = l.exercise.types?.filter(t => t !== 'none') ?? [];
+    return types.length > 0 || (l.exercise.type && l.exercise.type !== 'none');
+  }).length;
   const alcoholDays = logs.filter(l => l.alcohol.consumed).length;
 
   let trend = '유지→';

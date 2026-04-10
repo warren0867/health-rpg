@@ -74,6 +74,25 @@ export async function getAllDailyLogs(): Promise<DailyLog[]> {
   return Object.values(JSON.parse(raw)).sort((a: any, b: any) => b.date.localeCompare(a.date)) as DailyLog[];
 }
 
+export async function getStreak(): Promise<number> {
+  const logs = await getAllDailyLogs();
+  if (logs.length === 0) return 0;
+  const today = getTodayKey();
+  let streak = 0;
+  let current = today;
+  for (const log of logs) {
+    if (log.date === current) {
+      streak++;
+      const d = new Date(current);
+      d.setDate(d.getDate() - 1);
+      current = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    } else {
+      break;
+    }
+  }
+  return streak;
+}
+
 export async function getRecentDailyLogs(days: number): Promise<DailyLog[]> {
   const all = await getAllDailyLogs();
   return all.slice(0, days);
