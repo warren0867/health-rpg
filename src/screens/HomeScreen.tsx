@@ -56,9 +56,9 @@ function HeroBar({ label, value, color, icon }: { label: string; value: number; 
         <Text style={{ color: COLORS.textMuted, fontSize: FONTS.xxs, fontWeight: '600' }}>{icon} {label}</Text>
         <Text style={{ color, fontSize: FONTS.xxs, fontWeight: '900', fontFamily: 'monospace' }}>{value} / 100</Text>
       </View>
-      <View style={{ height: 8, backgroundColor: COLORS.bgHighlight, borderRadius: 4, overflow: 'hidden' }}>
-        <View style={{ width: `${pct}%` as any, height: '100%', backgroundColor: color, borderRadius: 4 }} />
-        <View style={{ position: 'absolute', width: `${pct}%` as any, height: '100%', backgroundColor: color, borderRadius: 4, opacity: 0.25 }} />
+      <View style={{ height: 10, backgroundColor: COLORS.bgHighlight, borderRadius: 5, overflow: 'hidden' }}>
+        <View style={{ width: `${pct}%` as any, height: '100%', backgroundColor: color, borderRadius: 5 }} />
+        <View style={{ position: 'absolute', width: `${pct}%` as any, height: '100%', backgroundColor: color, borderRadius: 5, opacity: 0.3 }} />
       </View>
     </View>
   );
@@ -475,7 +475,7 @@ function Macro({ label, value, goal, color }: { label: string; value: number; go
     <View style={{ flex: 1, alignItems: 'center' }}>
       <Text style={{ color: COLORS.textMuted, fontSize: FONTS.xxs }}>{label}</Text>
       <Text style={{ color, fontSize: FONTS.sm, fontWeight: '900' }}>{value}g</Text>
-      <View style={{ width: '80%', height: 3, backgroundColor: COLORS.bgHighlight, borderRadius: 2, marginTop: 2 }}>
+      <View style={{ width: '80%', height: 4, backgroundColor: COLORS.bgHighlight, borderRadius: 2, marginTop: 3 }}>
         <View style={{ width: `${pct}%` as any, height: '100%', backgroundColor: color, borderRadius: 2 }} />
       </View>
     </View>
@@ -496,7 +496,7 @@ function BSSparkline({ entries }: { entries: any[] }) {
             <View style={{ width: '100%', height: BAR_H, justifyContent: 'flex-end', backgroundColor: COLORS.bgHighlight, borderRadius: 3 }}>
               <View style={{ width: '100%', height: h, backgroundColor: col, borderRadius: 3, opacity: 0.9 }} />
             </View>
-            <Text style={{ color: COLORS.textDisabled, fontSize: 8, marginTop: 2 }}>{e.date.slice(5)}</Text>
+            <Text style={{ color: COLORS.textMuted, fontSize: 10, marginTop: 2 }}>{e.date.slice(5)}</Text>
           </View>
         );
       })}
@@ -505,19 +505,19 @@ function BSSparkline({ entries }: { entries: any[] }) {
 }
 
 function ScoreSparkline({ logs }: { logs: any[] }) {
-  const BAR_H = 36;
+  const BAR_H = 40;
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 4, height: BAR_H + 20, marginTop: 6 }}>
+    <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 4, height: BAR_H + 22, marginTop: 6 }}>
       {logs.map((log, i) => {
         const rank = getRank(log.conditionScore);
         const h = Math.max(4, (log.conditionScore / 100) * BAR_H);
         return (
           <View key={log.date ?? i} style={{ flex: 1, alignItems: 'center' }}>
-            <Text style={{ color: rank.color, fontSize: 8, fontWeight: '900', marginBottom: 2 }}>{log.conditionScore}</Text>
-            <View style={{ width: '100%', height: BAR_H, justifyContent: 'flex-end', backgroundColor: COLORS.bgHighlight, borderRadius: 3 }}>
-              <View style={{ width: '100%', height: h, backgroundColor: rank.color, borderRadius: 3, opacity: 0.85 }} />
+            <Text style={{ color: rank.color, fontSize: 10, fontWeight: '900', marginBottom: 2 }}>{log.conditionScore}</Text>
+            <View style={{ width: '100%', height: BAR_H, justifyContent: 'flex-end', backgroundColor: COLORS.bgHighlight, borderRadius: 4 }}>
+              <View style={{ width: '100%', height: h, backgroundColor: rank.color, borderRadius: 4, opacity: 0.9 }} />
             </View>
-            <Text style={{ color: COLORS.textDisabled, fontSize: 8, marginTop: 2 }}>{(log.date ?? '').slice(5)}</Text>
+            <Text style={{ color: COLORS.textMuted, fontSize: 10, marginTop: 2 }}>{(log.date ?? '').slice(5)}</Text>
           </View>
         );
       })}
@@ -610,7 +610,7 @@ const s = StyleSheet.create({
   startBtnText: { color: '#fff', fontWeight: '900', fontSize: FONTS.sm },
 
   // 퀘스트
-  questBar: { height: 4, backgroundColor: COLORS.bgHighlight, borderRadius: 2, marginBottom: 4, overflow: 'hidden' },
+  questBar: { height: 5, backgroundColor: COLORS.bgHighlight, borderRadius: 3, marginBottom: 6, overflow: 'hidden' },
   questBarFill: { height: '100%', borderRadius: 2 },
   questProgressPill: { backgroundColor: COLORS.bgHighlight, borderRadius: RADIUS.full, paddingHorizontal: 8, paddingVertical: 2 },
   questRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 7, borderBottomWidth: 1, borderBottomColor: COLORS.borderSub, gap: 10 },
@@ -623,7 +623,7 @@ const s = StyleSheet.create({
   // 칼로리
   calTriple: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
   calSep: { width: 1, height: 36, backgroundColor: COLORS.border },
-  calBar: { height: 5, backgroundColor: COLORS.bgHighlight, borderRadius: 3, marginBottom: 4, overflow: 'hidden' },
+  calBar: { height: 7, backgroundColor: COLORS.bgHighlight, borderRadius: 4, marginBottom: 5, overflow: 'hidden' },
   calBarFill: { height: '100%', borderRadius: 3 },
   calBarLabel: { color: COLORS.textMuted, fontSize: FONTS.xxs },
   macroRow: { flexDirection: 'row', gap: 4, marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: COLORS.borderSub },

@@ -317,16 +317,16 @@ const c = StyleSheet.create({
 
   // 칩 버튼 (컴팩트)
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 },
-  chip: { borderWidth: 1, borderColor: COLORS.border, borderRadius: RADIUS.sm, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: COLORS.bgInput, alignItems: 'center' },
-  chipText: { color: COLORS.textMuted, fontSize: FONTS.xs, fontWeight: '600' },
-  chipSub: { color: COLORS.textDisabled, fontSize: 9, marginTop: 1 },
+  chip: { borderWidth: 1, borderColor: COLORS.border, borderRadius: RADIUS.md, paddingHorizontal: 12, paddingVertical: 7, backgroundColor: COLORS.bgInput, alignItems: 'center' },
+  chipText: { color: COLORS.textSub, fontSize: FONTS.xs, fontWeight: '600' },
+  chipSub: { color: COLORS.textMuted, fontSize: 10, marginTop: 1 },
 
   subLabel: { color: COLORS.textMuted, fontSize: FONTS.xxs, marginTop: 8, marginBottom: 6, fontWeight: '600', letterSpacing: 0.5 },
 
   // 효과 태그
   effectRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 5, marginTop: 6 },
-  effectTag: { borderWidth: 1, borderRadius: RADIUS.xs, paddingHorizontal: 7, paddingVertical: 3 },
-  effectTagText: { fontSize: FONTS.xxs, fontWeight: '700' },
+  effectTag: { borderWidth: 1, borderRadius: RADIUS.full, paddingHorizontal: 9, paddingVertical: 3 },
+  effectTagText: { fontSize: FONTS.xs, fontWeight: '700' },
 
   // 칼로리 미리보기
   calPreview: { flexDirection: 'row', alignItems: 'baseline', gap: 6, backgroundColor: COLORS.gold + '10', borderRadius: RADIUS.sm, padding: 8, marginBottom: 6 },
@@ -339,11 +339,11 @@ const c = StyleSheet.create({
   alcoholTableRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 4 },
   alcoholTableLabel: { flex: 1, color: COLORS.text, fontSize: FONTS.xs, fontWeight: '600' },
   amountCtrl: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  amountMinus: { width: 24, height: 24, borderRadius: RADIUS.full, backgroundColor: COLORS.bgCard, borderWidth: 1, borderColor: COLORS.border, alignItems: 'center', justifyContent: 'center' },
-  amountPlus: { width: 24, height: 24, borderRadius: RADIUS.full, backgroundColor: COLORS.purple + '33', borderWidth: 1, borderColor: COLORS.purple + '66', alignItems: 'center', justifyContent: 'center' },
-  amountBtnText: { color: COLORS.text, fontSize: FONTS.sm, fontWeight: '900', lineHeight: 18 },
-  amountVal: { color: COLORS.text, fontSize: FONTS.xs, fontWeight: '700', minWidth: 38, textAlign: 'center' },
-  alcoholCal: { color: COLORS.red, fontSize: FONTS.xxs, fontWeight: '700', minWidth: 52, textAlign: 'right' },
+  amountMinus: { width: 28, height: 28, borderRadius: RADIUS.full, backgroundColor: COLORS.bgCard, borderWidth: 1, borderColor: COLORS.border, alignItems: 'center', justifyContent: 'center' },
+  amountPlus: { width: 28, height: 28, borderRadius: RADIUS.full, backgroundColor: COLORS.purple + '33', borderWidth: 1, borderColor: COLORS.purple + '66', alignItems: 'center', justifyContent: 'center' },
+  amountBtnText: { color: COLORS.text, fontSize: FONTS.md, fontWeight: '900', lineHeight: 20 },
+  amountVal: { color: COLORS.text, fontSize: FONTS.sm, fontWeight: '700', minWidth: 40, textAlign: 'center' },
+  alcoholCal: { color: COLORS.red, fontSize: FONTS.xs, fontWeight: '700', minWidth: 54, textAlign: 'right' },
   alcoholSummary: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 6, borderTopWidth: 1, borderTopColor: COLORS.border },
   alcoholTotal: { color: COLORS.red, fontSize: FONTS.xs, fontWeight: '900' },
 
