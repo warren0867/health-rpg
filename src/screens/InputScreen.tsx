@@ -1,7 +1,7 @@
 import * as Haptics from 'expo-haptics';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS, FONTS, RADIUS, SPACING } from '../constants/theme';
@@ -22,6 +22,24 @@ type Nav = StackNavigationProp<RootStackParamList>;
 const EXERCISE_OPTIONS: ExerciseType[] = ['walk', 'run', 'cycling', 'gym', 'swim', 'hiking', 'yoga', 'pilates', 'tennis', 'soccer'];
 const ALCOHOL_TYPES: AlcoholType[] = ['beer_can', 'beer_bottle', 'soju', 'makgeolli', 'whiskey', 'wine', 'highball', 'bomb'];
 const DURATION_OPTIONS = [30, 40, 50, 60, 70, 80, 90];
+
+// 최근 N일 날짜 배열 (오늘 포함, 최신 순)
+function getDateOptions(n = 7): string[] {
+  const opts: string[] = [];
+  for (let i = 0; i < n; i++) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    opts.push(d.toISOString().split('T')[0]);
+  }
+  return opts;
+}
+
+function dateLabel(dateStr: string, todayStr: string): string {
+  const diff = Math.round((new Date(todayStr).getTime() - new Date(dateStr).getTime()) / 86400000);
+  if (diff === 0) return '오늘';
+  if (diff === 1) return '어제';
+  return `${diff}일 전`;
+}
 
 // ─── RPG 선택 버튼 (컴팩트) ───────────────────────────────
 function ChipBtn({ label, sub, selected, onPress, color = COLORS.purple }: {
@@ -73,7 +91,9 @@ function EffectTag({ label, color }: { label: string; color: string }) {
 export default function InputScreen() {
   const navigation = useNavigation<Nav>();
   const today = getTodayKey();
+  const dateOptions = getDateOptions(7);
 
+  const [selectedDate, setSelectedDate] = useState(today);
   const [sleep, setSleep] = useState<SleepInput>({ hours: 7 });
   const [selectedExercises, setSelectedExercises] = useState<ExerciseType[]>([]);
   const [duration, setDuration] = useState(30);
@@ -83,6 +103,40 @@ export default function InputScreen() {
   const [bpDia, setBpDia] = useState('');
   const [bpPulse, setBpPulse] = useState('');
   const [saving, setSaving] = useState(false);
+  const [hasExisting, setHasExisting] = useState(false);
+
+  // 선택한 날짜의 기존 데이터 불러와서 폼에 채우기
+  const loadDate = useCallback(async (date: string) => {
+    const existing = await getDailyLog(date);
+    if (existing) {
+      setHasExisting(true);
+      setSleep(existing.sleep ?? { hours: 7 });
+      const exTypes = existing.exercise?.types?.filter(t => t !== 'none') ?? [];
+      const legacyType = existing.exercise?.type;
+      const activeTypes = exTypes.length > 0 ? exTypes : (legacyType && legacyType !== 'none' ? [legacyType] : []);
+      setSelectedExercises(activeTypes as ExerciseType[]);
+      setDuration(existing.exercise?.minutes > 0 ? existing.exercise.minutes : 30);
+      setAlcohol(existing.alcohol ?? { consumed: false, items: [] });
+      setMood(existing.mood ?? null);
+      setBpSys(existing.bloodPressure?.systolic ? String(existing.bloodPressure.systolic) : '');
+      setBpDia(existing.bloodPressure?.diastolic ? String(existing.bloodPressure.diastolic) : '');
+      setBpPulse(existing.bloodPressure?.pulse ? String(existing.bloodPressure.pulse) : '');
+    } else {
+      setHasExisting(false);
+      setSleep({ hours: 7 });
+      setSelectedExercises([]);
+      setDuration(30);
+      setAlcohol({ consumed: false, items: [] });
+      setMood(null);
+      setBpSys(''); setBpDia(''); setBpPulse('');
+    }
+  }, []);
+
+  // 날짜 변경 시 데이터 로드
+  useEffect(() => { loadDate(selectedDate); }, [selectedDate, loadDate]);
+
+  // 화면 포커스될 때마다 현재 날짜 데이터 새로고침
+  useFocusEffect(useCallback(() => { loadDate(selectedDate); }, [selectedDate, loadDate]));
 
   const toggleExercise = (type: ExerciseType) => {
     setSelectedExercises(prev =>
@@ -114,15 +168,17 @@ export default function InputScreen() {
     });
   };
 
-  const handleSave = async () => {
+  const buildLog = async (goToResult: boolean) => {
     setSaving(true);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
     const exercise: ExerciseInput = selectedExercises.length > 0
       ? { types: selectedExercises, minutes: duration }
       : { types: [], minutes: 0 };
 
     const [morningBS, foodEntries, profile, existingLog, streak] = await Promise.all([
-      getMorningBS(today), getFoodEntriesByDate(today), getUserProfile(), getDailyLog(today), getStreak(),
+      getMorningBS(selectedDate), getFoodEntriesByDate(selectedDate),
+      getUserProfile(), getDailyLog(selectedDate), getStreak(),
     ]);
 
     const foodSum = sumFoodEntries(foodEntries);
@@ -135,7 +191,6 @@ export default function InputScreen() {
     const xpGained = calcXPGain(breakdown.total, streak);
     const now = new Date().toISOString();
 
-    // 혈압 파싱
     const sys = parseInt(bpSys);
     const dia = parseInt(bpDia);
     const pulse = parseInt(bpPulse);
@@ -145,7 +200,7 @@ export default function InputScreen() {
 
     const log: DailyLog = {
       id: existingLog?.id ?? generateId(),
-      date: today, alcohol, exercise, sleep,
+      date: selectedDate, alcohol, exercise, sleep,
       conditionScore: breakdown.total,
       scoreBreakdown: breakdown, stats, exerciseCalories,
       alcoholCalories: alcoholCal,
@@ -157,8 +212,13 @@ export default function InputScreen() {
 
     await saveDailyLog(log);
     if (!existingLog) await addXP(xpGained); // 첫 저장 시만 XP 지급
+
     setSaving(false);
-    navigation.navigate('Result', { log });
+    setHasExisting(true);
+
+    if (goToResult) {
+      navigation.navigate('Result', { log });
+    }
   };
 
   // 수면 효과
@@ -167,13 +227,43 @@ export default function InputScreen() {
     : sleep.hours <= 5 ? { label: 'HP 회복 ↓', color: COLORS.red }
     : { label: '과수면', color: COLORS.textMuted };
 
+  const isToday = selectedDate === today;
+
   return (
     <SafeAreaView style={c.safe}>
       <ScrollView contentContainerStyle={c.scroll} showsVerticalScrollIndicator={false}>
 
+        {/* ── 날짜 선택 ── */}
+        <View style={c.dateSection}>
+          <Text style={c.dateSectionLabel}>📅 날짜 선택</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 6 }}>
+            <View style={{ flexDirection: 'row', gap: 6 }}>
+              {dateOptions.map(date => {
+                const isSelected = date === selectedDate;
+                return (
+                  <TouchableOpacity
+                    key={date}
+                    style={[c.dateChip, isSelected && c.dateChipSelected]}
+                    onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setSelectedDate(date); }}
+                  >
+                    <Text style={[c.dateChipLabel, isSelected && c.dateChipLabelSelected]}>
+                      {dateLabel(date, today)}
+                    </Text>
+                    <Text style={[c.dateChipDate, isSelected && { color: COLORS.purple }]}>
+                      {date.slice(5).replace('-', '/')}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </ScrollView>
+        </View>
+
         <View style={c.pageHeader}>
-          <Text style={c.pageTitle}>⚔️ 오늘의 퀘스트</Text>
-          <Text style={c.pageSub}>기록하면 캐릭터 스탯이 변합니다</Text>
+          <Text style={c.pageTitle}>⚔️ {dateLabel(selectedDate, today)}의 퀘스트</Text>
+          <Text style={c.pageSub}>
+            {hasExisting ? '✅ 기존 기록이 있어요 — 수정 후 저장하세요' : '기록하면 캐릭터 스탯이 변합니다'}
+          </Text>
         </View>
 
         {/* ── 기분 ── */}
@@ -370,12 +460,24 @@ export default function InputScreen() {
           <Text style={c.infoText}>🍱 식단 포션은 하단 "식단" 탭에서 추가{'\n'}💧 공복혈당은 홈 화면에서 기록</Text>
         </View>
 
-        <TouchableOpacity
-          style={[c.submitBtn, saving && { opacity: 0.5 }]}
-          onPress={handleSave} disabled={saving}
-        >
-          <Text style={c.submitText}>{saving ? '계산 중...' : '⚔️ 오늘 점수 확인 →'}</Text>
-        </TouchableOpacity>
+        {/* ── 버튼 영역 ── */}
+        <View style={c.btnGroup}>
+          {/* 저장만 (결과 화면 안 감) */}
+          <TouchableOpacity
+            style={[c.saveOnlyBtn, saving && { opacity: 0.5 }]}
+            onPress={() => buildLog(false)} disabled={saving}
+          >
+            <Text style={c.saveOnlyText}>{saving ? '저장 중...' : '💾 저장'}</Text>
+          </TouchableOpacity>
+
+          {/* 점수 확인 (결과 화면으로 이동) */}
+          <TouchableOpacity
+            style={[c.submitBtn, saving && { opacity: 0.5 }]}
+            onPress={() => buildLog(true)} disabled={saving}
+          >
+            <Text style={c.submitText}>{saving ? '계산 중...' : isToday ? '⚔️ 점수 확인 →' : '⚔️ 과거 점수 보기 →'}</Text>
+          </TouchableOpacity>
+        </View>
 
         <View style={{ height: SPACING.xl * 2 }} />
       </ScrollView>
@@ -386,6 +488,20 @@ export default function InputScreen() {
 const c = StyleSheet.create({
   safe: { flex: 1, backgroundColor: COLORS.bg },
   scroll: { padding: SPACING.md },
+
+  // 날짜 선택
+  dateSection: { marginBottom: SPACING.sm },
+  dateSectionLabel: { color: COLORS.textMuted, fontSize: FONTS.xxs, fontWeight: '700', letterSpacing: 1 },
+  dateChip: {
+    borderWidth: 1, borderColor: COLORS.border, borderRadius: RADIUS.md,
+    paddingHorizontal: 14, paddingVertical: 8, backgroundColor: COLORS.bgCard,
+    alignItems: 'center', minWidth: 60,
+  },
+  dateChipSelected: { borderColor: COLORS.purple, backgroundColor: COLORS.purple + '18' },
+  dateChipLabel: { color: COLORS.textMuted, fontSize: FONTS.xs, fontWeight: '700' },
+  dateChipLabelSelected: { color: COLORS.purple },
+  dateChipDate: { color: COLORS.textDisabled, fontSize: FONTS.xxs, marginTop: 2 },
+
   pageHeader: { marginBottom: SPACING.md },
   pageTitle: { color: COLORS.text, fontSize: FONTS.xl, fontWeight: '900' },
   pageSub: { color: COLORS.textMuted, fontSize: FONTS.xs, marginTop: 2 },
@@ -447,9 +563,20 @@ const c = StyleSheet.create({
   bpStatusBox: { borderRadius: RADIUS.sm, padding: 8, alignItems: 'center', marginTop: 8 },
   bpStatusText: { fontSize: FONTS.sm, fontWeight: '700' },
 
-  // 안내 + 제출
+  // 안내 + 버튼
   infoBox: { backgroundColor: COLORS.bgCard, borderRadius: RADIUS.md, padding: SPACING.sm, marginBottom: SPACING.sm, borderWidth: 1, borderColor: COLORS.border },
   infoText: { color: COLORS.textMuted, fontSize: FONTS.xs, lineHeight: 20, textAlign: 'center' },
-  submitBtn: { backgroundColor: COLORS.purple, borderRadius: RADIUS.lg, paddingVertical: 16, alignItems: 'center', shadowColor: COLORS.purple, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.5, shadowRadius: 16, elevation: 8 },
+
+  btnGroup: { flexDirection: 'row', gap: 10, marginBottom: SPACING.sm },
+  saveOnlyBtn: {
+    flex: 0, paddingHorizontal: 20, backgroundColor: COLORS.bgCard, borderRadius: RADIUS.lg,
+    paddingVertical: 16, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border,
+  },
+  saveOnlyText: { color: COLORS.textSub, fontSize: FONTS.sm, fontWeight: '700' },
+  submitBtn: {
+    flex: 1, backgroundColor: COLORS.purple, borderRadius: RADIUS.lg, paddingVertical: 16,
+    alignItems: 'center', shadowColor: COLORS.purple, shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.5, shadowRadius: 16, elevation: 8,
+  },
   submitText: { color: '#fff', fontSize: FONTS.md, fontWeight: '900', letterSpacing: 0.5 },
 });
