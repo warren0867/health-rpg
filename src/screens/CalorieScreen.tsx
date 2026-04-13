@@ -344,7 +344,7 @@ export default function CalorieScreen() {
               {mealEntries.map(entry => {
                 const food = customFoods.find(f => f.id === entry.foodId) ?? KOREAN_FOODS.find(f => f.id === entry.foodId);
                 return (
-                  <TouchableOpacity key={entry.id} style={styles.entryRow} onLongPress={() => handleDelete(entry)}>
+                  <View key={entry.id} style={styles.entryRow}>
                     <View style={styles.entryLeft}>
                       <View style={styles.entryNameRow}>
                         <Text style={styles.entryName}>{entry.foodName}</Text>
@@ -356,7 +356,14 @@ export default function CalorieScreen() {
                       </Text>
                     </View>
                     <Text style={styles.entryCal}>{entry.calories} kcal</Text>
-                  </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.deleteBtn}
+                      onPress={() => handleDelete(entry)}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Text style={styles.deleteBtnText}>✕</Text>
+                    </TouchableOpacity>
+                  </View>
                 );
               })}
 
@@ -661,11 +668,17 @@ const styles = StyleSheet.create({
   addFoodBtnActive: { backgroundColor: COLORS.bgHighlight, borderColor: COLORS.border },
   addFoodBtnText: { color: COLORS.purple, fontSize: FONTS.xs, fontWeight: '700' },
   entryRow: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    flexDirection: 'row', alignItems: 'center', gap: 8,
     paddingVertical: 8, paddingHorizontal: SPACING.md,
     borderTopWidth: 1, borderTopColor: COLORS.border,
   },
   entryLeft: { flex: 1 },
+  deleteBtn: {
+    width: 26, height: 26, borderRadius: 13,
+    backgroundColor: COLORS.red + '18', borderWidth: 1, borderColor: COLORS.red + '44',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  deleteBtnText: { color: COLORS.red, fontSize: 12, fontWeight: '900', lineHeight: 14 },
   entryNameRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   entryName: { color: COLORS.text, fontSize: FONTS.sm, fontWeight: '600' },
   customBadge: {
