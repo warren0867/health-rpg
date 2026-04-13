@@ -1,5 +1,7 @@
 import { DailyLog, ScoreBreakdown, ScoreFactor } from '../types';
 import { ALCOHOL_LABELS, EXERCISE_LABELS, calcAlcoholCalories } from './scoreCalculator';
+import { getSajuFortune } from './saju';
+export type { SajuFortune } from './saju';
 
 // ─────────────────────────────────────────────
 //  점수 기반 한 줄 피드백
@@ -116,25 +118,9 @@ const FORTUNE_POOL = [
   { text: '오늘의 작은 선택이 미래의 건강을 만듭니다.', lucky: '저울', color: '#4ECDC4' },
 ];
 
-// 띠 계산 (생년 기준)
-function getZodiacIdx(birthYear: number): number {
-  return ((birthYear - 4) % 12 + 12) % 12;
-}
-
+// 사주 기반 오늘의 운세 (생년월일 → 천간지지 → 오행 관계 → 운세)
 export function getTodayFortune(date: string, birthDate?: string) {
-  const dateSeed = date.replace(/-/g, '').split('').reduce((a, c) => a + c.charCodeAt(0), 0);
-  let personalBoost = 0;
-  if (birthDate && birthDate.length >= 4) {
-    const year = parseInt(birthDate.slice(0, 4));
-    if (!isNaN(year)) {
-      const zodiac = getZodiacIdx(year);
-      const birthMonth = parseInt(birthDate.slice(5, 7) || '0');
-      const birthDay = parseInt(birthDate.slice(8, 10) || '0');
-      personalBoost = zodiac * 7 + birthMonth * 3 + birthDay;
-    }
-  }
-  const idx = (dateSeed + personalBoost) % FORTUNE_POOL.length;
-  return FORTUNE_POOL[idx];
+  return getSajuFortune(date, birthDate);
 }
 
 // ─────────────────────────────────────────────

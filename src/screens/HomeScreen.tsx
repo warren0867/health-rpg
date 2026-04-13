@@ -9,7 +9,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS, FONTS, getAvatar, getRank, RADIUS, SPACING } from '../constants/theme';
 import { ACHIEVEMENT_DEFS, AchievementId, UserProfile } from '../types';
-import { getTodayFortune } from '../utils/feedback';
+import { getTodayFortune, SajuFortune } from '../utils/feedback';
 import { calcMacroGoal } from '../utils/calorieCalculator';
 import { BS_STATUS_COLOR, getBSStatus, getBSStatusLabel, calcExerciseCalories } from '../utils/scoreCalculator';
 import {
@@ -170,7 +170,7 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState(true);
   const [streak, setStreak] = useState(0);
   const [exerciseCalToday, setExerciseCalToday] = useState(0);
-  const [fortune, setFortune] = useState(getTodayFortune(today));
+  const [fortune, setFortune] = useState<SajuFortune>(getTodayFortune(today));
   const [todayLog, setTodayLog] = useState<any>(null);
   const [waterMl, setWaterMl] = useState(0);
   const [xpProgress, setXpProgress] = useState<ReturnType<typeof getXPProgress> | null>(null);
@@ -474,15 +474,46 @@ export default function HomeScreen() {
           {recentBS.length > 0 && <BSSparkline entries={recentBS} />}
         </TouchableOpacity>
 
-        {/* ── 운세 ── */}
-        <View style={[s.card, { borderColor: fortune.color + '44' }]}>
+        {/* ── 오늘의 운세 (사주 기반) ── */}
+        <View style={[s.card, { borderColor: fortune.color + '55' }]}>
           <View style={s.rowBetween}>
             <Text style={[s.sectionTitle, { color: fortune.color }]}>✨ 오늘의 운세</Text>
+            {fortune.zodiac ? (
+              <Text style={[s.luckyPillText, { color: fortune.color }]}>{fortune.zodiac}</Text>
+            ) : null}
+          </View>
+
+          {/* 사주 정보 칩 */}
+          <View style={s.sajuRow}>
+            <View style={[s.sajuChip, { backgroundColor: fortune.color + '18', borderColor: fortune.color + '44' }]}>
+              <Text style={[s.sajuChipText, { color: fortune.color }]}>나의 일간  {fortune.ohaeng}</Text>
+            </View>
+            <Text style={s.sajuArrow}>→</Text>
+            <View style={[s.sajuChip, { backgroundColor: COLORS.bgHighlight }]}>
+              <Text style={s.sajuChipText}>오늘  {fortune.todayPillar}</Text>
+            </View>
+          </View>
+
+          {/* 관계 뱃지 */}
+          <View style={[s.relationBadge, { backgroundColor: fortune.color + '15' }]}>
+            <Text style={[s.relationText, { color: fortune.color }]}>{fortune.relation}</Text>
+          </View>
+
+          <Text style={s.fortuneText}>{fortune.text}</Text>
+
+          {/* 오늘의 조언 */}
+          <View style={s.adviceRow}>
+            <Text style={s.adviceIcon}>💡</Text>
+            <Text style={s.adviceText}>{fortune.advice}</Text>
+          </View>
+
+          {/* 행운 아이템 */}
+          <View style={s.rowBetween}>
+            <Text style={s.luckyLabel}>오늘의 행운</Text>
             <View style={[s.luckyPill, { backgroundColor: fortune.color + '20' }]}>
               <Text style={[s.luckyPillText, { color: fortune.color }]}>🍀 {fortune.lucky}</Text>
             </View>
           </View>
-          <Text style={s.fortuneText}>{fortune.text}</Text>
         </View>
 
         {/* ── 업적 ── */}
@@ -774,10 +805,20 @@ const s = StyleSheet.create({
   achieveEmoji: { fontSize: 24 },
   achieveName: { color: COLORS.textSub, fontSize: 9, textAlign: 'center' },
 
-  // 운세
+  // 운세 (사주)
+  sajuRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
+  sajuChip: { borderRadius: RADIUS.sm, borderWidth: 1, paddingHorizontal: 8, paddingVertical: 4 },
+  sajuChipText: { color: COLORS.textSub, fontSize: FONTS.xxs, fontWeight: '700' },
+  sajuArrow: { color: COLORS.textMuted, fontSize: FONTS.sm },
+  relationBadge: { borderRadius: RADIUS.sm, paddingHorizontal: 10, paddingVertical: 5, marginBottom: 10, alignSelf: 'flex-start' },
+  relationText: { fontSize: FONTS.xs, fontWeight: '900', letterSpacing: 0.5 },
+  fortuneText: { color: COLORS.text, fontSize: FONTS.sm, lineHeight: 22, marginBottom: 10 },
+  adviceRow: { flexDirection: 'row', gap: 6, alignItems: 'flex-start', backgroundColor: COLORS.bgHighlight, borderRadius: RADIUS.sm, padding: 8, marginBottom: 10 },
+  adviceIcon: { fontSize: 13 },
+  adviceText: { flex: 1, color: COLORS.textSub, fontSize: FONTS.xs, lineHeight: 18 },
+  luckyLabel: { color: COLORS.textMuted, fontSize: FONTS.xxs },
   luckyPill: { borderRadius: RADIUS.full, paddingHorizontal: 8, paddingVertical: 3 },
   luckyPillText: { fontSize: FONTS.xxs, fontWeight: '700' },
-  fortuneText: { color: COLORS.text, fontSize: FONTS.sm, lineHeight: 22 },
 });
 
 const bsm = StyleSheet.create({
