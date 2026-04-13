@@ -142,7 +142,7 @@ function calcBloodSugarBonus(bs: MorningBloodSugar | null): number {
 }
 
 function calcCalorieBonus(consumed: number, goal: number): number {
-  if (goal === 0) return 0;
+  if (goal === 0 || consumed === 0) return 0;  // 식단 미기록 시 패널티 없음
   const ratio = consumed / goal;
   if (ratio >= 0.7 && ratio <= 1.05) return 5;
   if (ratio > 1.2) return -5;

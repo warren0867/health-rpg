@@ -167,9 +167,13 @@ export default function HomeScreen() {
   const [showBSModal, setShowBSModal] = useState(false);
   const [showNotifModal, setShowNotifModal] = useState(false);
   const [showBirthModal, setShowBirthModal] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
   const [birthYear, setBirthYear] = useState('');
   const [birthMonth, setBirthMonth] = useState('');
   const [birthDay, setBirthDay] = useState('');
+  const [editName, setEditName] = useState('');
+  const [editWeight, setEditWeight] = useState('');
+  const [editTargetCal, setEditTargetCal] = useState('');
   const [bsInput, setBsInput] = useState('');
   const [loading, setLoading] = useState(true);
   const [streak, setStreak] = useState(0);
@@ -244,6 +248,22 @@ export default function HomeScreen() {
     setShowBirthModal(false);
   };
 
+  const handleSaveProfile = async () => {
+    if (!editName.trim()) { Alert.alert('오류', '이름을 입력해주세요'); return; }
+    const w = parseFloat(editWeight);
+    if (isNaN(w) || w < 30 || w > 300) { Alert.alert('오류', '올바른 체중을 입력해주세요 (30~300kg)'); return; }
+    const cal = parseInt(editTargetCal);
+    if (isNaN(cal) || cal < 1000 || cal > 5000) { Alert.alert('오류', '올바른 목표 칼로리를 입력해주세요 (1000~5000)'); return; }
+    const p = await getUserProfile();
+    if (p) {
+      const updated = { ...p, name: editName.trim(), weightKg: w, targetCalories: cal };
+      await saveUserProfile(updated);
+      setProfile(updated);
+    }
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setShowProfileModal(false);
+  };
+
   const handleAddWater = async () => {
     const next = await addWater(today, CUP_ML);
     setWaterMl(next);
@@ -308,7 +328,18 @@ export default function HomeScreen() {
               <Text style={s.avatarEmoji}>{avatar}</Text>
             </View>
             <View>
-              <Text style={s.charName}>{profile?.name ?? '용사'}</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setEditName(profile?.name ?? '');
+                  setEditWeight(String(profile?.weightKg ?? ''));
+                  setEditTargetCal(String(profile?.targetCalories ?? ''));
+                  setShowProfileModal(true);
+                }}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+              >
+                <Text style={s.charName}>{profile?.name ?? '용사'}</Text>
+                <Text style={{ color: COLORS.textMuted, fontSize: FONTS.xxs }}>✏️</Text>
+              </TouchableOpacity>
               <View style={[s.rankBadge, { backgroundColor: (rank?.glow ?? COLORS.purpleGlow) }]}>
                 <Text style={[s.rankText, { color: rank?.color ?? COLORS.textMuted }]}>
                   {rank ? `${rank.rank}  ${rank.label}` : '기록 없음'}
@@ -657,6 +688,53 @@ export default function HomeScreen() {
                 <Text style={bsm.cancelText}>취소</Text>
               </TouchableOpacity>
               <TouchableOpacity style={bsm.confirm} onPress={handleSaveBirth}>
+                <Text style={bsm.confirmText}>저장</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── 프로필 편집 모달 ── */}
+      <Modal visible={showProfileModal} animationType="slide" transparent>
+        <View style={bsm.overlay}>
+          <View style={bsm.sheet}>
+            <Text style={bsm.title}>⚙️ 프로필 편집</Text>
+            <Text style={bsm.sub}>이름, 체중, 목표 칼로리를 수정할 수 있어요</Text>
+            <View style={{ gap: 10, marginBottom: SPACING.md }}>
+              <View>
+                <Text style={{ color: COLORS.textMuted, fontSize: FONTS.xxs, marginBottom: 4 }}>이름</Text>
+                <TextInput
+                  style={[bsm.input, { fontSize: FONTS.lg, paddingVertical: 8 }]}
+                  value={editName} onChangeText={setEditName}
+                  placeholder="이름 입력" placeholderTextColor={COLORS.textDisabled}
+                  autoCapitalize="none" returnKeyType="next"
+                />
+              </View>
+              <View>
+                <Text style={{ color: COLORS.textMuted, fontSize: FONTS.xxs, marginBottom: 4 }}>체중 (kg)</Text>
+                <TextInput
+                  style={[bsm.input, { fontSize: FONTS.lg, paddingVertical: 8 }]}
+                  value={editWeight} onChangeText={setEditWeight}
+                  keyboardType="decimal-pad" placeholder="70.0" placeholderTextColor={COLORS.textDisabled}
+                  returnKeyType="next"
+                />
+              </View>
+              <View>
+                <Text style={{ color: COLORS.textMuted, fontSize: FONTS.xxs, marginBottom: 4 }}>목표 칼로리 (kcal)</Text>
+                <TextInput
+                  style={[bsm.input, { fontSize: FONTS.lg, paddingVertical: 8 }]}
+                  value={editTargetCal} onChangeText={setEditTargetCal}
+                  keyboardType="numeric" placeholder="2000" placeholderTextColor={COLORS.textDisabled}
+                  returnKeyType="done"
+                />
+              </View>
+            </View>
+            <View style={bsm.btns}>
+              <TouchableOpacity style={bsm.cancel} onPress={() => setShowProfileModal(false)}>
+                <Text style={bsm.cancelText}>취소</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={bsm.confirm} onPress={handleSaveProfile}>
                 <Text style={bsm.confirmText}>저장</Text>
               </TouchableOpacity>
             </View>

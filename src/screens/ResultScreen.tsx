@@ -3,7 +3,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Animated, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS, FONTS, getAvatar, getRank, RADIUS, SPACING } from '../constants/theme';
-import { MOOD_EMOJI, RootStackParamList, ScoreFactor } from '../types';
+import { MOOD_EMOJI, MOOD_LABEL, RootStackParamList, ScoreFactor } from '../types';
 import { getConditionFeedback, getScoreFactors } from '../utils/feedback';
 import { getXPProgress, getLevelTitle } from '../utils/levelSystem';
 import { getUserXP } from '../utils/storage';
@@ -173,7 +173,7 @@ export default function ResultScreen() {
               </>
             )}
             {log.mood != null && (
-              <Text style={r.moodRow}>오늘의 기분: {MOOD_EMOJI[log.mood]}  {['', '매우 힘듦', '좀 힘듦', '보통', '좋음', '최고!'][log.mood]}</Text>
+              <Text style={r.moodRow}>오늘의 기분: {MOOD_EMOJI[log.mood]}  {MOOD_LABEL[log.mood]}</Text>
             )}
           </View>
         )}

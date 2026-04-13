@@ -156,6 +156,12 @@ export default function HistoryScreen() {
                     return active.length > 0 ? `${log.exercise.minutes}분` : '없음';
                   })()} />
                   <LogStat label="음주" value={log.alcohol.consumed ? `${calcAlcoholCalories(log.alcohol)}kcal` : '없음'} danger={log.alcohol.consumed} />
+                  {log.bloodPressure && (
+                    <LogStat label="혈압" value={`${log.bloodPressure.systolic}/${log.bloodPressure.diastolic}`} />
+                  )}
+                  {log.mood != null && (
+                    <LogStat label="기분" value={['', '😩', '😔', '😐', '😊', '🤩'][log.mood]} />
+                  )}
                 </View>
                 <View style={styles.miniStatRow}>
                   {[

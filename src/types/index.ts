@@ -70,7 +70,7 @@ export type BPStatus = 'optimal' | 'normal' | 'warning' | 'danger';
 export function getBPStatus(sys: number, dia: number): BPStatus {
   if (sys < 120 && dia < 80) return 'optimal';
   if (sys < 130 && dia < 85) return 'normal';
-  if (sys < 160 || dia < 100) return 'warning';
+  if (sys < 160 && dia < 100) return 'warning';
   return 'danger';
 }
 

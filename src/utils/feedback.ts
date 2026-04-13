@@ -154,7 +154,8 @@ export function getScoreFactors(breakdown: ScoreBreakdown, log: DailyLog): Score
       ? items.slice(0, 2).map(i => ALCOHOL_LABELS[i.type] ?? i.type).join('+')
       : `${log.alcohol.liters ?? 0}L`;
     factors.push({ label: `음주 (${drinkSummary})`, value: breakdown.alcoholPenalty, emoji: '🍺' });
-  } else {
+  } else if (log.alcohol.consumed === false) {
+    // 음주 항목을 명시적으로 입력한 경우에만 금주 표시 (기본값 노이즈 방지)
     factors.push({ label: '금주', value: 0, emoji: '✅' });
   }
 
