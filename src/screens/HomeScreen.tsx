@@ -16,7 +16,7 @@ import {
   addWater, calcAvgBS, generateId, getDailyLog, getFoodEntriesByDate,
   getMorningBS, getRecentDailyLogs, getRecentMorningBS, getStreak,
   getTodayKey, getUserProfile, getUserXP, getUnlockedAchievementIds,
-  getWaterLog, getWaterStreak, saveMorningBS, sumFoodEntries, getBSTrend,
+  getWaterLog, getWaterStreak, saveMorningBS, saveUserProfile, sumFoodEntries, getBSTrend,
   unlockAchievement,
 } from '../utils/storage';
 import {
@@ -166,6 +166,10 @@ export default function HomeScreen() {
   const [recentBS, setRecentBS] = useState<any[]>([]);
   const [showBSModal, setShowBSModal] = useState(false);
   const [showNotifModal, setShowNotifModal] = useState(false);
+  const [showBirthModal, setShowBirthModal] = useState(false);
+  const [birthYear, setBirthYear] = useState('');
+  const [birthMonth, setBirthMonth] = useState('');
+  const [birthDay, setBirthDay] = useState('');
   const [bsInput, setBsInput] = useState('');
   const [loading, setLoading] = useState(true);
   const [streak, setStreak] = useState(0);
@@ -221,6 +225,23 @@ export default function HomeScreen() {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     await saveMorningBS({ id: generateId(), date: today, value: v, timestamp: new Date().toISOString() });
     setBsInput(''); setShowBSModal(false); load();
+  };
+
+  const handleSaveBirth = async () => {
+    if (!birthYear || !birthMonth || !birthDay) { Alert.alert('오류', '생년월일을 모두 입력해주세요'); return; }
+    const y = parseInt(birthYear), m = parseInt(birthMonth), d = parseInt(birthDay);
+    if (isNaN(y) || y < 1900 || y > 2010) { Alert.alert('오류', '올바른 연도를 입력해주세요'); return; }
+    if (isNaN(m) || m < 1 || m > 12)      { Alert.alert('오류', '올바른 월을 입력해주세요'); return; }
+    if (isNaN(d) || d < 1 || d > 31)      { Alert.alert('오류', '올바른 일을 입력해주세요'); return; }
+    const bd = `${birthYear}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const p = await getUserProfile();
+    if (p) {
+      await saveUserProfile({ ...p, birthDate: bd });
+      setProfile({ ...p, birthDate: bd });
+      setFortune(getTodayFortune(today, bd));
+    }
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setShowBirthModal(false);
   };
 
   const handleAddWater = async () => {
@@ -478,10 +499,23 @@ export default function HomeScreen() {
         <View style={[s.card, { borderColor: fortune.color + '55' }]}>
           <View style={s.rowBetween}>
             <Text style={[s.sectionTitle, { color: fortune.color }]}>✨ 오늘의 운세</Text>
-            {fortune.zodiac ? (
-              <Text style={[s.luckyPillText, { color: fortune.color }]}>{fortune.zodiac}</Text>
-            ) : null}
+            {profile?.birthDate ? (
+              <TouchableOpacity onPress={() => setShowBirthModal(true)}>
+                <Text style={[s.luckyPillText, { color: fortune.color }]}>{fortune.zodiac}  ✏️</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={[s.birthInputBtn, { borderColor: fortune.color + '66' }]}
+                onPress={() => setShowBirthModal(true)}
+              >
+                <Text style={[s.birthInputBtnText, { color: fortune.color }]}>🎂 생년월일 입력</Text>
+              </TouchableOpacity>
+            )}
           </View>
+
+          {!profile?.birthDate && (
+            <Text style={s.birthHint}>생년월일을 입력하면 사주 기반 맞춤 운세를 받아볼 수 있어요</Text>
+          )}
 
           {/* 사주 정보 칩 */}
           <View style={s.sajuRow}>
@@ -582,6 +616,47 @@ export default function HomeScreen() {
                 <Text style={bsm.cancelText}>취소</Text>
               </TouchableOpacity>
               <TouchableOpacity style={bsm.confirm} onPress={handleSaveBS}>
+                <Text style={bsm.confirmText}>저장</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── 생년월일 입력 모달 ── */}
+      <Modal visible={showBirthModal} animationType="slide" transparent>
+        <View style={bsm.overlay}>
+          <View style={bsm.sheet}>
+            <Text style={bsm.title}>🎂 생년월일 입력</Text>
+            <Text style={bsm.sub}>사주 기반 맞춤 운세를 위해 필요해요</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <TextInput
+                style={[bsm.input, { flex: 2, fontSize: FONTS.xl }]}
+                value={birthYear} onChangeText={setBirthYear}
+                keyboardType="numeric" placeholder="1990" placeholderTextColor={COLORS.textDisabled}
+                maxLength={4} autoFocus
+              />
+              <Text style={{ color: COLORS.textMuted, fontSize: FONTS.md, fontWeight: '600' }}>년</Text>
+              <TextInput
+                style={[bsm.input, { flex: 1, fontSize: FONTS.xl }]}
+                value={birthMonth} onChangeText={setBirthMonth}
+                keyboardType="numeric" placeholder="05" placeholderTextColor={COLORS.textDisabled}
+                maxLength={2}
+              />
+              <Text style={{ color: COLORS.textMuted, fontSize: FONTS.md, fontWeight: '600' }}>월</Text>
+              <TextInput
+                style={[bsm.input, { flex: 1, fontSize: FONTS.xl }]}
+                value={birthDay} onChangeText={setBirthDay}
+                keyboardType="numeric" placeholder="15" placeholderTextColor={COLORS.textDisabled}
+                maxLength={2}
+              />
+              <Text style={{ color: COLORS.textMuted, fontSize: FONTS.md, fontWeight: '600' }}>일</Text>
+            </View>
+            <View style={bsm.btns}>
+              <TouchableOpacity style={bsm.cancel} onPress={() => setShowBirthModal(false)}>
+                <Text style={bsm.cancelText}>취소</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={bsm.confirm} onPress={handleSaveBirth}>
                 <Text style={bsm.confirmText}>저장</Text>
               </TouchableOpacity>
             </View>
@@ -776,6 +851,11 @@ const s = StyleSheet.create({
   bsAvg: { flex: 1, textAlign: 'right', color: COLORS.textMuted, fontSize: FONTS.xs },
   bsTrend: { fontSize: FONTS.xs, fontWeight: '700' },
   emptyAction: { color: COLORS.purple, fontSize: FONTS.sm, fontWeight: '600' },
+
+  // 생년월일 입력
+  birthInputBtn: { borderRadius: RADIUS.full, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 4 },
+  birthInputBtnText: { fontSize: FONTS.xxs, fontWeight: '700' },
+  birthHint: { color: COLORS.textMuted, fontSize: FONTS.xs, marginBottom: 8, fontStyle: 'italic' },
 
   // XP 바
   xpBar: { backgroundColor: COLORS.bgCard, borderRadius: RADIUS.md, padding: SPACING.sm, marginBottom: SPACING.sm, borderWidth: 1 },
