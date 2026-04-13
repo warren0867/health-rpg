@@ -10,7 +10,9 @@ export const KOREAN_FOODS: FoodItem[] = [
   { id: 'r04', name: '볶음밥', nameSearch: '볶음밥 fried rice', cal: 450, serving: '1인분 (300g)', carbs: 72, protein: 12, fat: 13, gi: 'high', category: 'rice' },
   { id: 'r05', name: '비빔밥', nameSearch: '비빔밥 bibimbap', cal: 580, serving: '1그릇 (500g)', carbs: 95, protein: 20, fat: 12, gi: 'medium', category: 'rice' },
   { id: 'r06', name: '오므라이스', nameSearch: '오므라이스 omrice omelet', cal: 520, serving: '1인분', carbs: 70, protein: 18, fat: 18, gi: 'high', category: 'rice' },
-  { id: 'r07', name: '김밥', nameSearch: '김밥 gimbap 참치김밥 야채김밥', cal: 300, serving: '1줄', carbs: 52, protein: 10, fat: 7, gi: 'medium', category: 'rice' },
+  { id: 'r07', name: '김밥 (1줄)', nameSearch: '김밥 gimbap 참치김밥 야채김밥 한줄', cal: 300, serving: '1줄 (10개)', carbs: 52, protein: 10, fat: 7, gi: 'medium', category: 'rice' },
+  { id: 'r07b', name: '김밥 1개', nameSearch: '김밥 gimbap 한개 낱개', cal: 30, serving: '1개', carbs: 5, protein: 1, fat: 0.7, gi: 'medium', category: 'rice' },
+  { id: 'r07c', name: '김밥 3개', nameSearch: '김밥 gimbap 세개 3개', cal: 90, serving: '3개', carbs: 15, protein: 3, fat: 2, gi: 'medium', category: 'rice' },
   { id: 'r08', name: '주먹밥', nameSearch: '주먹밥 rice ball', cal: 200, serving: '1개', carbs: 42, protein: 5, fat: 2, gi: 'high', category: 'rice' },
   { id: 'r09', name: '삼각김밥', nameSearch: '삼각김밥 편의점 convenience', cal: 175, serving: '1개', carbs: 35, protein: 5, fat: 3, gi: 'high', category: 'rice' },
   { id: 'r10', name: '덮밥 (소고기)', nameSearch: '덮밥 소고기덮밥 beef rice bowl', cal: 580, serving: '1인분', carbs: 78, protein: 28, fat: 15, gi: 'high', category: 'rice' },
@@ -39,6 +41,11 @@ export const KOREAN_FOODS: FoodItem[] = [
   { id: 'n08', name: '떡볶이', nameSearch: '떡볶이 tteokbokki rice cake', cal: 380, serving: '1인분', carbs: 72, protein: 9, fat: 5, gi: 'high', category: 'noodle' },
   { id: 'n09', name: '우동', nameSearch: '우동 udon japanese noodle', cal: 420, serving: '1인분', carbs: 70, protein: 16, fat: 6, gi: 'high', category: 'noodle' },
   { id: 'n10', name: '쌀국수', nameSearch: '쌀국수 pho rice noodle', cal: 380, serving: '1인분', carbs: 68, protein: 18, fat: 4, gi: 'high', category: 'noodle' },
+  { id: 'n11', name: '수제비', nameSearch: '수제비 sujebi hand-torn noodle soup', cal: 380, serving: '1인분', carbs: 68, protein: 12, fat: 6, gi: 'high', category: 'noodle' },
+  { id: 'n12', name: '얼큰수제비', nameSearch: '얼큰수제비 얼큰 수제비 spicy sujebi', cal: 420, serving: '1인분', carbs: 70, protein: 13, fat: 8, gi: 'high', category: 'noodle' },
+  { id: 'n13', name: '잔치국수', nameSearch: '잔치국수 국수 vermicelli soup', cal: 350, serving: '1인분', carbs: 62, protein: 14, fat: 4, gi: 'high', category: 'noodle' },
+  { id: 'n14', name: '비빔국수', nameSearch: '비빔국수 bibim guksu spicy noodle', cal: 420, serving: '1인분', carbs: 78, protein: 12, fat: 6, gi: 'high', category: 'noodle' },
+  { id: 'n15', name: 'soba·메밀국수', nameSearch: '메밀국수 메밀 soba buckwheat', cal: 320, serving: '1인분', carbs: 60, protein: 14, fat: 2, gi: 'medium', category: 'noodle' },
 
   // ─── 육류 ───
   { id: 'm01', name: '삼겹살', nameSearch: '삼겹살 pork belly barbeque bbq', cal: 700, serving: '200g', carbs: 0, protein: 34, fat: 62, gi: 'low', category: 'meat' },
@@ -55,9 +62,10 @@ export const KOREAN_FOODS: FoodItem[] = [
   { id: 'm12', name: '햄', nameSearch: '햄 ham 스팸 spam', cal: 180, serving: '100g', carbs: 5, protein: 14, fat: 12, gi: 'low', category: 'meat' },
 
   // ─── 단백질 (계란/두부) ───
-  { id: 'p01', name: '계란', nameSearch: '계란 달걀 egg 삶은계란', cal: 78, serving: '1개', carbs: 0, protein: 6, fat: 5, gi: 'low', category: 'protein' },
-  { id: 'p02', name: '계란 2개', nameSearch: '계란 달걀 egg two', cal: 156, serving: '2개', carbs: 1, protein: 12, fat: 10, gi: 'low', category: 'protein' },
+  { id: 'p01', name: '계란 (삶은)', nameSearch: '계란 달걀 egg 삶은계란 boiled', cal: 78, serving: '1개', carbs: 0, protein: 6, fat: 5, gi: 'low', category: 'protein' },
+  { id: 'p02', name: '계란 2개', nameSearch: '계란 달걀 egg two 삶은', cal: 156, serving: '2개', carbs: 1, protein: 12, fat: 10, gi: 'low', category: 'protein' },
   { id: 'p03', name: '계란말이', nameSearch: '계란말이 계란 rolled egg omelette', cal: 200, serving: '1인분', carbs: 4, protein: 14, fat: 14, gi: 'low', category: 'protein' },
+  { id: 'p03b', name: '계란후라이', nameSearch: '계란후라이 후라이 계란 달걀 fried egg sunny side up', cal: 92, serving: '1개', carbs: 0, protein: 6, fat: 7, gi: 'low', category: 'protein' },
   { id: 'p04', name: '두부', nameSearch: '두부 tofu 순두부', cal: 130, serving: '1/2모 (150g)', carbs: 4, protein: 12, fat: 7, gi: 'low', category: 'protein' },
   { id: 'p05', name: '연두부', nameSearch: '연두부 soft tofu silken', cal: 80, serving: '1팩', carbs: 3, protein: 7, fat: 4, gi: 'low', category: 'protein' },
   { id: 'p06', name: '그릭요거트', nameSearch: '그릭요거트 greek yogurt', cal: 130, serving: '1컵 (150g)', carbs: 7, protein: 18, fat: 3, gi: 'low', category: 'protein' },

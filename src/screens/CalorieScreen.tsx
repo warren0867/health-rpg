@@ -53,13 +53,30 @@ const GI_CONFIG: Record<GlycemicIndex, { label: string; color: string; emoji: st
   high:   { label: 'GI 높음', color: COLORS.red,  emoji: '🔴' },
 };
 
+// 최근 N일 날짜 목록
+function getDateOptions(n = 7): string[] {
+  const opts: string[] = [];
+  for (let i = 0; i < n; i++) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    opts.push(d.toISOString().split('T')[0]);
+  }
+  return opts;
+}
+
+function dateLabel(dateStr: string, todayStr: string): string {
+  const diff = Math.round((new Date(todayStr).getTime() - new Date(dateStr).getTime()) / 86400000);
+  if (diff === 0) return '오늘';
+  if (diff === 1) return '어제';
+  return `${diff}일 전`;
+}
+
 export default function CalorieScreen() {
   const scrollRef = useRef<ScrollView>(null);
   const today = getTodayKey();
-  const yesterday = (() => {
-    const d = new Date(); d.setDate(d.getDate() - 1);
-    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-  })();
+
+  const [selectedDate, setSelectedDate] = useState(today);
+  const dateOptions = getDateOptions(7);
 
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [entries, setEntries] = useState<FoodEntry[]>([]);
@@ -88,7 +105,7 @@ export default function CalorieScreen() {
 
   const load = useCallback(async () => {
     const [p, foodEntries, customs, favs, recents] = await Promise.all([
-      getUserProfile(), getFoodEntriesByDate(today),
+      getUserProfile(), getFoodEntriesByDate(selectedDate),
       getCustomFoods(), getFavoriteFoodIds(), getRecentFoods(),
     ]);
     setProfile(p);
@@ -97,7 +114,7 @@ export default function CalorieScreen() {
     setCustomFoods(customs);
     setFavIds(favs);
     setRecentFoods(recents);
-  }, [today]);
+  }, [selectedDate]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
@@ -150,7 +167,7 @@ export default function CalorieScreen() {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     const entry: FoodEntry = {
       id: generateId(),
-      date: today,
+      date: selectedDate,
       timestamp: new Date().toISOString(),
       foodId: selectedFood.id,
       foodName: selectedFood.name,
@@ -183,12 +200,17 @@ export default function CalorieScreen() {
   };
 
   const handleCopyYesterday = () => {
-    Alert.alert('어제 식단 복사', '어제 기록한 음식을 오늘로 복사할까요?', [
+    const prevDay = (() => {
+      const d = new Date(selectedDate); d.setDate(d.getDate() - 1);
+      return d.toISOString().split('T')[0];
+    })();
+    const fromLabel = dateLabel(prevDay, today);
+    Alert.alert(`${fromLabel} 식단 복사`, `${fromLabel} 기록을 ${dateLabel(selectedDate, today)}로 복사할까요?`, [
       { text: '취소', style: 'cancel' },
       { text: '복사', onPress: async () => {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        const count = await copyYesterdayMeals(today, yesterday);
-        if (count === 0) Alert.alert('알림', '어제 기록이 없어요');
+        const count = await copyYesterdayMeals(selectedDate, prevDay);
+        if (count === 0) Alert.alert('알림', `${fromLabel} 기록이 없어요`);
         else load();
       }},
     ]);
@@ -239,11 +261,41 @@ export default function CalorieScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
+        {/* 날짜 선택 */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: SPACING.sm }}>
+          <View style={{ flexDirection: 'row', gap: 6 }}>
+            {dateOptions.map(date => {
+              const isSelected = date === selectedDate;
+              return (
+                <TouchableOpacity
+                  key={date}
+                  style={[styles.dateChip, isSelected && styles.dateChipSelected]}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setSelectedDate(date);
+                    setActiveMeal(null);
+                    setSelectedFood(null);
+                  }}
+                >
+                  <Text style={[styles.dateChipLabel, isSelected && styles.dateChipLabelSel]}>
+                    {dateLabel(date, today)}
+                  </Text>
+                  <Text style={[styles.dateChipDate, isSelected && { color: COLORS.teal }]}>
+                    {date.slice(5).replace('-', '/')}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </ScrollView>
+
         {/* 헤더 */}
         <View style={styles.headerRow}>
-          <Text style={styles.pageTitle}>식단 & 칼로리</Text>
+          <Text style={styles.pageTitle}>
+            {dateLabel(selectedDate, today)} 식단
+          </Text>
           <TouchableOpacity style={styles.copyBtn} onPress={handleCopyYesterday}>
-            <Text style={styles.copyBtnText}>📋 어제 복사</Text>
+            <Text style={styles.copyBtnText}>📋 전날 복사</Text>
           </TouchableOpacity>
         </View>
 
@@ -560,6 +612,18 @@ function CustomField({ label, value, onChange, placeholder, numeric }: {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: COLORS.bg },
   scroll: { padding: SPACING.md },
+
+  // 날짜 선택
+  dateChip: {
+    borderWidth: 1, borderColor: COLORS.border, borderRadius: RADIUS.md,
+    paddingHorizontal: 14, paddingVertical: 8, backgroundColor: COLORS.bgCard,
+    alignItems: 'center', minWidth: 60,
+  },
+  dateChipSelected: { borderColor: COLORS.teal, backgroundColor: COLORS.teal + '18' },
+  dateChipLabel: { color: COLORS.textMuted, fontSize: FONTS.xs, fontWeight: '700' },
+  dateChipLabelSel: { color: COLORS.teal },
+  dateChipDate: { color: COLORS.textDisabled, fontSize: FONTS.xxs, marginTop: 2 },
+
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.md },
   pageTitle: { fontSize: FONTS.xxl, fontWeight: '900', color: COLORS.text },
   copyBtn: {
