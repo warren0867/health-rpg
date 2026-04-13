@@ -8,19 +8,22 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS, FONTS, getAvatar, getRank, RADIUS, SPACING } from '../constants/theme';
-import { UserProfile } from '../types';
+import { ACHIEVEMENT_DEFS, AchievementId, UserProfile } from '../types';
 import { getTodayFortune } from '../utils/feedback';
-import { calcGaugeData, calcMacroGoal } from '../utils/calorieCalculator';
+import { calcMacroGoal } from '../utils/calorieCalculator';
 import { BS_STATUS_COLOR, getBSStatus, getBSStatusLabel, calcExerciseCalories } from '../utils/scoreCalculator';
 import {
-  calcAvgBS, generateId, getDailyLog, getFoodEntriesByDate,
+  addWater, calcAvgBS, generateId, getDailyLog, getFoodEntriesByDate,
   getMorningBS, getRecentDailyLogs, getRecentMorningBS, getStreak,
-  getTodayKey, getUserProfile, saveMorningBS, sumFoodEntries, getBSTrend,
+  getTodayKey, getUserProfile, getUserXP, getUnlockedAchievementIds,
+  getWaterLog, getWaterStreak, saveMorningBS, sumFoodEntries, getBSTrend,
+  unlockAchievement,
 } from '../utils/storage';
 import {
   getNotifSettings, saveNotifSettings, scheduleAllNotifications,
   cancelAllNotifications, requestPermissions, NotifSettings,
 } from '../utils/notifications';
+import { getXPProgress, getLevelTitle, checkAchievements } from '../utils/levelSystem';
 
 // ─── RPG 스탯 바 ──────────────────────────────────────────
 function StatBar({ label, value, max = 100, color, abbr }: {
@@ -169,11 +172,18 @@ export default function HomeScreen() {
   const [exerciseCalToday, setExerciseCalToday] = useState(0);
   const [fortune, setFortune] = useState(getTodayFortune(today));
   const [todayLog, setTodayLog] = useState<any>(null);
+  const [waterMl, setWaterMl] = useState(0);
+  const [xpProgress, setXpProgress] = useState<ReturnType<typeof getXPProgress> | null>(null);
+  const [unlockedIds, setUnlockedIds] = useState<string[]>([]);
+
+  const WATER_GOAL = 2000; // 하루 목표 ml
+  const CUP_ML = 250;
 
   const load = useCallback(async () => {
-    const [p, log, foods, mbs, recentMbs, recent, str] = await Promise.all([
+    const [p, log, foods, mbs, recentMbs, recent, str, water, xp, achIds] = await Promise.all([
       getUserProfile(), getDailyLog(today), getFoodEntriesByDate(today),
       getMorningBS(today), getRecentMorningBS(7), getRecentDailyLogs(7), getStreak(),
+      getWaterLog(today), getUserXP(), getUnlockedAchievementIds(),
     ]);
     setProfile(p);
     setTodayLog(log);
@@ -186,6 +196,20 @@ export default function HomeScreen() {
     setStreak(str);
     setFortune(getTodayFortune(today, p?.birthDate));
     setExerciseCalToday(log?.exerciseCalories ?? (log?.exercise ? calcExerciseCalories(log.exercise, p?.weightKg ?? 70) : 0));
+    setWaterMl(water);
+    setXpProgress(getXPProgress(xp.totalXP));
+    setUnlockedIds(achIds);
+
+    // 업적 체크
+    if (log && recent.length > 0) {
+      const waterStreak = await getWaterStreak(WATER_GOAL);
+      const newAch = checkAchievements(recent, str, xp.level, achIds, waterStreak);
+      for (const ach of newAch) {
+        await unlockAchievement(ach.id as any);
+      }
+      if (newAch.length > 0) setUnlockedIds([...achIds, ...newAch.map(a => a.id)]);
+    }
+
     setLoading(false);
   }, [today]);
 
@@ -197,6 +221,19 @@ export default function HomeScreen() {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     await saveMorningBS({ id: generateId(), date: today, value: v, timestamp: new Date().toISOString() });
     setBsInput(''); setShowBSModal(false); load();
+  };
+
+  const handleAddWater = async () => {
+    const next = await addWater(today, CUP_ML);
+    setWaterMl(next);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
+
+  const handleRemoveWater = async () => {
+    if (waterMl <= 0) return;
+    const next = await addWater(today, -CUP_ML);
+    setWaterMl(next);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
 
   const rank = score !== null ? getRank(score) : null;
@@ -265,6 +302,22 @@ export default function HomeScreen() {
             <Text style={s.scoreLabel}>SCORE</Text>
           </View>
         </View>
+
+        {/* XP / 레벨 바 */}
+        {xpProgress && (
+          <View style={[s.xpBar, { borderColor: (rank?.color ?? COLORS.purple) + '33' }]}>
+            <View style={s.xpTopRow}>
+              <Text style={s.xpLevel}>Lv.{xpProgress.level}  <Text style={s.xpTitle}>{getLevelTitle(xpProgress.level)}</Text></Text>
+              {!xpProgress.isMax && <Text style={s.xpNext}>{xpProgress.current}/{xpProgress.needed} XP</Text>}
+            </View>
+            <View style={s.xpTrack}>
+              <View style={[s.xpFill, {
+                width: `${xpProgress.pct}%` as any,
+                backgroundColor: rank?.color ?? COLORS.purple,
+              }]} />
+            </View>
+          </View>
+        )}
 
         {/* ── HP/MP 스탯 ── */}
         {stats && (
@@ -354,6 +407,42 @@ export default function HomeScreen() {
           </View>
         </View>
 
+        {/* ── 물 섭취 (마나 포션) ── */}
+        <View style={s.card}>
+          <View style={s.rowBetween}>
+            <Text style={s.sectionTitle}>💧 마나 포션</Text>
+            <Text style={[s.waterTotal, { color: waterMl >= WATER_GOAL ? COLORS.teal : COLORS.textMuted }]}>
+              {waterMl}ml / {WATER_GOAL}ml
+            </Text>
+          </View>
+          {/* 물 게이지 바 */}
+          <View style={s.waterBar}>
+            <View style={[s.waterBarFill, {
+              width: `${Math.min(100, Math.round((waterMl / WATER_GOAL) * 100))}%` as any,
+              backgroundColor: waterMl >= WATER_GOAL ? COLORS.teal : COLORS.blue,
+            }]} />
+          </View>
+          {/* 컵 그리드 */}
+          <View style={s.cupGrid}>
+            {Array.from({ length: 8 }).map((_, i) => {
+              const filled = waterMl >= (i + 1) * CUP_ML;
+              return (
+                <TouchableOpacity key={i} onPress={handleAddWater} activeOpacity={0.7} style={s.cupBtn}>
+                  <Text style={[s.cupEmoji, { opacity: filled ? 1 : 0.25 }]}>🥤</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+          <View style={s.rowBetween}>
+            <TouchableOpacity onPress={handleRemoveWater} style={s.waterAdjBtn}>
+              <Text style={s.waterAdjText}>−  한 잔 취소</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={handleAddWater} style={[s.waterAdjBtn, s.waterAdjBtnAdd]}>
+              <Text style={[s.waterAdjText, { color: COLORS.blue }]}>+ 한 잔 추가 (250ml)</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
         {/* ── 혈당 ── */}
         <TouchableOpacity style={s.card} onPress={() => setShowBSModal(true)} activeOpacity={0.85}>
           <View style={s.rowBetween}>
@@ -395,6 +484,25 @@ export default function HomeScreen() {
           </View>
           <Text style={s.fortuneText}>{fortune.text}</Text>
         </View>
+
+        {/* ── 업적 ── */}
+        {unlockedIds.length > 0 && (
+          <View style={s.card}>
+            <Text style={s.sectionTitle}>🏆 업적  <Text style={s.achieveCount}>{unlockedIds.length} / {Object.keys(ACHIEVEMENT_DEFS).length}</Text></Text>
+            <View style={s.achieveGrid}>
+              {(Object.keys(ACHIEVEMENT_DEFS) as AchievementId[]).map(id => {
+                const def = ACHIEVEMENT_DEFS[id];
+                const unlocked = unlockedIds.includes(id);
+                return (
+                  <View key={id} style={[s.achieveItem, !unlocked && s.achieveLocked]}>
+                    <Text style={[s.achieveEmoji, { opacity: unlocked ? 1 : 0.2 }]}>{def.emoji}</Text>
+                    <Text style={[s.achieveName, !unlocked && { color: COLORS.textDisabled }]}>{def.name}</Text>
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+        )}
 
         {/* ── 최근 7일 ── */}
         {recentLogs.length > 1 && (
@@ -637,6 +745,34 @@ const s = StyleSheet.create({
   bsAvg: { flex: 1, textAlign: 'right', color: COLORS.textMuted, fontSize: FONTS.xs },
   bsTrend: { fontSize: FONTS.xs, fontWeight: '700' },
   emptyAction: { color: COLORS.purple, fontSize: FONTS.sm, fontWeight: '600' },
+
+  // XP 바
+  xpBar: { backgroundColor: COLORS.bgCard, borderRadius: RADIUS.md, padding: SPACING.sm, marginBottom: SPACING.sm, borderWidth: 1 },
+  xpTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 },
+  xpLevel: { color: COLORS.textSub, fontSize: FONTS.xxs, fontWeight: '900' },
+  xpTitle: { color: COLORS.textMuted, fontWeight: '400' },
+  xpNext: { color: COLORS.textMuted, fontSize: FONTS.xxs },
+  xpTrack: { height: 6, backgroundColor: COLORS.bgHighlight, borderRadius: 3, overflow: 'hidden' },
+  xpFill: { height: '100%', borderRadius: 3 },
+
+  // 물 섭취
+  waterTotal: { fontSize: FONTS.xs, fontWeight: '700', fontFamily: 'monospace' },
+  waterBar: { height: 6, backgroundColor: COLORS.bgHighlight, borderRadius: 3, marginBottom: 10, overflow: 'hidden' },
+  waterBarFill: { height: '100%', borderRadius: 3 },
+  cupGrid: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
+  cupBtn: { flex: 1, alignItems: 'center' },
+  cupEmoji: { fontSize: 22 },
+  waterAdjBtn: { paddingVertical: 6, paddingHorizontal: 10 },
+  waterAdjBtnAdd: { backgroundColor: COLORS.blue + '15', borderRadius: RADIUS.sm },
+  waterAdjText: { color: COLORS.textMuted, fontSize: FONTS.xs, fontWeight: '600' },
+
+  // 업적
+  achieveCount: { color: COLORS.textMuted, fontWeight: '400', fontSize: FONTS.xs },
+  achieveGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
+  achieveItem: { alignItems: 'center', width: '18%', gap: 3 },
+  achieveLocked: {},
+  achieveEmoji: { fontSize: 24 },
+  achieveName: { color: COLORS.textSub, fontSize: 9, textAlign: 'center' },
 
   // 운세
   luckyPill: { borderRadius: RADIUS.full, paddingHorizontal: 8, paddingVertical: 3 },

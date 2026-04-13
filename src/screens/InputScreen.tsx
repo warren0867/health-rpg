@@ -2,14 +2,15 @@ import * as Haptics from 'expo-haptics';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import React, { useState } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS, FONTS, RADIUS, SPACING } from '../constants/theme';
-import { AlcoholInput, AlcoholType, ExerciseInput, ExerciseType, RootStackParamList, SleepInput } from '../types';
+import { AlcoholInput, AlcoholType, BP_STATUS_COLOR, BP_STATUS_LABEL, DailyLog, ExerciseInput, ExerciseType, getBPStatus, MOOD_EMOJI, MOOD_LABEL, MoodLevel, RootStackParamList, SleepInput } from '../types';
 import {
-  generateId, getDailyLog, getFoodEntriesByDate,
-  getMorningBS, getTodayKey, getUserProfile, saveDailyLog, sumFoodEntries,
+  addXP, generateId, getDailyLog, getFoodEntriesByDate,
+  getMorningBS, getStreak, getTodayKey, getUserProfile, saveDailyLog, sumFoodEntries,
 } from '../utils/storage';
+import { calcXPGain } from '../utils/levelSystem';
 import {
   ALCOHOL_CAL_PER_UNIT, ALCOHOL_EMOJI, ALCOHOL_LABELS, ALCOHOL_UNITS,
   EXERCISE_LABELS, EXERCISE_MET,
@@ -77,6 +78,10 @@ export default function InputScreen() {
   const [selectedExercises, setSelectedExercises] = useState<ExerciseType[]>([]);
   const [duration, setDuration] = useState(30);
   const [alcohol, setAlcohol] = useState<AlcoholInput>({ consumed: false, items: [] });
+  const [mood, setMood] = useState<MoodLevel | null>(null);
+  const [bpSys, setBpSys] = useState('');
+  const [bpDia, setBpDia] = useState('');
+  const [bpPulse, setBpPulse] = useState('');
   const [saving, setSaving] = useState(false);
 
   const toggleExercise = (type: ExerciseType) => {
@@ -116,8 +121,8 @@ export default function InputScreen() {
       ? { types: selectedExercises, minutes: duration }
       : { types: [], minutes: 0 };
 
-    const [morningBS, foodEntries, profile, existingLog] = await Promise.all([
-      getMorningBS(today), getFoodEntriesByDate(today), getUserProfile(), getDailyLog(today),
+    const [morningBS, foodEntries, profile, existingLog, streak] = await Promise.all([
+      getMorningBS(today), getFoodEntriesByDate(today), getUserProfile(), getDailyLog(today), getStreak(),
     ]);
 
     const foodSum = sumFoodEntries(foodEntries);
@@ -127,18 +132,33 @@ export default function InputScreen() {
     const breakdown = calculateScore(sleep, exercise, alcohol, morningBS, foodSum.calories, targetCal);
     const stats = calculateStats(breakdown, exercise, sleep, morningBS);
     const exerciseCalories = calcExerciseCalories(exercise, weightKg);
+    const xpGained = calcXPGain(breakdown.total, streak);
     const now = new Date().toISOString();
 
-    await saveDailyLog({
+    // 혈압 파싱
+    const sys = parseInt(bpSys);
+    const dia = parseInt(bpDia);
+    const pulse = parseInt(bpPulse);
+    const bloodPressure = sys > 0 && dia > 0
+      ? { systolic: sys, diastolic: dia, ...(pulse > 0 ? { pulse } : {}) }
+      : undefined;
+
+    const log: DailyLog = {
       id: existingLog?.id ?? generateId(),
       date: today, alcohol, exercise, sleep,
       conditionScore: breakdown.total,
       scoreBreakdown: breakdown, stats, exerciseCalories,
       alcoholCalories: alcoholCal,
+      mood: mood ?? undefined,
+      bloodPressure,
+      xpGained,
       createdAt: existingLog?.createdAt ?? now, updatedAt: now,
-    });
+    };
+
+    await saveDailyLog(log);
+    if (!existingLog) await addXP(xpGained); // 첫 저장 시만 XP 지급
     setSaving(false);
-    navigation.navigate('Result', { log: { id: existingLog?.id ?? generateId(), date: today, alcohol, exercise, sleep, conditionScore: breakdown.total, scoreBreakdown: breakdown, stats, exerciseCalories, alcoholCalories: alcoholCal, createdAt: existingLog?.createdAt ?? now, updatedAt: now } });
+    navigation.navigate('Result', { log });
   };
 
   // 수면 효과
@@ -155,6 +175,22 @@ export default function InputScreen() {
           <Text style={c.pageTitle}>⚔️ 오늘의 퀘스트</Text>
           <Text style={c.pageSub}>기록하면 캐릭터 스탯이 변합니다</Text>
         </View>
+
+        {/* ── 기분 ── */}
+        <QuestPanel icon="💭" title="오늘의 기분">
+          <View style={c.moodRow}>
+            {([1, 2, 3, 4, 5] as MoodLevel[]).map(m => (
+              <TouchableOpacity
+                key={m}
+                style={[c.moodBtn, mood === m && { borderColor: COLORS.purple, backgroundColor: COLORS.purple + '22' }]}
+                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setMood(m); }}
+              >
+                <Text style={c.moodEmoji}>{MOOD_EMOJI[m]}</Text>
+                <Text style={[c.moodLabel, mood === m && { color: COLORS.purple }]}>{MOOD_LABEL[m]}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </QuestPanel>
 
         {/* ── 수면 (휴식) ── */}
         <QuestPanel icon="😴" title="휴식" badge={`VIT +${sleepEffect.label}`}>
@@ -281,6 +317,54 @@ export default function InputScreen() {
           )}
         </QuestPanel>
 
+        {/* ── 혈압 (선택) ── */}
+        <QuestPanel icon="🩺" title="혈압 기록 (선택)">
+          <View style={c.bpRow}>
+            <View style={c.bpField}>
+              <Text style={c.bpFieldLabel}>수축기 (위)</Text>
+              <TextInput
+                style={c.bpInput}
+                value={bpSys} onChangeText={setBpSys}
+                keyboardType="numeric" placeholder="120" placeholderTextColor={COLORS.textDisabled}
+                maxLength={3}
+              />
+              <Text style={c.bpUnit}>mmHg</Text>
+            </View>
+            <Text style={c.bpSlash}>/</Text>
+            <View style={c.bpField}>
+              <Text style={c.bpFieldLabel}>이완기 (아래)</Text>
+              <TextInput
+                style={c.bpInput}
+                value={bpDia} onChangeText={setBpDia}
+                keyboardType="numeric" placeholder="80" placeholderTextColor={COLORS.textDisabled}
+                maxLength={3}
+              />
+              <Text style={c.bpUnit}>mmHg</Text>
+            </View>
+            <View style={c.bpField}>
+              <Text style={c.bpFieldLabel}>맥박</Text>
+              <TextInput
+                style={c.bpInput}
+                value={bpPulse} onChangeText={setBpPulse}
+                keyboardType="numeric" placeholder="72" placeholderTextColor={COLORS.textDisabled}
+                maxLength={3}
+              />
+              <Text style={c.bpUnit}>bpm</Text>
+            </View>
+          </View>
+          {bpSys.length > 0 && bpDia.length > 0 && !isNaN(parseInt(bpSys)) && !isNaN(parseInt(bpDia)) && (() => {
+            const st = getBPStatus(parseInt(bpSys), parseInt(bpDia));
+            const col = BP_STATUS_COLOR[st];
+            return (
+              <View style={[c.bpStatusBox, { backgroundColor: col + '18' }]}>
+                <Text style={[c.bpStatusText, { color: col }]}>
+                  {bpSys}/{bpDia} — {BP_STATUS_LABEL[st]}
+                </Text>
+              </View>
+            );
+          })()}
+        </QuestPanel>
+
         {/* 안내 */}
         <View style={c.infoBox}>
           <Text style={c.infoText}>🍱 식단 포션은 하단 "식단" 탭에서 추가{'\n'}💧 공복혈당은 홈 화면에서 기록</Text>
@@ -346,6 +430,22 @@ const c = StyleSheet.create({
   alcoholCal: { color: COLORS.red, fontSize: FONTS.xs, fontWeight: '700', minWidth: 54, textAlign: 'right' },
   alcoholSummary: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 6, borderTopWidth: 1, borderTopColor: COLORS.border },
   alcoholTotal: { color: COLORS.red, fontSize: FONTS.xs, fontWeight: '900' },
+
+  // 기분
+  moodRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 4 },
+  moodBtn: { flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.bgInput },
+  moodEmoji: { fontSize: 22, marginBottom: 3 },
+  moodLabel: { color: COLORS.textMuted, fontSize: 9, textAlign: 'center' },
+
+  // 혈압
+  bpRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  bpField: { flex: 1, alignItems: 'center' },
+  bpFieldLabel: { color: COLORS.textMuted, fontSize: 10, marginBottom: 4 },
+  bpInput: { width: '100%', backgroundColor: COLORS.bgInput, borderRadius: RADIUS.sm, borderWidth: 1, borderColor: COLORS.border, color: COLORS.text, fontSize: FONTS.lg, fontWeight: '700', textAlign: 'center', paddingVertical: 8 },
+  bpUnit: { color: COLORS.textDisabled, fontSize: 10, marginTop: 2 },
+  bpSlash: { color: COLORS.textMuted, fontSize: FONTS.xxl, fontWeight: '300', marginTop: 14 },
+  bpStatusBox: { borderRadius: RADIUS.sm, padding: 8, alignItems: 'center', marginTop: 8 },
+  bpStatusText: { fontSize: FONTS.sm, fontWeight: '700' },
 
   // 안내 + 제출
   infoBox: { backgroundColor: COLORS.bgCard, borderRadius: RADIUS.md, padding: SPACING.sm, marginBottom: SPACING.sm, borderWidth: 1, borderColor: COLORS.border },

@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { BloodSugarEntry, DailyLog, FoodEntry, FoodItem, MorningBloodSugar, RecentFoodEntry, UserProfile } from '../types';
+import { AchievementId, BloodSugarEntry, DailyLog, FoodEntry, FoodItem, MorningBloodSugar, RecentFoodEntry, UnlockedAchievement, UserProfile, UserXP, WeightEntry } from '../types';
+import { getLevelFromXP } from './levelSystem';
 
 const KEYS = {
   USER_PROFILE: 'hrpg_profile',
@@ -10,6 +11,10 @@ const KEYS = {
   RECENT_FOODS: 'hrpg_recent_foods',
   FAVORITE_FOODS: 'hrpg_favorite_foods',
   CUSTOM_FOODS: 'hrpg_custom_foods',
+  WATER_LOG: 'hrpg_water_log',
+  WEIGHT_LOG: 'hrpg_weight_log',
+  USER_XP: 'hrpg_user_xp',
+  ACHIEVEMENTS: 'hrpg_achievements',
 } as const;
 
 // ─────────────────────────────────────────────
@@ -313,4 +318,113 @@ export function calcWeeklyAvgBloodSugar(entries: BloodSugarEntry[]): number | nu
   const fasting = entries.filter(e => e.timing === 'fasting');
   if (fasting.length === 0) return null;
   return Math.round(fasting.reduce((s, e) => s + e.value, 0) / fasting.length);
+}
+
+// ─────────────────────────────────────────────
+//  물 섭취 (마나 포션)
+// ─────────────────────────────────────────────
+
+export async function getWaterLog(date: string): Promise<number> {
+  const raw = await AsyncStorage.getItem(KEYS.WATER_LOG);
+  if (!raw) return 0;
+  return (JSON.parse(raw) as Record<string, number>)[date] ?? 0;
+}
+
+export async function setWaterLog(date: string, ml: number): Promise<void> {
+  const raw = await AsyncStorage.getItem(KEYS.WATER_LOG);
+  const log: Record<string, number> = raw ? JSON.parse(raw) : {};
+  log[date] = Math.max(0, ml);
+  await AsyncStorage.setItem(KEYS.WATER_LOG, JSON.stringify(log));
+}
+
+export async function addWater(date: string, ml: number): Promise<number> {
+  const current = await getWaterLog(date);
+  const next = current + ml;
+  await setWaterLog(date, next);
+  return next;
+}
+
+export async function getWaterStreak(goalMl = 1500): Promise<number> {
+  const raw = await AsyncStorage.getItem(KEYS.WATER_LOG);
+  if (!raw) return 0;
+  const log: Record<string, number> = JSON.parse(raw);
+  const today = getTodayKey();
+  let streak = 0;
+  let current = today;
+  for (let i = 0; i < 60; i++) {
+    if ((log[current] ?? 0) >= goalMl) {
+      streak++;
+      const d = new Date(current);
+      d.setDate(d.getDate() - 1);
+      current = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    } else {
+      break;
+    }
+  }
+  return streak;
+}
+
+// ─────────────────────────────────────────────
+//  체중 기록
+// ─────────────────────────────────────────────
+
+export async function saveWeightEntry(entry: WeightEntry): Promise<void> {
+  const raw = await AsyncStorage.getItem(KEYS.WEIGHT_LOG);
+  const entries: Record<string, WeightEntry> = raw ? JSON.parse(raw) : {};
+  entries[entry.date] = entry;
+  await AsyncStorage.setItem(KEYS.WEIGHT_LOG, JSON.stringify(entries));
+}
+
+export async function getWeightHistory(days = 30): Promise<WeightEntry[]> {
+  const raw = await AsyncStorage.getItem(KEYS.WEIGHT_LOG);
+  if (!raw) return [];
+  return Object.values(JSON.parse(raw) as Record<string, WeightEntry>)
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .slice(0, days);
+}
+
+export async function getLatestWeight(): Promise<WeightEntry | null> {
+  const entries = await getWeightHistory(1);
+  return entries[0] ?? null;
+}
+
+// ─────────────────────────────────────────────
+//  XP / 레벨
+// ─────────────────────────────────────────────
+
+export async function getUserXP(): Promise<UserXP> {
+  const raw = await AsyncStorage.getItem(KEYS.USER_XP);
+  if (!raw) return { totalXP: 0, level: 1, lastUpdated: '' };
+  return JSON.parse(raw) as UserXP;
+}
+
+export async function addXP(amount: number): Promise<UserXP> {
+  const current = await getUserXP();
+  const totalXP = current.totalXP + amount;
+  const level = getLevelFromXP(totalXP);
+  const updated: UserXP = { totalXP, level, lastUpdated: new Date().toISOString() };
+  await AsyncStorage.setItem(KEYS.USER_XP, JSON.stringify(updated));
+  return updated;
+}
+
+// ─────────────────────────────────────────────
+//  업적 (Achievement)
+// ─────────────────────────────────────────────
+
+export async function getUnlockedAchievements(): Promise<UnlockedAchievement[]> {
+  const raw = await AsyncStorage.getItem(KEYS.ACHIEVEMENTS);
+  return raw ? JSON.parse(raw) : [];
+}
+
+export async function getUnlockedAchievementIds(): Promise<string[]> {
+  const unlocked = await getUnlockedAchievements();
+  return unlocked.map(a => a.id);
+}
+
+export async function unlockAchievement(id: AchievementId): Promise<boolean> {
+  const unlocked = await getUnlockedAchievements();
+  if (unlocked.some(a => a.id === id)) return false; // 이미 획득
+  unlocked.push({ id, unlockedAt: new Date().toISOString() });
+  await AsyncStorage.setItem(KEYS.ACHIEVEMENTS, JSON.stringify(unlocked));
+  return true;
 }

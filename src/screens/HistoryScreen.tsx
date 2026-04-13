@@ -1,29 +1,46 @@
+import * as Haptics from 'expo-haptics';
 import { useFocusEffect } from '@react-navigation/native';
 import React, { useCallback, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MiniGraph from '../components/MiniGraph';
 import { COLORS, FONTS, getRank, RADIUS, SPACING } from '../constants/theme';
-import { DailyLog, MorningBloodSugar } from '../types';
-import { calcAvgBS, formatDate, getAllDailyLogs, getRecentMorningBS } from '../utils/storage';
+import { DailyLog, MorningBloodSugar, WeightEntry } from '../types';
+import { calcAvgBS, formatDate, generateId, getAllDailyLogs, getRecentMorningBS, getTodayKey, getWeightHistory, saveWeightEntry } from '../utils/storage';
 import { EXERCISE_LABELS, calcAlcoholCalories } from '../utils/scoreCalculator';
 
 export default function HistoryScreen() {
   const [logs, setLogs] = useState<DailyLog[]>([]);
   const [recentBS, setRecentBS] = useState<MorningBloodSugar[]>([]);
+  const [weightHistory, setWeightHistory] = useState<WeightEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showWeightModal, setShowWeightModal] = useState(false);
+  const [weightInput, setWeightInput] = useState('');
 
   useFocusEffect(
     useCallback(() => {
       (async () => {
         setLoading(true);
-        const [all, bs] = await Promise.all([getAllDailyLogs(), getRecentMorningBS(7)]);
+        const [all, bs, weights] = await Promise.all([getAllDailyLogs(), getRecentMorningBS(7), getWeightHistory(30)]);
         setLogs(all);
         setRecentBS(bs);
+        setWeightHistory(weights);
         setLoading(false);
       })();
     }, [])
   );
+
+  const handleSaveWeight = async () => {
+    const v = parseFloat(weightInput);
+    if (isNaN(v) || v < 20 || v > 300) { Alert.alert('오류', '올바른 체중을 입력해주세요 (20~300kg)'); return; }
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    const today = getTodayKey();
+    await saveWeightEntry({ id: generateId(), date: today, weightKg: v, timestamp: new Date().toISOString() });
+    const updated = await getWeightHistory(30);
+    setWeightHistory(updated);
+    setWeightInput('');
+    setShowWeightModal(false);
+  };
 
   if (loading) {
     return (
@@ -89,6 +106,24 @@ export default function HistoryScreen() {
           </View>
         )}
 
+        {/* 체중 그래프 */}
+        <View style={styles.card}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.sm }}>
+            <Text style={styles.sectionTitle}>⚖️ 체중 변화</Text>
+            <TouchableOpacity
+              style={styles.addWeightBtn}
+              onPress={() => setShowWeightModal(true)}
+            >
+              <Text style={styles.addWeightBtnText}>+ 기록</Text>
+            </TouchableOpacity>
+          </View>
+          {weightHistory.length === 0 ? (
+            <Text style={styles.emptySmall}>아직 체중 기록이 없어요</Text>
+          ) : (
+            <WeightGraph entries={[...weightHistory].reverse()} />
+          )}
+        </View>
+
         {/* 최근 7일 그래프 */}
         {weekLogs.length > 0 && (
           <View style={styles.card}>
@@ -142,7 +177,75 @@ export default function HistoryScreen() {
 
         <View style={{ height: SPACING.xl * 2 }} />
       </ScrollView>
+
+      {/* 체중 입력 모달 */}
+      <Modal visible={showWeightModal} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalSheet}>
+            <Text style={styles.modalTitle}>⚖️ 체중 기록</Text>
+            <Text style={styles.modalSub}>오늘 측정한 체중을 입력해주세요</Text>
+            <TextInput
+              style={styles.modalInput}
+              value={weightInput} onChangeText={setWeightInput}
+              keyboardType="decimal-pad" placeholder="예: 72.5"
+              placeholderTextColor={COLORS.textDisabled}
+              autoFocus
+            />
+            <Text style={styles.modalUnit}>kg</Text>
+            <View style={styles.modalBtns}>
+              <TouchableOpacity style={styles.modalCancel} onPress={() => setShowWeightModal(false)}>
+                <Text style={styles.modalCancelText}>취소</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.modalConfirm} onPress={handleSaveWeight}>
+                <Text style={styles.modalConfirmText}>저장</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
+  );
+}
+
+// ── 체중 그래프 ──
+function WeightGraph({ entries }: { entries: WeightEntry[] }) {
+  const display = entries.slice(-14); // 최근 14일
+  if (display.length === 0) return null;
+  const weights = display.map(e => e.weightKg);
+  const minW = Math.min(...weights) - 1;
+  const maxW = Math.max(...weights) + 1;
+  const range = maxW - minW || 1;
+  const BAR_H = 60;
+
+  return (
+    <View>
+      <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 3, height: BAR_H + 28 }}>
+        {display.map((e, i) => {
+          const h = Math.max(6, ((e.weightKg - minW) / range) * BAR_H);
+          const isLatest = i === display.length - 1;
+          return (
+            <View key={e.date} style={{ flex: 1, alignItems: 'center' }}>
+              {isLatest && (
+                <Text style={{ color: COLORS.teal, fontSize: 9, fontWeight: '900', marginBottom: 2 }}>
+                  {e.weightKg}
+                </Text>
+              )}
+              <View style={{ width: '100%', height: BAR_H, justifyContent: 'flex-end', backgroundColor: COLORS.bgHighlight, borderRadius: 3 }}>
+                <View style={{ width: '100%', height: h, backgroundColor: isLatest ? COLORS.teal : COLORS.blue, borderRadius: 3, opacity: 0.85 }} />
+              </View>
+              {i % 2 === 0 && (
+                <Text style={{ color: COLORS.textMuted, fontSize: 9, marginTop: 2 }}>{e.date.slice(5)}</Text>
+              )}
+            </View>
+          );
+        })}
+      </View>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
+        <Text style={{ color: COLORS.textMuted, fontSize: 10 }}>최소 {Math.min(...weights).toFixed(1)}kg</Text>
+        <Text style={{ color: COLORS.teal, fontSize: 10, fontWeight: '700' }}>현재 {display[display.length - 1].weightKg}kg</Text>
+        <Text style={{ color: COLORS.textMuted, fontSize: 10 }}>최대 {Math.max(...weights).toFixed(1)}kg</Text>
+      </View>
+    </View>
   );
 }
 
@@ -262,4 +365,22 @@ const styles = StyleSheet.create({
   miniStat: { alignItems: 'center' },
   miniStatVal: { fontSize: FONTS.sm, fontWeight: '900' },
   miniStatLabel: { color: COLORS.textDisabled, fontSize: 10 },
+
+  // 체중
+  addWeightBtn: { backgroundColor: COLORS.teal + '22', borderRadius: RADIUS.full, paddingHorizontal: 12, paddingVertical: 5, borderWidth: 1, borderColor: COLORS.teal + '44' },
+  addWeightBtnText: { color: COLORS.teal, fontSize: FONTS.xs, fontWeight: '700' },
+  emptySmall: { color: COLORS.textMuted, fontSize: FONTS.sm, textAlign: 'center', paddingVertical: SPACING.md },
+
+  // 체중 모달
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'flex-end' },
+  modalSheet: { backgroundColor: COLORS.bgCard, borderTopLeftRadius: RADIUS.xl, borderTopRightRadius: RADIUS.xl, padding: SPACING.lg, borderTopWidth: 1, borderColor: COLORS.border },
+  modalTitle: { color: COLORS.text, fontSize: FONTS.lg, fontWeight: '900', marginBottom: 4 },
+  modalSub: { color: COLORS.textMuted, fontSize: FONTS.xs, marginBottom: SPACING.md },
+  modalInput: { backgroundColor: COLORS.bgInput, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.border, color: COLORS.text, fontSize: 52, fontWeight: '900', paddingHorizontal: SPACING.md, paddingVertical: 10, textAlign: 'center', fontFamily: 'monospace' },
+  modalUnit: { color: COLORS.textMuted, fontSize: FONTS.xs, textAlign: 'center', marginTop: 4, marginBottom: SPACING.md },
+  modalBtns: { flexDirection: 'row', gap: 10 },
+  modalCancel: { flex: 1, backgroundColor: COLORS.bgHighlight, borderRadius: RADIUS.lg, paddingVertical: 12, alignItems: 'center' },
+  modalCancelText: { color: COLORS.textMuted, fontWeight: '600', fontSize: FONTS.sm },
+  modalConfirm: { flex: 2, backgroundColor: COLORS.teal, borderRadius: RADIUS.lg, paddingVertical: 12, alignItems: 'center' },
+  modalConfirmText: { color: '#fff', fontWeight: '900', fontSize: FONTS.sm },
 });

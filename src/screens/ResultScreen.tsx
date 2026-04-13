@@ -1,10 +1,12 @@
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Animated, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS, FONTS, getAvatar, getRank, RADIUS, SPACING } from '../constants/theme';
-import { RootStackParamList, ScoreFactor } from '../types';
+import { MOOD_EMOJI, RootStackParamList, ScoreFactor } from '../types';
 import { getConditionFeedback, getScoreFactors } from '../utils/feedback';
+import { getXPProgress, getLevelTitle } from '../utils/levelSystem';
+import { getUserXP } from '../utils/storage';
 
 type Route = RouteProp<RootStackParamList, 'Result'>;
 
@@ -44,6 +46,7 @@ export default function ResultScreen() {
   const navigation = useNavigation();
   const { log } = useRoute<Route>().params;
   const { conditionScore, scoreBreakdown, stats } = log;
+  const [xpProgress, setXpProgress] = useState<ReturnType<typeof getXPProgress> | null>(null);
 
   const rank = getRank(conditionScore);
   const avatar = getAvatar(conditionScore);
@@ -53,8 +56,14 @@ export default function ResultScreen() {
   const scoreAnim = useRef(new Animated.Value(0)).current;
   const fadeIn = useRef(new Animated.Value(0)).current;
   const slideUp = useRef(new Animated.Value(30)).current;
+  const xpBarAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
+    getUserXP().then(xp => {
+      const prog = getXPProgress(xp.totalXP);
+      setXpProgress(prog);
+      Animated.timing(xpBarAnim, { toValue: prog.pct, duration: 1000, useNativeDriver: false }).start();
+    });
     Animated.parallel([
       Animated.timing(scoreAnim, { toValue: conditionScore, duration: 1200, useNativeDriver: false }),
       Animated.timing(fadeIn, { toValue: 1, duration: 600, useNativeDriver: false }),
@@ -141,6 +150,34 @@ export default function ResultScreen() {
           {conditionScore >= 80 && <QuestTip icon="🌟" tip="완벽한 루틴! 이 상태를 유지하세요" />}
         </View>
 
+        {/* ── XP 획득 ── */}
+        {log.xpGained != null && (
+          <View style={r.xpCard}>
+            <View style={r.xpHeader}>
+              <Text style={r.xpTitle}>✨ 경험치 획득</Text>
+              <Text style={r.xpGained}>+{log.xpGained} XP</Text>
+            </View>
+            {xpProgress && (
+              <>
+                <View style={r.xpLevelRow}>
+                  <Text style={r.xpLevel}>Lv.{xpProgress.level}  {getLevelTitle(xpProgress.level)}</Text>
+                  {!xpProgress.isMax && (
+                    <Text style={r.xpNext}>{xpProgress.current} / {xpProgress.needed} XP</Text>
+                  )}
+                </View>
+                <View style={r.xpTrack}>
+                  <Animated.View style={[r.xpFill, {
+                    width: xpBarAnim.interpolate({ inputRange: [0, 100], outputRange: ['0%', '100%'] }) as any,
+                  }]} />
+                </View>
+              </>
+            )}
+            {log.mood != null && (
+              <Text style={r.moodRow}>오늘의 기분: {MOOD_EMOJI[log.mood]}  {['', '매우 힘듦', '좀 힘듦', '보통', '좋음', '최고!'][log.mood]}</Text>
+            )}
+          </View>
+        )}
+
         {/* ── 홈 버튼 ── */}
         <TouchableOpacity
           style={[r.homeBtn, { borderColor: rank.color + '44' }]}
@@ -208,6 +245,18 @@ const r = StyleSheet.create({
   // 퀘스트 팁
   questTip: { flexDirection: 'row', gap: 8, paddingVertical: 7, borderBottomWidth: 1, borderBottomColor: COLORS.borderSub, alignItems: 'flex-start' },
   questTipText: { flex: 1, color: COLORS.textSub, fontSize: FONTS.xs, lineHeight: 18 },
+
+  // XP 카드
+  xpCard: { backgroundColor: COLORS.bgCard, borderRadius: RADIUS.lg, padding: SPACING.md, marginBottom: SPACING.sm, borderWidth: 1, borderColor: COLORS.purple + '44' },
+  xpHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  xpTitle: { color: COLORS.text, fontSize: FONTS.sm, fontWeight: '800' },
+  xpGained: { color: COLORS.purple, fontSize: FONTS.lg, fontWeight: '900', fontFamily: 'monospace' },
+  xpLevelRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+  xpLevel: { color: COLORS.textSub, fontSize: FONTS.xs, fontWeight: '700' },
+  xpNext: { color: COLORS.textMuted, fontSize: FONTS.xxs },
+  xpTrack: { height: 8, backgroundColor: COLORS.bgHighlight, borderRadius: 4, overflow: 'hidden', marginBottom: 8 },
+  xpFill: { height: '100%', backgroundColor: COLORS.purple, borderRadius: 4 },
+  moodRow: { color: COLORS.textMuted, fontSize: FONTS.xs, marginTop: 2 },
 
   // 귀환 버튼
   homeBtn: { borderRadius: RADIUS.lg, paddingVertical: 14, alignItems: 'center', borderWidth: 1, backgroundColor: COLORS.bgCard },

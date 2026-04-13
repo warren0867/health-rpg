@@ -20,6 +20,128 @@ export interface UserProfile {
 }
 
 // ─────────────────────────────────────────────
+//  기분 / 스트레스
+// ─────────────────────────────────────────────
+
+export type MoodLevel = 1 | 2 | 3 | 4 | 5;
+
+export const MOOD_EMOJI: Record<MoodLevel, string> = {
+  1: '😩',
+  2: '😔',
+  3: '😐',
+  4: '😊',
+  5: '🤩',
+};
+
+export const MOOD_LABEL: Record<MoodLevel, string> = {
+  1: '매우 힘듦',
+  2: '좀 힘듦',
+  3: '보통',
+  4: '좋음',
+  5: '최고!',
+};
+
+// ─────────────────────────────────────────────
+//  체중 기록
+// ─────────────────────────────────────────────
+
+export interface WeightEntry {
+  id: string;
+  date: string;
+  weightKg: number;
+  timestamp: string;
+}
+
+// ─────────────────────────────────────────────
+//  혈압 기록
+// ─────────────────────────────────────────────
+
+export interface BloodPressureEntry {
+  id: string;
+  date: string;
+  systolic: number;    // 수축기 (위)
+  diastolic: number;   // 이완기 (아래)
+  pulse?: number;      // 맥박
+  timestamp: string;
+}
+
+export type BPStatus = 'optimal' | 'normal' | 'warning' | 'danger';
+
+export function getBPStatus(sys: number, dia: number): BPStatus {
+  if (sys < 120 && dia < 80) return 'optimal';
+  if (sys < 130 && dia < 85) return 'normal';
+  if (sys < 160 || dia < 100) return 'warning';
+  return 'danger';
+}
+
+export const BP_STATUS_LABEL: Record<BPStatus, string> = {
+  optimal: '최적',
+  normal: '정상',
+  warning: '주의',
+  danger: '위험',
+};
+
+export const BP_STATUS_COLOR: Record<BPStatus, string> = {
+  optimal: '#06D6A0',
+  normal: '#2ECC71',
+  warning: '#F5A623',
+  danger: '#FF5370',
+};
+
+// ─────────────────────────────────────────────
+//  업적 시스템
+// ─────────────────────────────────────────────
+
+export type AchievementId =
+  | 'first_record'
+  | 'streak_3'
+  | 'streak_7'
+  | 'streak_30'
+  | 'score_90'
+  | 'perfect_score'
+  | 'no_alcohol_7'
+  | 'exercise_7'
+  | 'level_5'
+  | 'level_10'
+  | 'water_goal_7';
+
+export interface AchievementDef {
+  id: AchievementId;
+  name: string;
+  desc: string;
+  emoji: string;
+}
+
+export const ACHIEVEMENT_DEFS: Record<AchievementId, AchievementDef> = {
+  first_record:  { id: 'first_record',  name: '첫 발걸음',    desc: '첫 번째 일일 기록 완료',    emoji: '🎯' },
+  streak_3:      { id: 'streak_3',      name: '3일 전사',     desc: '3일 연속 기록 달성',        emoji: '🔥' },
+  streak_7:      { id: 'streak_7',      name: '일주일 영웅',  desc: '7일 연속 기록 달성',        emoji: '⚡' },
+  streak_30:     { id: 'streak_30',     name: '전설의 루틴',  desc: '30일 연속 기록 달성',       emoji: '👑' },
+  score_90:      { id: 'score_90',      name: '전설에 근접',  desc: '하루 90점 이상 달성',       emoji: '⚔️' },
+  perfect_score: { id: 'perfect_score', name: '완벽한 하루',  desc: '100점 만점 달성',           emoji: '🏆' },
+  no_alcohol_7:  { id: 'no_alcohol_7',  name: '금주 챌린지',  desc: '7일 연속 금주 달성',        emoji: '🧘' },
+  exercise_7:    { id: 'exercise_7',    name: '운동 중독자',  desc: '7일 연속 운동 기록',        emoji: '💪' },
+  level_5:       { id: 'level_5',       name: '용맹한 기사',  desc: '레벨 5 달성',               emoji: '🛡️' },
+  level_10:      { id: 'level_10',      name: '전설의 신',    desc: '레벨 10 달성',              emoji: '🌟' },
+  water_goal_7:  { id: 'water_goal_7',  name: '수분 충전',    desc: '7일 연속 물 목표 달성 (1.5L+)', emoji: '💧' },
+};
+
+export interface UnlockedAchievement {
+  id: AchievementId;
+  unlockedAt: string;
+}
+
+// ─────────────────────────────────────────────
+//  XP / 레벨
+// ─────────────────────────────────────────────
+
+export interface UserXP {
+  totalXP: number;
+  level: number;
+  lastUpdated: string;
+}
+
+// ─────────────────────────────────────────────
 //  식단 / 칼로리
 // ─────────────────────────────────────────────
 
@@ -127,21 +249,21 @@ export type BloodSugarStatus = 'low' | 'normal' | 'warning' | 'danger';
 
 export type ExerciseType =
   | 'none'
-  | 'walk'      // 걷기/산책
-  | 'run'       // 달리기
-  | 'cycling'   // 자전거
-  | 'gym'       // 헬스/웨이트
-  | 'swim'      // 수영
-  | 'hiking'    // 등산
-  | 'yoga'      // 요가/스트레칭
-  | 'pilates'   // 필라테스
-  | 'tennis'    // 테니스/배드민턴
-  | 'soccer'    // 축구/농구
+  | 'walk'
+  | 'run'
+  | 'cycling'
+  | 'gym'
+  | 'swim'
+  | 'hiking'
+  | 'yoga'
+  | 'pilates'
+  | 'tennis'
+  | 'soccer'
   | 'both';     // (레거시 호환)
 
 export interface ExerciseInput {
-  types: ExerciseType[];   // 복수 선택
-  minutes: number;         // 총 운동 시간
+  types: ExerciseType[];
+  minutes: number;
   type?: ExerciseType;     // @deprecated 구버전 호환
 }
 
@@ -150,18 +272,18 @@ export interface ExerciseInput {
 // ─────────────────────────────────────────────
 
 export type AlcoholType =
-  | 'beer_can'    // 맥주 캔 (355ml)
-  | 'beer_bottle' // 맥주 병 (500ml)
-  | 'soju'        // 소주 (0.5병 단위)
-  | 'makgeolli'   // 막걸리 (1컵 300ml)
-  | 'whiskey'     // 위스키 (1잔 40ml)
-  | 'wine'        // 와인 (1잔 150ml)
-  | 'highball'    // 하이볼 (1잔 200ml)
-  | 'bomb';       // 폭탄주 (1잔)
+  | 'beer_can'
+  | 'beer_bottle'
+  | 'soju'
+  | 'makgeolli'
+  | 'whiskey'
+  | 'wine'
+  | 'highball'
+  | 'bomb';
 
 export interface AlcoholItem {
   type: AlcoholType;
-  amount: number;  // 단위 수량
+  amount: number;
 }
 
 export interface AlcoholInput {
@@ -220,8 +342,11 @@ export interface DailyLog {
   conditionScore: number;
   scoreBreakdown: ScoreBreakdown;
   stats: CharacterStats;
-  exerciseCalories?: number;   // 운동 소모 칼로리
-  alcoholCalories?: number;    // 음주 칼로리
+  exerciseCalories?: number;
+  alcoholCalories?: number;
+  mood?: MoodLevel;                     // 기분 (1~5)
+  bloodPressure?: { systolic: number; diastolic: number; pulse?: number };  // 혈압
+  xpGained?: number;                    // 이날 획득한 XP
   createdAt: string;
   updatedAt: string;
 }
