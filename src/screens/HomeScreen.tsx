@@ -47,7 +47,7 @@ const sb = StyleSheet.create({
   val: { fontSize: FONTS.xxs, fontWeight: '900', width: 28, textAlign: 'right', fontFamily: 'monospace' },
 });
 
-// ─── RPG 수정 바 (큰 버전) ────────────────────────────────
+// ─── RPG HP/MP 바 (큰 버전) ───────────────────────────────
 function HeroBar({ label, value, color, icon }: { label: string; value: number; color: string; icon: string }) {
   const pct = Math.min(100, value);
   return (
@@ -58,6 +58,7 @@ function HeroBar({ label, value, color, icon }: { label: string; value: number; 
       </View>
       <View style={{ height: 8, backgroundColor: COLORS.bgHighlight, borderRadius: 4, overflow: 'hidden' }}>
         <View style={{ width: `${pct}%` as any, height: '100%', backgroundColor: color, borderRadius: 4 }} />
+        <View style={{ position: 'absolute', width: `${pct}%` as any, height: '100%', backgroundColor: color, borderRadius: 4, opacity: 0.25 }} />
       </View>
     </View>
   );
@@ -206,13 +207,14 @@ export default function HomeScreen() {
   const bsTrend = getBSTrend(recentBS);
   const avgBS = calcAvgBS(recentBS);
 
-  // 오늘의 퀘스트 체크
+  // 퀘스트 완료 여부
   const quests = [
-    { label: '공복혈당 기록', done: !!morningBS, screen: 'Home', action: () => setShowBSModal(true) },
-    { label: '식단 입력', done: foodSummary.calories > 0, screen: 'Calorie', action: () => navigation.navigate('Calorie') },
-    { label: '오늘 기록 완료', done: !!todayLog, screen: 'Input', action: () => navigation.navigate('Input') },
+    { label: '공복혈당 기록', done: !!morningBS, action: () => setShowBSModal(true) },
+    { label: '식단 입력', done: foodSummary.calories > 0, action: () => navigation.navigate('Calorie') },
+    { label: '오늘 기록 완료', done: !!todayLog, action: () => navigation.navigate('Input') },
   ];
   const questDone = quests.filter(q => q.done).length;
+  const questPct = Math.round((questDone / 3) * 100);
 
   if (loading) return <SafeAreaView style={s.safe}><View style={{ flex: 1 }} /></SafeAreaView>;
 
@@ -229,7 +231,7 @@ export default function HomeScreen() {
           <View style={s.headerActions}>
             {streak > 1 && (
               <View style={s.streakChip}>
-                <Text style={s.streakText}>🔥{streak}</Text>
+                <Text style={s.streakText}>🔥 {streak}일 연속</Text>
               </View>
             )}
             <TouchableOpacity style={s.notifBtn} onPress={() => setShowNotifModal(true)}>
@@ -239,16 +241,19 @@ export default function HomeScreen() {
         </View>
 
         {/* ── 캐릭터 카드 ── */}
-        <View style={s.characterCard}>
+        <View style={[s.characterCard, { borderColor: (rank?.color ?? COLORS.border) + '55' }]}>
+          {/* 배경 글로우 */}
+          <View style={[s.cardGlow, { backgroundColor: (rank?.glow ?? COLORS.purpleGlow) }]} />
+
           <View style={s.characterLeft}>
-            <View style={[s.avatarBox, { borderColor: rank?.color ?? COLORS.textMuted }]}>
+            <View style={[s.avatarBox, { borderColor: rank?.color ?? COLORS.textMuted, shadowColor: rank?.color ?? 'transparent' }]}>
               <Text style={s.avatarEmoji}>{avatar}</Text>
             </View>
             <View>
               <Text style={s.charName}>{profile?.name ?? '용사'}</Text>
               <View style={[s.rankBadge, { backgroundColor: (rank?.glow ?? COLORS.purpleGlow) }]}>
                 <Text style={[s.rankText, { color: rank?.color ?? COLORS.textMuted }]}>
-                  {rank ? `${rank.rank} · ${rank.label}` : '기록 없음'}
+                  {rank ? `${rank.rank}  ${rank.label}` : '기록 없음'}
                 </Text>
               </View>
             </View>
@@ -261,21 +266,27 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        {/* ── HP/MP 바 ── */}
+        {/* ── HP/MP 스탯 ── */}
         {stats && (
           <View style={s.card}>
+            <Text style={s.sectionTitle}>⚡ 캐릭터 스탯</Text>
             <HeroBar label="HP  체력" value={stats.hp}               color={COLORS.hp}  icon="❤️" />
             <HeroBar label="MP  혈당제어" value={stats.bloodSugarControl} color={COLORS.mp}  icon="💧" />
             <View style={{ height: 6 }} />
-            <StatBar label="힘"   abbr="STR" value={stats.stamina}  color={COLORS.str} />
-            <StatBar label="생명" abbr="VIT" value={stats.recovery} color={COLORS.vit} />
-            <StatBar label="민첩" abbr="AGI" value={stats.condition} color={COLORS.agi} />
-            <StatBar label="지력" abbr="INT" value={stats.bloodSugarControl} color={COLORS.int} />
+            <StatBar label="지구력" abbr="STR" value={stats.stamina}           color={COLORS.str} />
+            <StatBar label="회복력" abbr="VIT" value={stats.recovery}          color={COLORS.vit} />
+            <StatBar label="컨디션" abbr="AGI" value={stats.condition}         color={COLORS.agi} />
+            <StatBar label="혈당제어" abbr="INT" value={stats.bloodSugarControl} color={COLORS.int} />
           </View>
         )}
         {!stats && (
-          <TouchableOpacity style={s.card} onPress={() => navigation.navigate('Input')}>
-            <Text style={s.emptyStatText}>⚔️ 오늘의 퀘스트를 시작하세요{'\n'}기록하면 캐릭터 스탯이 올라가요!</Text>
+          <TouchableOpacity style={[s.card, s.emptyCard]} onPress={() => navigation.navigate('Input')}>
+            <Text style={s.emptyCardIcon}>⚔️</Text>
+            <Text style={s.emptyStatText}>오늘의 퀘스트를 시작하세요</Text>
+            <Text style={s.emptyStatSub}>기록하면 캐릭터 스탯이 올라가요</Text>
+            <View style={s.startBtn}>
+              <Text style={s.startBtnText}>기록 시작 →</Text>
+            </View>
           </TouchableOpacity>
         )}
 
@@ -283,10 +294,20 @@ export default function HomeScreen() {
         <View style={s.card}>
           <View style={s.rowBetween}>
             <Text style={s.sectionTitle}>📋 오늘의 퀘스트</Text>
-            <Text style={[s.questCount, { color: questDone === 3 ? COLORS.gold : COLORS.textMuted }]}>
-              {questDone}/3 완료
-            </Text>
+            <View style={s.questProgressPill}>
+              <Text style={[s.questCount, { color: questDone === 3 ? COLORS.gold : COLORS.textMuted }]}>
+                {questDone}/3
+              </Text>
+            </View>
           </View>
+          {/* 퀘스트 진행 바 */}
+          <View style={s.questBar}>
+            <View style={[s.questBarFill, {
+              width: `${questPct}%` as any,
+              backgroundColor: questDone === 3 ? COLORS.gold : COLORS.purple,
+            }]} />
+          </View>
+          <View style={{ height: 8 }} />
           {quests.map((q, i) => (
             <TouchableOpacity key={i} style={s.questRow} onPress={q.action} activeOpacity={0.7}>
               <Text style={s.questIcon}>{q.done ? '✅' : '⬜'}</Text>
@@ -296,12 +317,12 @@ export default function HomeScreen() {
           ))}
         </View>
 
-        {/* ── 칼로리 전투 현황 ── */}
+        {/* ── 칼로리 현황 ── */}
         <View style={s.card}>
           <View style={s.rowBetween}>
-            <Text style={s.sectionTitle}>🍺 포션 / 소모</Text>
+            <Text style={s.sectionTitle}>🍱 오늘의 칼로리</Text>
             <TouchableOpacity onPress={() => navigation.navigate('Calorie')}>
-              <Text style={s.link}>+ 포션 추가</Text>
+              <Text style={s.link}>+ 식단 추가</Text>
             </TouchableOpacity>
           </View>
           <View style={s.calTriple}>
@@ -375,7 +396,7 @@ export default function HomeScreen() {
           <Text style={s.fortuneText}>{fortune.text}</Text>
         </View>
 
-        {/* ── 최근 기록 스파크 ── */}
+        {/* ── 최근 7일 ── */}
         {recentLogs.length > 1 && (
           <View style={s.card}>
             <View style={s.rowBetween}>
@@ -494,7 +515,7 @@ function ScoreSparkline({ logs }: { logs: any[] }) {
           <View key={log.date ?? i} style={{ flex: 1, alignItems: 'center' }}>
             <Text style={{ color: rank.color, fontSize: 8, fontWeight: '900', marginBottom: 2 }}>{log.conditionScore}</Text>
             <View style={{ width: '100%', height: BAR_H, justifyContent: 'flex-end', backgroundColor: COLORS.bgHighlight, borderRadius: 3 }}>
-              <View style={{ width: '100%', height: h, backgroundColor: rank.color, borderRadius: 3, opacity: 0.8 }} />
+              <View style={{ width: '100%', height: h, backgroundColor: rank.color, borderRadius: 3, opacity: 0.85 }} />
             </View>
             <Text style={{ color: COLORS.textDisabled, fontSize: 8, marginTop: 2 }}>{(log.date ?? '').slice(5)}</Text>
           </View>
@@ -513,16 +534,53 @@ const s = StyleSheet.create({
   appTitle: { color: COLORS.purple, fontSize: FONTS.md, fontWeight: '900', letterSpacing: 2 },
   dateText: { color: COLORS.textMuted, fontSize: FONTS.xxs, marginTop: 1 },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  streakChip: { backgroundColor: COLORS.goldGlow, borderRadius: RADIUS.full, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: COLORS.gold + '44' },
+  streakChip: {
+    backgroundColor: COLORS.goldGlow,
+    borderRadius: RADIUS.full,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: COLORS.gold + '55',
+  },
   streakText: { color: COLORS.gold, fontSize: FONTS.xs, fontWeight: '900' },
   notifBtn: { padding: 4 },
   notifIcon: { fontSize: 16 },
 
   // 캐릭터 카드
-  characterCard: { backgroundColor: COLORS.bgCard, borderRadius: RADIUS.lg, padding: SPACING.md, marginBottom: SPACING.sm, borderWidth: 1, borderColor: COLORS.border, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  characterCard: {
+    backgroundColor: COLORS.bgCard,
+    borderRadius: RADIUS.lg,
+    padding: SPACING.md,
+    marginBottom: SPACING.sm,
+    borderWidth: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  cardGlow: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    opacity: 0.4,
+  },
   characterLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  avatarBox: { width: 52, height: 52, borderRadius: RADIUS.md, borderWidth: 2, backgroundColor: COLORS.bgHighlight, alignItems: 'center', justifyContent: 'center' },
-  avatarEmoji: { fontSize: 26 },
+  avatarBox: {
+    width: 56,
+    height: 56,
+    borderRadius: RADIUS.md,
+    borderWidth: 2,
+    backgroundColor: COLORS.bgHighlight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.6,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  avatarEmoji: { fontSize: 28 },
   charName: { color: COLORS.text, fontSize: FONTS.md, fontWeight: '900', marginBottom: 4 },
   rankBadge: { borderRadius: RADIUS.xs, paddingHorizontal: 6, paddingVertical: 2 },
   rankText: { fontSize: FONTS.xxs, fontWeight: '700' },
@@ -531,20 +589,36 @@ const s = StyleSheet.create({
   scoreLabel: { color: COLORS.textMuted, fontSize: FONTS.xxs, letterSpacing: 2 },
 
   // 공통 카드
-  card: { backgroundColor: COLORS.bgCard, borderRadius: RADIUS.lg, padding: SPACING.md, marginBottom: SPACING.sm, borderWidth: 1, borderColor: COLORS.border },
+  card: {
+    backgroundColor: COLORS.bgCard,
+    borderRadius: RADIUS.lg,
+    padding: SPACING.md,
+    marginBottom: SPACING.sm,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
   rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   sectionTitle: { color: COLORS.text, fontSize: FONTS.sm, fontWeight: '700' },
   link: { color: COLORS.purple, fontSize: FONTS.xs, fontWeight: '600' },
 
-  emptyStatText: { color: COLORS.textMuted, fontSize: FONTS.sm, textAlign: 'center', lineHeight: 22 },
+  // 빈 스탯 카드
+  emptyCard: { alignItems: 'center', paddingVertical: SPACING.lg, gap: 6 },
+  emptyCardIcon: { fontSize: 36 },
+  emptyStatText: { color: COLORS.text, fontSize: FONTS.sm, fontWeight: '700', textAlign: 'center' },
+  emptyStatSub: { color: COLORS.textMuted, fontSize: FONTS.xs, textAlign: 'center' },
+  startBtn: { backgroundColor: COLORS.purple, borderRadius: RADIUS.full, paddingHorizontal: 20, paddingVertical: 8, marginTop: 4 },
+  startBtnText: { color: '#fff', fontWeight: '900', fontSize: FONTS.sm },
 
   // 퀘스트
+  questBar: { height: 4, backgroundColor: COLORS.bgHighlight, borderRadius: 2, marginBottom: 4, overflow: 'hidden' },
+  questBarFill: { height: '100%', borderRadius: 2 },
+  questProgressPill: { backgroundColor: COLORS.bgHighlight, borderRadius: RADIUS.full, paddingHorizontal: 8, paddingVertical: 2 },
   questRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 7, borderBottomWidth: 1, borderBottomColor: COLORS.borderSub, gap: 10 },
   questIcon: { fontSize: 14 },
   questLabel: { flex: 1, color: COLORS.text, fontSize: FONTS.sm },
   questDone: { color: COLORS.textMuted, textDecorationLine: 'line-through' },
   questArrow: { color: COLORS.purple, fontWeight: '700' },
-  questCount: { fontSize: FONTS.xs, fontWeight: '700' },
+  questCount: { fontSize: FONTS.xs, fontWeight: '900' },
 
   // 칼로리
   calTriple: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
