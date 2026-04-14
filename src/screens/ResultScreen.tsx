@@ -84,10 +84,10 @@ export default function ResultScreen() {
 
         {/* ── 전투 결과 헤더 ── */}
         <Animated.View style={[r.resultBanner, { opacity: fadeIn, transform: [{ translateY: slideUp }] }, { borderColor: rank.color + '66' }]}>
-          <Text style={[r.resultLabel, { color: rank.color }]}>
-            {isVictory ? '⚔️  VICTORY' : '💀  DEFEAT'}
-          </Text>
           <Text style={r.avatarText}>{avatar}</Text>
+          <Text style={[r.resultLabel, { color: rank.color }]}>
+            {isVictory ? '오늘의 컨디션' : '회복이 필요한 하루'}
+          </Text>
           <Animated.Text style={[r.scoreNum, { color: rank.color }]}>
             {animatedScore}
           </Animated.Text>
@@ -98,23 +98,23 @@ export default function ResultScreen() {
           <Text style={r.feedbackText}>"{feedback}"</Text>
         </Animated.View>
 
-        {/* ── 전투 로그 (데미지/힐) ── */}
+        {/* ── 점수 상세 ── */}
         <View style={r.card}>
-          <Text style={r.sectionTitle}>⚔️ 전투 로그</Text>
+          <Text style={r.sectionTitle}>점수 상세</Text>
           <View style={r.baseRow}>
-            <Text style={r.baseLabel}>기본</Text>
+            <Text style={r.baseLabel}>기본 점수</Text>
             <Text style={r.baseVal}>+{scoreBreakdown.base} pts</Text>
           </View>
 
           {gains.length > 0 && (
             <>
-              <Text style={[r.groupLabel, { color: COLORS.teal }]}>✨ BUFF  가점</Text>
+              <Text style={[r.groupLabel, { color: COLORS.teal }]}>가점</Text>
               {gains.map((f, i) => <DamageNum key={i} value={f.value} label={f.label} emoji={f.emoji} />)}
             </>
           )}
           {losses.length > 0 && (
             <>
-              <Text style={[r.groupLabel, { color: COLORS.red }]}>💀 DEBUFF  감점</Text>
+              <Text style={[r.groupLabel, { color: COLORS.red }]}>감점</Text>
               {losses.map((f, i) => <DamageNum key={i} value={f.value} label={f.label} emoji={f.emoji} />)}
             </>
           )}
@@ -131,7 +131,7 @@ export default function ResultScreen() {
 
         {/* ── 스탯 업데이트 ── */}
         <View style={r.card}>
-          <Text style={r.sectionTitle}>📊 스탯 업데이트</Text>
+          <Text style={r.sectionTitle}>오늘의 건강 지표</Text>
           <RPGStatBar abbr="HP" label="체력" value={stats.hp} color={COLORS.hp} />
           <RPGStatBar abbr="MP" label="혈당 조절력" value={stats.bloodSugarControl} color={COLORS.mp} />
           <RPGStatBar abbr="STR" label="지구력" value={stats.stamina} color={COLORS.str} />
@@ -139,9 +139,9 @@ export default function ResultScreen() {
           <RPGStatBar abbr="CON" label="종합 컨디션" value={stats.condition} color={COLORS.agi} />
         </View>
 
-        {/* ── 내일 퀘스트 제안 ── */}
+        {/* ── 내일 제안 ── */}
         <View style={r.card}>
-          <Text style={r.sectionTitle}>📋 내일의 퀘스트</Text>
+          <Text style={r.sectionTitle}>내일 이렇게 해보세요</Text>
           {conditionScore < 60 && <QuestTip icon="😴" tip="7-8시간 수면으로 VIT를 회복하세요" />}
           {scoreBreakdown.alcoholPenalty < -10 && <QuestTip icon="🚫" tip="오늘 하루 금주로 디버프를 해제하세요" />}
           {stats.stamina < 50 && <QuestTip icon="🚴" tip="자전거 30분으로 STR을 올려보세요" />}
@@ -183,7 +183,7 @@ export default function ResultScreen() {
           style={[r.homeBtn, { borderColor: rank.color + '44' }]}
           onPress={() => (navigation as any).navigate('MainTabs')}
         >
-          <Text style={[r.homeBtnText, { color: rank.color }]}>← 베이스 캠프로 귀환</Text>
+          <Text style={[r.homeBtnText, { color: rank.color }]}>← 홈으로</Text>
         </TouchableOpacity>
 
         <View style={{ height: SPACING.xl * 2 }} />

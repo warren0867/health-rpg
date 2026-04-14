@@ -9,13 +9,116 @@ import { DailyLog, MorningBloodSugar, WeightEntry } from '../types';
 import { calcAvgBS, formatDate, generateId, getAllDailyLogs, getRecentMorningBS, getTodayKey, getWeightHistory, saveWeightEntry } from '../utils/storage';
 import { EXERCISE_LABELS, calcAlcoholCalories } from '../utils/scoreCalculator';
 
+// ── 월별 달력 컴포넌트 ──
+function MonthCalendar({ logMap, year, month, onPrev, onNext }: {
+  logMap: Record<string, DailyLog>;
+  year: number; month: number;
+  onPrev: () => void; onNext: () => void;
+}) {
+  const today = getTodayKey();
+  const monthStr = `${year}-${String(month).padStart(2, '0')}`;
+  const firstDay = new Date(year, month - 1, 1).getDay(); // 0=일
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const WEEK = ['일', '월', '화', '수', '목', '금', '토'];
+
+  const cells: (number | null)[] = [
+    ...Array(firstDay).fill(null),
+    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
+  ];
+  while (cells.length % 7 !== 0) cells.push(null);
+
+  return (
+    <View>
+      {/* 월 네비게이션 */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+        <TouchableOpacity onPress={onPrev} style={cal.navBtn}>
+          <Text style={cal.navText}>‹</Text>
+        </TouchableOpacity>
+        <Text style={cal.monthTitle}>{year}년 {month}월</Text>
+        <TouchableOpacity onPress={onNext} style={cal.navBtn}>
+          <Text style={cal.navText}>›</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* 요일 헤더 */}
+      <View style={cal.weekRow}>
+        {WEEK.map(w => (
+          <Text key={w} style={[cal.weekLabel, w === '일' && { color: COLORS.red }, w === '토' && { color: COLORS.blue }]}>{w}</Text>
+        ))}
+      </View>
+
+      {/* 날짜 그리드 */}
+      {Array.from({ length: cells.length / 7 }, (_, row) => (
+        <View key={row} style={cal.weekRow}>
+          {cells.slice(row * 7, row * 7 + 7).map((day, col) => {
+            if (!day) return <View key={col} style={cal.cell} />;
+            const dateStr = `${monthStr}-${String(day).padStart(2, '0')}`;
+            const log = logMap[dateStr];
+            const isToday = dateStr === today;
+            const isFuture = dateStr > today;
+            const rank = log ? getRank(log.conditionScore) : null;
+
+            return (
+              <View key={col} style={[cal.cell, isToday && cal.cellToday]}>
+                <Text style={[
+                  cal.dayNum,
+                  col === 0 && { color: COLORS.red + 'cc' },
+                  col === 6 && { color: COLORS.blue + 'cc' },
+                  isToday && { color: COLORS.purple, fontWeight: '900' },
+                  isFuture && { color: COLORS.textDisabled },
+                ]}>{day}</Text>
+                {log ? (
+                  <View style={[cal.dot, { backgroundColor: rank!.color }]}>
+                    <Text style={cal.dotScore}>{log.conditionScore}</Text>
+                  </View>
+                ) : !isFuture ? (
+                  <View style={cal.dotEmpty} />
+                ) : null}
+              </View>
+            );
+          })}
+        </View>
+      ))}
+
+      {/* 범례 */}
+      <View style={{ flexDirection: 'row', gap: 10, marginTop: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+        {[{ label: '90+ 전설', color: '#FFD700' }, { label: '75+ 우수', color: '#9B6DFF' }, { label: '60+ 보통', color: '#56B4F5' }, { label: '60미만', color: '#FF5370' }].map(l => (
+          <View key={l.label} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: l.color }} />
+            <Text style={{ color: COLORS.textMuted, fontSize: 10 }}>{l.label}</Text>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+const cal = StyleSheet.create({
+  navBtn: { padding: 8 },
+  navText: { color: COLORS.textSub, fontSize: 22, fontWeight: '300' },
+  monthTitle: { color: COLORS.text, fontSize: FONTS.md, fontWeight: '800' },
+  weekRow: { flexDirection: 'row' },
+  weekLabel: { flex: 1, textAlign: 'center', color: COLORS.textMuted, fontSize: FONTS.xxs, fontWeight: '600', paddingVertical: 4 },
+  cell: { flex: 1, alignItems: 'center', paddingVertical: 4, minHeight: 48 },
+  cellToday: { backgroundColor: COLORS.purple + '12', borderRadius: 8 },
+  dayNum: { color: COLORS.textSub, fontSize: FONTS.xxs, marginBottom: 3 },
+  dot: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  dotScore: { color: '#fff', fontSize: 9, fontWeight: '900' },
+  dotEmpty: { width: 6, height: 6, borderRadius: 3, backgroundColor: COLORS.bgHighlight, marginTop: 4 },
+});
+
 export default function HistoryScreen() {
+  const today = getTodayKey();
+  const now = new Date();
   const [logs, setLogs] = useState<DailyLog[]>([]);
+  const [logMap, setLogMap] = useState<Record<string, DailyLog>>({});
   const [recentBS, setRecentBS] = useState<MorningBloodSugar[]>([]);
   const [weightHistory, setWeightHistory] = useState<WeightEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [showWeightModal, setShowWeightModal] = useState(false);
   const [weightInput, setWeightInput] = useState('');
+  const [calYear, setCalYear] = useState(now.getFullYear());
+  const [calMonth, setCalMonth] = useState(now.getMonth() + 1);
 
   useFocusEffect(
     useCallback(() => {
@@ -23,12 +126,26 @@ export default function HistoryScreen() {
         setLoading(true);
         const [all, bs, weights] = await Promise.all([getAllDailyLogs(), getRecentMorningBS(7), getWeightHistory(30)]);
         setLogs(all);
+        const map: Record<string, DailyLog> = {};
+        all.forEach(l => { map[l.date] = l; });
+        setLogMap(map);
         setRecentBS(bs);
         setWeightHistory(weights);
         setLoading(false);
       })();
     }, [])
   );
+
+  const prevMonth = () => {
+    if (calMonth === 1) { setCalYear(y => y - 1); setCalMonth(12); }
+    else setCalMonth(m => m - 1);
+  };
+  const nextMonth = () => {
+    const now = new Date();
+    if (calYear > now.getFullYear() || (calYear === now.getFullYear() && calMonth >= now.getMonth() + 1)) return;
+    if (calMonth === 12) { setCalYear(y => y + 1); setCalMonth(1); }
+    else setCalMonth(m => m + 1);
+  };
 
   const handleSaveWeight = async () => {
     const v = parseFloat(weightInput);
@@ -105,6 +222,16 @@ export default function HistoryScreen() {
             </View>
           </View>
         )}
+
+        {/* 월별 달력 */}
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>📅 월별 기록 달력</Text>
+          <MonthCalendar
+            logMap={logMap}
+            year={calYear} month={calMonth}
+            onPrev={prevMonth} onNext={nextMonth}
+          />
+        </View>
 
         {/* 체중 그래프 */}
         <View style={styles.card}>

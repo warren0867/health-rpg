@@ -2,13 +2,14 @@ import * as Haptics from 'expo-haptics';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import React, { useCallback, useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS, FONTS, RADIUS, SPACING } from '../constants/theme';
-import { AlcoholInput, AlcoholType, BP_STATUS_COLOR, BP_STATUS_LABEL, DailyLog, ExerciseInput, ExerciseType, getBPStatus, MOOD_EMOJI, MOOD_LABEL, MoodLevel, RootStackParamList, SleepInput } from '../types';
+import { AlcoholInput, AlcoholType, BP_STATUS_COLOR, BP_STATUS_LABEL, DailyLog, ExerciseInput, ExerciseType, getBPStatus, MedLog, Medication, MED_TIME_LABEL, MOOD_EMOJI, MOOD_LABEL, MoodLevel, RootStackParamList, SleepInput } from '../types';
 import {
   addXP, generateId, getDailyLog, getFoodEntriesByDate,
-  getMorningBS, getStreak, getTodayKey, getUserProfile, saveDailyLog, sumFoodEntries,
+  getMedications, getMedLog, toggleMedTaken,
+  getMorningBS, getStreak, getTodayKey, getUserProfile, saveDailyLog, saveMedication, deleteMedication, sumFoodEntries,
 } from '../utils/storage';
 import { calcXPGain } from '../utils/levelSystem';
 import {
@@ -105,8 +106,24 @@ export default function InputScreen() {
   const [saving, setSaving] = useState(false);
   const [hasExisting, setHasExisting] = useState(false);
 
+  // 약 복용
+  const [medications, setMedications] = useState<Medication[]>([]);
+  const [medLog, setMedLog] = useState<MedLog>({ date: today, taken: [] });
+  const [showMedModal, setShowMedModal] = useState(false);
+  const [newMedName, setNewMedName] = useState('');
+  const [newMedDose, setNewMedDose] = useState('');
+  const [newMedTimes, setNewMedTimes] = useState<string[]>(['morning']);
+
+  // 약 목록 + 당일 복용 로그 로드
+  const loadMeds = useCallback(async (date: string) => {
+    const [meds, log] = await Promise.all([getMedications(), getMedLog(date)]);
+    setMedications(meds);
+    setMedLog(log);
+  }, []);
+
   // 선택한 날짜의 기존 데이터 불러와서 폼에 채우기
   const loadDate = useCallback(async (date: string) => {
+    loadMeds(date);
     const existing = await getDailyLog(date);
     if (existing) {
       setHasExisting(true);
@@ -221,10 +238,42 @@ export default function InputScreen() {
     }
   };
 
+  // 약 추가 저장
+  const handleSaveMed = async () => {
+    if (!newMedName.trim()) { Alert.alert('오류', '약 이름을 입력해주세요'); return; }
+    if (newMedTimes.length === 0) { Alert.alert('오류', '복용 시간을 하나 이상 선택해주세요'); return; }
+    const colors = [COLORS.purple, COLORS.teal, COLORS.gold, COLORS.red, COLORS.blue];
+    const med: Medication = {
+      id: generateId(), name: newMedName.trim(),
+      dose: newMedDose.trim() || '1정',
+      times: newMedTimes,
+      color: colors[medications.length % colors.length],
+      createdAt: new Date().toISOString(),
+    };
+    await saveMedication(med);
+    setNewMedName(''); setNewMedDose(''); setNewMedTimes(['morning']);
+    setShowMedModal(false);
+    loadMeds(selectedDate);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  };
+
+  const handleDeleteMed = (id: string) => {
+    Alert.alert('삭제', '이 약을 삭제할까요?', [
+      { text: '취소', style: 'cancel' },
+      { text: '삭제', style: 'destructive', onPress: async () => { await deleteMedication(id); loadMeds(selectedDate); } },
+    ]);
+  };
+
+  const handleToggleMed = async (medId: string, time: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const updated = await toggleMedTaken(selectedDate, `${medId}_${time}`);
+    setMedLog(updated);
+  };
+
   // 수면 효과
-  const sleepEffect = sleep.hours >= 7 && sleep.hours <= 8 ? { label: '최적 수면 ✓', color: COLORS.teal }
-    : sleep.hours >= 6 ? { label: '수면 양호', color: COLORS.gold }
-    : sleep.hours <= 5 ? { label: 'HP 회복 ↓', color: COLORS.red }
+  const sleepEffect = sleep.hours >= 7 && sleep.hours <= 8 ? { label: '최적', color: COLORS.teal }
+    : sleep.hours >= 6 ? { label: '양호', color: COLORS.gold }
+    : sleep.hours <= 5 ? { label: '부족', color: COLORS.red }
     : { label: '과수면', color: COLORS.textMuted };
 
   const isToday = selectedDate === today;
@@ -260,14 +309,14 @@ export default function InputScreen() {
         </View>
 
         <View style={c.pageHeader}>
-          <Text style={c.pageTitle}>⚔️ {dateLabel(selectedDate, today)}의 퀘스트</Text>
+          <Text style={c.pageTitle}>{dateLabel(selectedDate, today)} 기록</Text>
           <Text style={c.pageSub}>
-            {hasExisting ? '✅ 기존 기록이 있어요 — 수정 후 저장하세요' : '기록하면 캐릭터 스탯이 변합니다'}
+            {hasExisting ? '저장된 기록 있음 — 수정 후 다시 저장하세요' : '기록하면 캐릭터 스탯이 올라갑니다'}
           </Text>
         </View>
 
         {/* ── 기분 ── */}
-        <QuestPanel icon="💭" title="오늘의 기분">
+        <QuestPanel icon="💭" title="기분">
           <View style={c.moodRow}>
             {([1, 2, 3, 4, 5] as MoodLevel[]).map(m => (
               <TouchableOpacity
@@ -282,8 +331,8 @@ export default function InputScreen() {
           </View>
         </QuestPanel>
 
-        {/* ── 수면 (휴식) ── */}
-        <QuestPanel icon="😴" title="휴식" badge={`VIT +${sleepEffect.label}`}>
+        {/* ── 수면 ── */}
+        <QuestPanel icon="😴" title="수면" badge={sleepEffect.label}>
           <View style={c.chips}>
             {[4, 5, 6, 7, 8, 9, 10].map(h => (
               <ChipBtn
@@ -303,11 +352,11 @@ export default function InputScreen() {
           </View>
         </QuestPanel>
 
-        {/* ── 운동 (훈련) ── */}
+        {/* ── 운동 ── */}
         <QuestPanel
-          icon="⚔️"
-          title="훈련"
-          badge={selectedExercises.length > 0 ? `🔥 ${burnCal}kcal 소모` : undefined}
+          icon="🏃"
+          title="운동"
+          badge={selectedExercises.length > 0 ? `${burnCal}kcal 소모` : undefined}
         >
           <Text style={c.subLabel}>종류 선택 (다중)</Text>
           <View style={c.chips}>
@@ -346,11 +395,11 @@ export default function InputScreen() {
           )}
         </QuestPanel>
 
-        {/* ── 음주 (디버프) ── */}
+        {/* ── 음주 ── */}
         <QuestPanel
           icon="🍺"
-          title="음주 (디버프)"
-          badge={alcoholCal > 0 ? `💀 ${alcoholCal}kcal` : undefined}
+          title="음주"
+          badge={alcoholCal > 0 ? `${alcoholCal}kcal` : undefined}
         >
           <TouchableOpacity
             style={[c.chip, !alcohol.consumed && { borderColor: COLORS.teal, backgroundColor: COLORS.teal + '18' }]}
@@ -455,29 +504,122 @@ export default function InputScreen() {
           })()}
         </QuestPanel>
 
+        {/* ── 약 복용 ── */}
+        <QuestPanel icon="💊" title="약 복용">
+          {medications.length === 0 ? (
+            <TouchableOpacity style={c.medEmptyBtn} onPress={() => setShowMedModal(true)}>
+              <Text style={c.medEmptyText}>+ 복용 중인 약 등록</Text>
+            </TouchableOpacity>
+          ) : (
+            <>
+              {medications.map(med => (
+                <View key={med.id} style={c.medItem}>
+                  <View style={[c.medDot, { backgroundColor: med.color }]} />
+                  <View style={{ flex: 1 }}>
+                    <View style={c.medNameRow}>
+                      <Text style={c.medName}>{med.name}</Text>
+                      <Text style={c.medDose}>{med.dose}</Text>
+                      <TouchableOpacity onPress={() => handleDeleteMed(med.id)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                        <Text style={{ color: COLORS.textDisabled, fontSize: FONTS.xs }}>✕</Text>
+                      </TouchableOpacity>
+                    </View>
+                    <View style={c.medTimeRow}>
+                      {med.times.map(time => {
+                        const key = `${med.id}_${time}`;
+                        const taken = medLog.taken.includes(key);
+                        return (
+                          <TouchableOpacity
+                            key={time}
+                            style={[c.medTimeChip, taken && { backgroundColor: med.color + '30', borderColor: med.color }]}
+                            onPress={() => handleToggleMed(med.id, time)}
+                          >
+                            <Text style={[c.medTimeText, taken && { color: med.color, fontWeight: '700' }]}>
+                              {taken ? '✓ ' : ''}{MED_TIME_LABEL[time]}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </View>
+                </View>
+              ))}
+              <TouchableOpacity style={c.medAddMore} onPress={() => setShowMedModal(true)}>
+                <Text style={c.medAddMoreText}>+ 약 추가</Text>
+              </TouchableOpacity>
+            </>
+          )}
+        </QuestPanel>
+
         {/* 안내 */}
         <View style={c.infoBox}>
-          <Text style={c.infoText}>🍱 식단 포션은 하단 "식단" 탭에서 추가{'\n'}💧 공복혈당은 홈 화면에서 기록</Text>
+          <Text style={c.infoText}>식단은 하단 "식단" 탭에서 입력 · 공복혈당은 홈 화면에서 기록</Text>
         </View>
 
         {/* ── 버튼 영역 ── */}
         <View style={c.btnGroup}>
-          {/* 저장만 (결과 화면 안 감) */}
           <TouchableOpacity
             style={[c.saveOnlyBtn, saving && { opacity: 0.5 }]}
             onPress={() => buildLog(false)} disabled={saving}
           >
-            <Text style={c.saveOnlyText}>{saving ? '저장 중...' : '💾 저장'}</Text>
+            <Text style={c.saveOnlyText}>{saving ? '저장 중...' : '저장'}</Text>
           </TouchableOpacity>
-
-          {/* 점수 확인 (결과 화면으로 이동) */}
           <TouchableOpacity
             style={[c.submitBtn, saving && { opacity: 0.5 }]}
             onPress={() => buildLog(true)} disabled={saving}
           >
-            <Text style={c.submitText}>{saving ? '계산 중...' : isToday ? '⚔️ 점수 확인 →' : '⚔️ 과거 점수 보기 →'}</Text>
+            <Text style={c.submitText}>{saving ? '계산 중...' : '결과 확인 →'}</Text>
           </TouchableOpacity>
         </View>
+
+        {/* ── 약 등록 모달 ── */}
+        <Modal visible={showMedModal} animationType="slide" transparent>
+          <View style={c.modalOverlay}>
+            <View style={c.modalSheet}>
+              <Text style={c.modalTitle}>💊 약 등록</Text>
+              <Text style={c.modalSub}>매일 복용하는 약을 추가하면 체크리스트로 관리할 수 있어요</Text>
+
+              <Text style={c.fieldLabel}>약 이름</Text>
+              <TextInput
+                style={c.fieldInput}
+                value={newMedName} onChangeText={setNewMedName}
+                placeholder="예: 메트포르민, 혈압약" placeholderTextColor={COLORS.textDisabled}
+                autoFocus
+              />
+
+              <Text style={c.fieldLabel}>용량 (선택)</Text>
+              <TextInput
+                style={c.fieldInput}
+                value={newMedDose} onChangeText={setNewMedDose}
+                placeholder="예: 1정, 500mg" placeholderTextColor={COLORS.textDisabled}
+              />
+
+              <Text style={c.fieldLabel}>복용 시간</Text>
+              <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap', marginBottom: SPACING.md }}>
+                {Object.entries(MED_TIME_LABEL).map(([key, label]) => {
+                  const sel = newMedTimes.includes(key);
+                  return (
+                    <TouchableOpacity
+                      key={key}
+                      style={[c.timeChip, sel && { borderColor: COLORS.purple, backgroundColor: COLORS.purple + '20' }]}
+                      onPress={() => setNewMedTimes(prev => sel ? prev.filter(t => t !== key) : [...prev, key])}
+                    >
+                      <Text style={[c.timeChipText, sel && { color: COLORS.purple, fontWeight: '700' }]}>{label}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              <View style={c.modalBtns}>
+                <TouchableOpacity style={c.modalCancel} onPress={() => setShowMedModal(false)}>
+                  <Text style={c.modalCancelText}>취소</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={c.modalConfirm} onPress={handleSaveMed}>
+                  <Text style={c.modalConfirmText}>저장</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
 
         <View style={{ height: SPACING.xl * 2 }} />
       </ScrollView>
@@ -579,4 +721,33 @@ const c = StyleSheet.create({
     shadowOpacity: 0.5, shadowRadius: 16, elevation: 8,
   },
   submitText: { color: '#fff', fontSize: FONTS.md, fontWeight: '900', letterSpacing: 0.5 },
+
+  // 약 복용
+  medEmptyBtn: { borderWidth: 1, borderColor: COLORS.border, borderStyle: 'dashed', borderRadius: RADIUS.md, paddingVertical: 14, alignItems: 'center' },
+  medEmptyText: { color: COLORS.textMuted, fontSize: FONTS.sm },
+  medItem: { flexDirection: 'row', gap: 10, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: COLORS.borderSub, alignItems: 'flex-start' },
+  medDot: { width: 8, height: 8, borderRadius: 4, marginTop: 6 },
+  medNameRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
+  medName: { color: COLORS.text, fontSize: FONTS.sm, fontWeight: '600', flex: 1 },
+  medDose: { color: COLORS.textMuted, fontSize: FONTS.xs, backgroundColor: COLORS.bgHighlight, paddingHorizontal: 6, paddingVertical: 2, borderRadius: RADIUS.xs },
+  medTimeRow: { flexDirection: 'row', gap: 5, flexWrap: 'wrap' },
+  medTimeChip: { borderWidth: 1, borderColor: COLORS.border, borderRadius: RADIUS.full, paddingHorizontal: 10, paddingVertical: 4, backgroundColor: COLORS.bgInput },
+  medTimeText: { color: COLORS.textMuted, fontSize: FONTS.xs },
+  medAddMore: { marginTop: 8, alignItems: 'center', paddingVertical: 8 },
+  medAddMoreText: { color: COLORS.purple, fontSize: FONTS.xs, fontWeight: '600' },
+
+  // 모달
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'flex-end' },
+  modalSheet: { backgroundColor: COLORS.bgCard, borderTopLeftRadius: RADIUS.xl, borderTopRightRadius: RADIUS.xl, padding: SPACING.lg, borderTopWidth: 1, borderColor: COLORS.border },
+  modalTitle: { color: COLORS.text, fontSize: FONTS.lg, fontWeight: '900', marginBottom: 4 },
+  modalSub: { color: COLORS.textMuted, fontSize: FONTS.xs, marginBottom: SPACING.md },
+  fieldLabel: { color: COLORS.textMuted, fontSize: FONTS.xxs, fontWeight: '700', letterSpacing: 0.5, marginBottom: 4 },
+  fieldInput: { backgroundColor: COLORS.bgInput, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.border, color: COLORS.text, fontSize: FONTS.md, paddingHorizontal: SPACING.md, paddingVertical: 10, marginBottom: SPACING.sm },
+  timeChip: { borderWidth: 1, borderColor: COLORS.border, borderRadius: RADIUS.full, paddingHorizontal: 12, paddingVertical: 6, backgroundColor: COLORS.bgInput },
+  timeChipText: { color: COLORS.textSub, fontSize: FONTS.xs },
+  modalBtns: { flexDirection: 'row', gap: 10, marginTop: 4 },
+  modalCancel: { flex: 1, backgroundColor: COLORS.bgHighlight, borderRadius: RADIUS.lg, paddingVertical: 12, alignItems: 'center' },
+  modalCancelText: { color: COLORS.textMuted, fontWeight: '600', fontSize: FONTS.sm },
+  modalConfirm: { flex: 2, backgroundColor: COLORS.purple, borderRadius: RADIUS.lg, paddingVertical: 12, alignItems: 'center' },
+  modalConfirmText: { color: '#fff', fontWeight: '900', fontSize: FONTS.sm },
 });

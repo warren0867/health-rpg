@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { AchievementId, BloodSugarEntry, DailyLog, FoodEntry, FoodItem, MorningBloodSugar, RecentFoodEntry, UnlockedAchievement, UserProfile, UserXP, WeightEntry } from '../types';
+import { AchievementId, BloodSugarEntry, DailyLog, FoodEntry, FoodItem, MedLog, Medication, MorningBloodSugar, RecentFoodEntry, UnlockedAchievement, UserProfile, UserXP, WeightEntry } from '../types';
 import { getLevelFromXP } from './levelSystem';
 
 const KEYS = {
@@ -15,6 +15,8 @@ const KEYS = {
   WEIGHT_LOG: 'hrpg_weight_log',
   USER_XP: 'hrpg_user_xp',
   ACHIEVEMENTS: 'hrpg_achievements',
+  MEDICATIONS: 'hrpg_medications',
+  MED_LOGS: 'hrpg_med_logs',
 } as const;
 
 // ─────────────────────────────────────────────
@@ -423,8 +425,49 @@ export async function getUnlockedAchievementIds(): Promise<string[]> {
 
 export async function unlockAchievement(id: AchievementId): Promise<boolean> {
   const unlocked = await getUnlockedAchievements();
-  if (unlocked.some(a => a.id === id)) return false; // 이미 획득
+  if (unlocked.some(a => a.id === id)) return false;
   unlocked.push({ id, unlockedAt: new Date().toISOString() });
   await AsyncStorage.setItem(KEYS.ACHIEVEMENTS, JSON.stringify(unlocked));
   return true;
+}
+
+// ─────────────────────────────────────────────
+//  약 복용 관리
+// ─────────────────────────────────────────────
+
+export async function getMedications(): Promise<Medication[]> {
+  const raw = await AsyncStorage.getItem(KEYS.MEDICATIONS);
+  return raw ? JSON.parse(raw) : [];
+}
+
+export async function saveMedication(med: Medication): Promise<void> {
+  const list = await getMedications();
+  const idx = list.findIndex(m => m.id === med.id);
+  if (idx >= 0) list[idx] = med; else list.push(med);
+  await AsyncStorage.setItem(KEYS.MEDICATIONS, JSON.stringify(list));
+}
+
+export async function deleteMedication(id: string): Promise<void> {
+  const list = await getMedications();
+  await AsyncStorage.setItem(KEYS.MEDICATIONS, JSON.stringify(list.filter(m => m.id !== id)));
+}
+
+export async function getMedLog(date: string): Promise<MedLog> {
+  const raw = await AsyncStorage.getItem(KEYS.MED_LOGS);
+  const logs: Record<string, MedLog> = raw ? JSON.parse(raw) : {};
+  return logs[date] ?? { date, taken: [] };
+}
+
+export async function toggleMedTaken(date: string, key: string): Promise<MedLog> {
+  const raw = await AsyncStorage.getItem(KEYS.MED_LOGS);
+  const logs: Record<string, MedLog> = raw ? JSON.parse(raw) : {};
+  const log = logs[date] ?? { date, taken: [] };
+  if (log.taken.includes(key)) {
+    log.taken = log.taken.filter(k => k !== key);
+  } else {
+    log.taken = [...log.taken, key];
+  }
+  logs[date] = log;
+  await AsyncStorage.setItem(KEYS.MED_LOGS, JSON.stringify(logs));
+  return log;
 }

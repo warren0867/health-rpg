@@ -459,10 +459,10 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        {/* ── 물 섭취 (마나 포션) ── */}
+        {/* ── 물 섭취 ── */}
         <View style={s.card}>
           <View style={s.rowBetween}>
-            <Text style={s.sectionTitle}>💧 마나 포션</Text>
+            <Text style={s.sectionTitle}>💧 수분 섭취</Text>
             <Text style={[s.waterTotal, { color: waterMl >= WATER_GOAL ? COLORS.teal : COLORS.textMuted }]}>
               {waterMl}ml / {WATER_GOAL}ml
             </Text>

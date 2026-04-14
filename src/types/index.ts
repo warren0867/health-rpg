@@ -352,6 +352,31 @@ export interface DailyLog {
 }
 
 // ─────────────────────────────────────────────
+//  약 복용
+// ─────────────────────────────────────────────
+
+export interface Medication {
+  id: string;
+  name: string;         // 약 이름
+  dose: string;         // 용량 (예: "1정", "500mg")
+  times: string[];      // 복용 시간대 ["morning","lunch","dinner","bedtime"]
+  color: string;        // 구분 색상
+  createdAt: string;
+}
+
+export interface MedLog {
+  date: string;
+  taken: string[];      // 복용 완료한 "{medicationId}_{time}" 목록
+}
+
+export const MED_TIME_LABEL: Record<string, string> = {
+  morning:  '아침',
+  lunch:    '점심',
+  dinner:   '저녁',
+  bedtime:  '취침 전',
+};
+
+// ─────────────────────────────────────────────
 //  네비게이션
 // ─────────────────────────────────────────────
 
