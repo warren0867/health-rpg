@@ -11,6 +11,7 @@ import BloodSugarScreen from './src/screens/BloodSugarScreen';
 import CalorieScreen from './src/screens/CalorieScreen';
 import HistoryScreen from './src/screens/HistoryScreen';
 import HomeScreen from './src/screens/HomeScreen';
+import IllnessScreen from './src/screens/IllnessScreen';
 import InputScreen from './src/screens/InputScreen';
 import OnboardingScreen from './src/screens/OnboardingScreen';
 import ResultScreen from './src/screens/ResultScreen';
@@ -36,6 +37,7 @@ function MainTabs() {
             Calorie: focused ? 'restaurant' : 'restaurant-outline',
             BloodSugar: focused ? 'water' : 'water-outline',
             History: focused ? 'bar-chart' : 'bar-chart-outline',
+            Illness: focused ? 'medkit' : 'medkit-outline',
           };
           return <Ionicons name={icons[route.name] ?? 'ellipse'} size={size} color={color} />;
         },
@@ -46,6 +48,7 @@ function MainTabs() {
       <Tab.Screen name="Calorie" component={CalorieScreen} options={{ title: '식단' }} />
       <Tab.Screen name="BloodSugar" component={BloodSugarScreen} options={{ title: '혈당' }} />
       <Tab.Screen name="History" component={HistoryScreen} options={{ title: '기록' }} />
+      <Tab.Screen name="Illness" component={IllnessScreen} options={{ title: '건강상태' }} />
     </Tab.Navigator>
   );
 }

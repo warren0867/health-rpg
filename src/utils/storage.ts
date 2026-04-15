@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { AchievementId, BloodSugarEntry, DailyLog, FoodEntry, FoodItem, MedLog, Medication, MorningBloodSugar, RecentFoodEntry, UnlockedAchievement, UserProfile, UserXP, WeightEntry } from '../types';
+import { AchievementId, BloodSugarEntry, DailyLog, FoodEntry, FoodItem, IllnessEntry, MedLog, Medication, MorningBloodSugar, RecentFoodEntry, UnlockedAchievement, UserProfile, UserXP, WeightEntry } from '../types';
 import { getLevelFromXP } from './levelSystem';
 import { calculateScore, calculateStats } from './scoreCalculator';
 
@@ -18,6 +18,7 @@ const KEYS = {
   ACHIEVEMENTS: 'hrpg_achievements',
   MEDICATIONS: 'hrpg_medications',
   MED_LOGS: 'hrpg_med_logs',
+  ILLNESS_LOG: 'hrpg_illness_log',
 } as const;
 
 // ─────────────────────────────────────────────
@@ -166,6 +167,16 @@ export async function syncDailyLogCalories(date: string): Promise<void> {
     targetCal,
   );
   const newStats = calculateStats(newBreakdown, log.exercise, log.sleep, morningBS);
+
+  // 질병 디버프
+  const illness = await getActiveIllnessForDate(date);
+  if (illness) {
+    const debuff = illness.severity >= 4 ? 22 : illness.severity >= 3 ? 14 : 7;
+    newStats.hp = Math.max(5, newStats.hp - debuff);
+    newStats.recovery = Math.max(5, newStats.recovery - Math.round(debuff * 0.7));
+    newStats.condition = Math.max(5, newStats.condition - Math.round(debuff * 0.5));
+    newBreakdown.total = Math.max(0, newBreakdown.total - Math.round(debuff * 0.4));
+  }
 
   const updated: DailyLog = {
     ...log,
@@ -504,4 +515,71 @@ export async function toggleMedTaken(date: string, key: string): Promise<MedLog>
   logs[date] = log;
   await AsyncStorage.setItem(KEYS.MED_LOGS, JSON.stringify(logs));
   return log;
+}
+
+// ─────────────────────────────────────────────
+//  질병 기록
+// ─────────────────────────────────────────────
+
+export async function getIllnesses(): Promise<IllnessEntry[]> {
+  const raw = await AsyncStorage.getItem(KEYS.ILLNESS_LOG);
+  if (!raw) return [];
+  return (JSON.parse(raw) as IllnessEntry[])
+    .sort((a, b) => b.startDate.localeCompare(a.startDate));
+}
+
+export async function saveIllness(entry: IllnessEntry): Promise<void> {
+  const all = await getIllnesses();
+  const idx = all.findIndex(e => e.id === entry.id);
+  if (idx >= 0) all[idx] = entry;
+  else all.push(entry);
+  await AsyncStorage.setItem(KEYS.ILLNESS_LOG, JSON.stringify(all));
+}
+
+export async function deleteIllness(id: string): Promise<void> {
+  const all = await getIllnesses();
+  await AsyncStorage.setItem(KEYS.ILLNESS_LOG, JSON.stringify(all.filter(e => e.id !== id)));
+}
+
+// 특정 날짜에 앓고 있던 질병 (startDate <= date <= endDate or no endDate)
+export async function getActiveIllnessForDate(date: string): Promise<IllnessEntry | null> {
+  const all = await getIllnesses();
+  return all.find(e => e.startDate <= date && (!e.endDate || e.endDate >= date)) ?? null;
+}
+
+// 현재 앓는 중인 질병 (endDate 없음)
+export async function getCurrentIllness(): Promise<IllnessEntry | null> {
+  const today = getTodayKey();
+  return getActiveIllnessForDate(today);
+}
+
+// 면역력 점수 계산 (0~100)
+export async function calcImmunity(): Promise<number> {
+  const all = await getIllnesses();
+  const today = getTodayKey();
+  const todayMs = new Date(today).getTime();
+
+  let score = 85;
+  for (const e of all) {
+    const startMs = new Date(e.startDate).getTime();
+    const daysAgo = (todayMs - startMs) / 86400000;
+    if (daysAgo <= 30)       score -= 14;
+    else if (daysAgo <= 60)  score -= 8;
+    else if (daysAgo <= 90)  score -= 4;
+
+    // 빠른 회복(3일 이하) 보너스
+    if (e.endDate) {
+      const dur = (new Date(e.endDate).getTime() - startMs) / 86400000;
+      if (dur <= 2) score += 3;
+    }
+  }
+  return Math.max(10, Math.min(100, Math.round(score)));
+}
+
+// 질병 기간(일수) 계산
+export function illnessDuration(entry: IllnessEntry): number {
+  const end = entry.endDate ?? getTodayKey();
+  return Math.max(1, Math.round(
+    (new Date(end).getTime() - new Date(entry.startDate).getTime()) / 86400000
+  ) + 1);
 }

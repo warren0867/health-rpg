@@ -13,12 +13,13 @@ import { getTodayFortune, SajuFortune } from '../utils/feedback';
 import { calcMacroGoal } from '../utils/calorieCalculator';
 import { BS_STATUS_COLOR, getBSStatus, getBSStatusLabel, calcExerciseCalories } from '../utils/scoreCalculator';
 import {
-  addWater, calcAvgBS, generateId, getDailyLog, getFoodEntriesByDate,
-  getMorningBS, getRecentDailyLogs, getRecentMorningBS, getStreak,
+  addWater, calcAvgBS, calcImmunity, generateId, getDailyLog, getFoodEntriesByDate,
+  getCurrentIllness, getMorningBS, getRecentDailyLogs, getRecentMorningBS, getStreak,
   getTodayKey, getUserProfile, getUserXP, getUnlockedAchievementIds,
   getWaterLog, getWaterStreak, saveMorningBS, saveUserProfile, sumFoodEntries, getBSTrend,
   unlockAchievement,
 } from '../utils/storage';
+import { IllnessEntry, ILLNESS_EMOJI, ILLNESS_LABELS, SYMPTOM_LABELS } from '../types';
 import {
   getNotifSettings, saveNotifSettings, scheduleAllNotifications,
   cancelAllNotifications, requestPermissions, NotifSettings,
@@ -180,6 +181,8 @@ export default function HomeScreen() {
   const [exerciseCalToday, setExerciseCalToday] = useState(0);
   const [fortune, setFortune] = useState<SajuFortune>(getTodayFortune(today));
   const [todayLog, setTodayLog] = useState<any>(null);
+  const [immunity, setImmunity] = useState<number | null>(null);
+  const [currentIllness, setCurrentIllness] = useState<IllnessEntry | null>(null);
   const [waterMl, setWaterMl] = useState(0);
   const [xpProgress, setXpProgress] = useState<ReturnType<typeof getXPProgress> | null>(null);
   const [todayXP, setTodayXP] = useState<number | null>(null);
@@ -193,11 +196,14 @@ export default function HomeScreen() {
   const CUP_ML = 250;
 
   const load = useCallback(async () => {
-    const [p, log, foods, mbs, recentMbs, recent, str, water, xp, achIds] = await Promise.all([
+    const [p, log, foods, mbs, recentMbs, recent, str, water, xp, achIds, imm, ill] = await Promise.all([
       getUserProfile(), getDailyLog(today), getFoodEntriesByDate(today),
       getMorningBS(today), getRecentMorningBS(7), getRecentDailyLogs(7), getStreak(),
       getWaterLog(today), getUserXP(), getUnlockedAchievementIds(),
+      calcImmunity(), getCurrentIllness(),
     ]);
+    setImmunity(imm);
+    setCurrentIllness(ill);
     setProfile(p);
     setTodayLog(log);
     setScore(log?.conditionScore ?? null);
@@ -421,6 +427,44 @@ export default function HomeScreen() {
               <Text style={s.xpNeeded}>{xpProgress.needed} XP</Text>
             </View>
           </View>
+        )}
+
+        {/* ── 앓는 중 배너 ── */}
+        {currentIllness && (
+          <TouchableOpacity
+            style={s.illnessBanner}
+            onPress={() => (navigation as any).navigate('Illness')}
+            activeOpacity={0.8}
+          >
+            <Text style={s.illnessBannerEmoji}>{ILLNESS_EMOJI[currentIllness.type]}</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={s.illnessBannerTitle}>{ILLNESS_LABELS[currentIllness.type]} 앓는 중  ·  HP·VIT 감소 중</Text>
+              <Text style={s.illnessBannerSub}>시작일: {currentIllness.startDate}  →  탭해서 회복 완료 처리</Text>
+            </View>
+            <Text style={{ color: COLORS.red, fontSize: 16 }}>›</Text>
+          </TouchableOpacity>
+        )}
+
+        {/* ── 면역력 ── */}
+        {immunity !== null && (
+          <TouchableOpacity
+            style={s.immunityCard}
+            onPress={() => (navigation as any).navigate('Illness')}
+            activeOpacity={0.85}
+          >
+            <View style={s.immunityLeft}>
+              <Text style={s.immunityLabel}>🛡️ 면역력</Text>
+              <View style={s.immunityTrack}>
+                <View style={[s.immunityFill, {
+                  width: `${immunity}%` as any,
+                  backgroundColor: immunity >= 75 ? COLORS.teal : immunity >= 50 ? COLORS.gold : COLORS.red,
+                }]} />
+              </View>
+            </View>
+            <Text style={[s.immunityScore, {
+              color: immunity >= 75 ? COLORS.teal : immunity >= 50 ? COLORS.gold : COLORS.red,
+            }]}>{immunity}</Text>
+          </TouchableOpacity>
         )}
 
         {/* ── HP/MP 스탯 ── */}
@@ -977,6 +1021,28 @@ const s = StyleSheet.create({
   rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   sectionTitle: { color: COLORS.text, fontSize: FONTS.sm, fontWeight: '700' },
   link: { color: COLORS.purple, fontSize: FONTS.xs, fontWeight: '600' },
+
+  // 면역력 / 질병
+  illnessBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    backgroundColor: COLORS.red + '15', borderRadius: RADIUS.lg,
+    padding: SPACING.sm, marginBottom: SPACING.sm,
+    borderWidth: 1.5, borderColor: COLORS.red + '44',
+  },
+  illnessBannerEmoji: { fontSize: 26 },
+  illnessBannerTitle: { color: COLORS.red, fontSize: FONTS.xs, fontWeight: '800' },
+  illnessBannerSub: { color: COLORS.textMuted, fontSize: FONTS.xxs, marginTop: 2 },
+  immunityCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: COLORS.bgCard, borderRadius: RADIUS.lg,
+    padding: SPACING.sm, marginBottom: SPACING.sm,
+    borderWidth: 1, borderColor: COLORS.border,
+  },
+  immunityLeft: { flex: 1 },
+  immunityLabel: { color: COLORS.textSub, fontSize: FONTS.xs, fontWeight: '700', marginBottom: 5 },
+  immunityTrack: { height: 6, backgroundColor: COLORS.bgHighlight, borderRadius: 3, overflow: 'hidden' },
+  immunityFill: { height: '100%', borderRadius: 3 },
+  immunityScore: { fontSize: FONTS.xl, fontWeight: '900', fontFamily: 'monospace', minWidth: 40, textAlign: 'right' },
 
   // 빈 스탯 카드
   emptyCard: { alignItems: 'center', paddingVertical: SPACING.lg, gap: 6 },

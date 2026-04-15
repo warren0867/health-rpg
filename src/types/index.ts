@@ -392,4 +392,58 @@ export type MainTabParamList = {
   Calorie: undefined;
   BloodSugar: undefined;
   History: undefined;
+  Illness: undefined;
+};
+
+// ─────────────────────────────────────────────
+//  질병 기록
+// ─────────────────────────────────────────────
+
+export type IllnessType =
+  | 'cold'      // 감기
+  | 'gastro'    // 장염
+  | 'flu'       // 독감
+  | 'fever'     // 발열
+  | 'headache'  // 두통
+  | 'fatigue'   // 몸살/피로
+  | 'allergy'   // 알레르기
+  | 'covid'     // 코로나
+  | 'injury'    // 부상
+  | 'other';    // 기타
+
+export type IllnessSymptom =
+  | 'fever' | 'runny_nose' | 'cough' | 'sore_throat'
+  | 'nausea' | 'vomit' | 'diarrhea' | 'stomach'
+  | 'fatigue' | 'muscle' | 'headache' | 'chills' | 'loss_appetite';
+
+export interface IllnessEntry {
+  id: string;
+  type: IllnessType;
+  startDate: string;   // YYYY-MM-DD
+  endDate?: string;    // undefined = 현재 앓는 중
+  symptoms: IllnessSymptom[];
+  severity: 1 | 2 | 3 | 4 | 5;
+  temperature?: number;
+  note?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const ILLNESS_LABELS: Record<IllnessType, string> = {
+  cold: '감기', gastro: '장염', flu: '독감', fever: '발열',
+  headache: '두통', fatigue: '몸살', allergy: '알레르기',
+  covid: '코로나', injury: '부상', other: '기타',
+};
+
+export const ILLNESS_EMOJI: Record<IllnessType, string> = {
+  cold: '🤧', gastro: '🤢', flu: '🤒', fever: '🌡️',
+  headache: '🤕', fatigue: '😴', allergy: '🌿',
+  covid: '😷', injury: '🩹', other: '💊',
+};
+
+export const SYMPTOM_LABELS: Record<IllnessSymptom, string> = {
+  fever: '발열', runny_nose: '콧물', cough: '기침', sore_throat: '목아픔',
+  nausea: '메스꺼움', vomit: '구토', diarrhea: '설사', stomach: '복통',
+  fatigue: '피로', muscle: '근육통', headache: '두통',
+  chills: '오한', loss_appetite: '식욕부진',
 };
