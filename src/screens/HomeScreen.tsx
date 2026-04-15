@@ -182,7 +182,12 @@ export default function HomeScreen() {
   const [todayLog, setTodayLog] = useState<any>(null);
   const [waterMl, setWaterMl] = useState(0);
   const [xpProgress, setXpProgress] = useState<ReturnType<typeof getXPProgress> | null>(null);
+  const [todayXP, setTodayXP] = useState<number | null>(null);
   const [unlockedIds, setUnlockedIds] = useState<string[]>([]);
+  // 업적 진행도용 통계
+  const [bestScore, setBestScore] = useState(0);
+  const [noAlcoholStreak, setNoAlcoholStreak] = useState(0);
+  const [exerciseStreakCount, setExerciseStreakCount] = useState(0);
 
   const WATER_GOAL = 2000; // 하루 목표 ml
   const CUP_ML = 250;
@@ -200,13 +205,31 @@ export default function HomeScreen() {
     setFoodSummary(sumFoodEntries(foods));
     setMorningBS(mbs);
     setRecentBS(recentMbs);
-    setRecentLogs([...recent].reverse());
+    const reversed = [...recent].reverse();
+    setRecentLogs(reversed);
     setStreak(str);
     setFortune(getTodayFortune(today, p?.birthDate));
     setExerciseCalToday(log?.exerciseCalories ?? (log?.exercise ? calcExerciseCalories(log.exercise, p?.weightKg ?? 70) : 0));
     setWaterMl(water);
     setXpProgress(getXPProgress(xp.totalXP));
+    setTodayXP(log?.xpGained ?? null);
     setUnlockedIds(achIds);
+
+    // 업적 진행도 통계
+    const allScores = recent.map(l => l.conditionScore);
+    setBestScore(allScores.length ? Math.max(...allScores) : 0);
+    // 연속 금주일 수
+    let noAlc = 0;
+    for (const l of recent) { if (!l.alcohol.consumed) noAlc++; else break; }
+    setNoAlcoholStreak(noAlc);
+    // 연속 운동일 수
+    let exStreak = 0;
+    for (const l of recent) {
+      const types = l.exercise.types?.filter((t: string) => t !== 'none') ?? [];
+      if (types.length > 0 || (l.exercise.type && l.exercise.type !== 'none')) exStreak++;
+      else break;
+    }
+    setExerciseStreakCount(exStreak);
 
     // 업적 체크
     if (log && recent.length > 0) {
@@ -286,13 +309,20 @@ export default function HomeScreen() {
   const avgBS = calcAvgBS(recentBS);
 
   // 퀘스트 완료 여부
+  const todayHasExercise = (() => {
+    if (!todayLog) return false;
+    const types = todayLog.exercise?.types?.filter((t: string) => t !== 'none') ?? [];
+    return types.length > 0 || (todayLog.exercise?.type && todayLog.exercise.type !== 'none');
+  })();
   const quests = [
-    { label: '공복혈당 기록', done: !!morningBS, action: () => setShowBSModal(true) },
-    { label: '식단 입력', done: foodSummary.calories > 0, action: () => navigation.navigate('Calorie') },
-    { label: '오늘 기록 완료', done: !!todayLog, action: () => navigation.navigate('Input') },
+    { label: '오늘 기록 완료', sub: '수면·운동·음주 입력', done: !!todayLog, action: () => navigation.navigate('Input'), xp: 50 },
+    { label: '식단 입력', sub: '하루 먹은 것 기록', done: foodSummary.calories > 0, action: () => navigation.navigate('Calorie'), xp: 20 },
+    { label: '공복혈당 기록', sub: '기상 후 측정값 입력', done: !!morningBS, action: () => setShowBSModal(true), xp: 10 },
+    { label: '운동 기록', sub: '오늘 운동했나요?', done: todayHasExercise, action: () => navigation.navigate('Input'), xp: 25 },
+    { label: '물 2L 달성', sub: `${waterMl}ml / 2000ml`, done: waterMl >= 2000, action: () => {}, xp: 15 },
   ];
   const questDone = quests.filter(q => q.done).length;
-  const questPct = Math.round((questDone / 3) * 100);
+  const questPct = Math.round((questDone / quests.length) * 100);
 
   if (loading) return <SafeAreaView style={s.safe}><View style={{ flex: 1 }} /></SafeAreaView>;
 
@@ -355,18 +385,40 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        {/* XP / 레벨 바 */}
+        {/* ── XP / 레벨 카드 ── */}
         {xpProgress && (
-          <View style={[s.xpBar, { borderColor: (rank?.color ?? COLORS.purple) + '33' }]}>
-            <View style={s.xpTopRow}>
-              <Text style={s.xpLevel}>Lv.{xpProgress.level}  <Text style={s.xpTitle}>{getLevelTitle(xpProgress.level)}</Text></Text>
-              {!xpProgress.isMax && <Text style={s.xpNext}>{xpProgress.current}/{xpProgress.needed} XP</Text>}
+          <View style={[s.xpCard, { borderColor: (rank?.color ?? COLORS.purple) + '44' }]}>
+            <View style={s.xpCardTop}>
+              <View>
+                <Text style={s.xpLevelBig}>
+                  Lv.{xpProgress.level}
+                </Text>
+                <Text style={[s.xpTitleBig, { color: rank?.color ?? COLORS.purple }]}>
+                  {getLevelTitle(xpProgress.level)}
+                </Text>
+              </View>
+              <View style={{ alignItems: 'flex-end' }}>
+                {todayXP != null && (
+                  <View style={s.xpTodayBadge}>
+                    <Text style={s.xpTodayText}>오늘 +{todayXP} XP</Text>
+                  </View>
+                )}
+                {!xpProgress.isMax && (
+                  <Text style={s.xpRemain}>
+                    다음 레벨까지 {xpProgress.needed - xpProgress.current} XP
+                  </Text>
+                )}
+              </View>
             </View>
             <View style={s.xpTrack}>
               <View style={[s.xpFill, {
                 width: `${xpProgress.pct}%` as any,
                 backgroundColor: rank?.color ?? COLORS.purple,
               }]} />
+            </View>
+            <View style={s.xpBottomRow}>
+              <Text style={s.xpCurrent}>{xpProgress.current} XP</Text>
+              <Text style={s.xpNeeded}>{xpProgress.needed} XP</Text>
             </View>
           </View>
         )}
@@ -398,26 +450,31 @@ export default function HomeScreen() {
         {/* ── 오늘의 퀘스트 ── */}
         <View style={s.card}>
           <View style={s.rowBetween}>
-            <Text style={s.sectionTitle}>📋 오늘의 퀘스트</Text>
-            <View style={s.questProgressPill}>
-              <Text style={[s.questCount, { color: questDone === 3 ? COLORS.gold : COLORS.textMuted }]}>
-                {questDone}/3
+            <Text style={s.sectionTitle}>오늘의 퀘스트</Text>
+            <View style={[s.questProgressPill, { backgroundColor: questDone === quests.length ? COLORS.gold + '22' : COLORS.bgHighlight }]}>
+              <Text style={[s.questCount, { color: questDone === quests.length ? COLORS.gold : COLORS.textMuted }]}>
+                {questDone}/{quests.length} 완료
               </Text>
             </View>
           </View>
-          {/* 퀘스트 진행 바 */}
           <View style={s.questBar}>
             <View style={[s.questBarFill, {
               width: `${questPct}%` as any,
-              backgroundColor: questDone === 3 ? COLORS.gold : COLORS.purple,
+              backgroundColor: questDone === quests.length ? COLORS.gold : COLORS.purple,
             }]} />
           </View>
-          <View style={{ height: 8 }} />
+          <View style={{ height: 6 }} />
           {quests.map((q, i) => (
             <TouchableOpacity key={i} style={s.questRow} onPress={q.action} activeOpacity={0.7}>
               <Text style={s.questIcon}>{q.done ? '✅' : '⬜'}</Text>
-              <Text style={[s.questLabel, q.done && s.questDone]}>{q.label}</Text>
-              {!q.done && <Text style={s.questArrow}>→</Text>}
+              <View style={{ flex: 1 }}>
+                <Text style={[s.questLabel, q.done && s.questDone]}>{q.label}</Text>
+                <Text style={s.questSub}>{q.done ? '완료!' : q.sub}</Text>
+              </View>
+              <View style={[s.questXpBadge, q.done && { backgroundColor: COLORS.gold + '20' }]}>
+                <Text style={[s.questXpText, q.done && { color: COLORS.gold }]}>+{q.xp} XP</Text>
+              </View>
+              {!q.done && <Text style={s.questArrow}>›</Text>}
             </TouchableOpacity>
           ))}
         </View>
@@ -582,23 +639,45 @@ export default function HomeScreen() {
         </View>
 
         {/* ── 업적 ── */}
-        {unlockedIds.length > 0 && (
-          <View style={s.card}>
-            <Text style={s.sectionTitle}>🏆 업적  <Text style={s.achieveCount}>{unlockedIds.length} / {Object.keys(ACHIEVEMENT_DEFS).length}</Text></Text>
+        <View style={s.card}>
+          <View style={s.rowBetween}>
+            <Text style={s.sectionTitle}>업적</Text>
+            <Text style={s.achieveCount}>{unlockedIds.length} / {Object.keys(ACHIEVEMENT_DEFS).length}</Text>
+          </View>
+          {/* 달성 업적 */}
+          {unlockedIds.length > 0 && (
             <View style={s.achieveGrid}>
-              {(Object.keys(ACHIEVEMENT_DEFS) as AchievementId[]).map(id => {
+              {(Object.keys(ACHIEVEMENT_DEFS) as AchievementId[]).filter(id => unlockedIds.includes(id)).map(id => {
                 const def = ACHIEVEMENT_DEFS[id];
-                const unlocked = unlockedIds.includes(id);
                 return (
-                  <View key={id} style={[s.achieveItem, !unlocked && s.achieveLocked]}>
-                    <Text style={[s.achieveEmoji, { opacity: unlocked ? 1 : 0.2 }]}>{def.emoji}</Text>
-                    <Text style={[s.achieveName, !unlocked && { color: COLORS.textDisabled }]}>{def.name}</Text>
+                  <View key={id} style={s.achieveItem}>
+                    <Text style={s.achieveEmoji}>{def.emoji}</Text>
+                    <Text style={s.achieveName}>{def.name}</Text>
+                    <Text style={s.achieveDone}>달성</Text>
                   </View>
                 );
               })}
             </View>
+          )}
+          {/* 진행 중 업적 */}
+          <View style={s.achieveProgressList}>
+            {[
+              { id: 'streak_3', label: '3일 연속 기록', cur: Math.min(streak, 3), max: 3 },
+              { id: 'streak_7', label: '7일 연속 기록', cur: Math.min(streak, 7), max: 7 },
+              { id: 'no_alcohol_7', label: '7일 연속 금주', cur: Math.min(noAlcoholStreak, 7), max: 7 },
+              { id: 'exercise_7', label: '7일 연속 운동', cur: Math.min(exerciseStreakCount, 7), max: 7 },
+              { id: 'score_90', label: '90점 달성', cur: Math.min(bestScore, 90), max: 90 },
+            ].filter(a => !unlockedIds.includes(a.id)).map(a => (
+              <View key={a.id} style={s.achieveProgressRow}>
+                <Text style={s.achieveProgressLabel}>{a.label}</Text>
+                <View style={s.achieveProgressTrack}>
+                  <View style={[s.achieveProgressFill, { width: `${Math.round((a.cur / a.max) * 100)}%` as any }]} />
+                </View>
+                <Text style={s.achieveProgressNum}>{a.cur}/{a.max}</Text>
+              </View>
+            ))}
           </View>
-        )}
+        </View>
 
         {/* ── 최근 7일 ── */}
         {recentLogs.length > 1 && (
@@ -797,19 +876,25 @@ function BSSparkline({ entries }: { entries: any[] }) {
 }
 
 function ScoreSparkline({ logs }: { logs: any[] }) {
-  const BAR_H = 40;
+  const BAR_H = 60;
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 4, height: BAR_H + 22, marginTop: 6 }}>
+    <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 4, height: BAR_H + 36, marginTop: 8 }}>
       {logs.map((log, i) => {
         const rank = getRank(log.conditionScore);
-        const h = Math.max(4, (log.conditionScore / 100) * BAR_H);
+        const h = Math.max(6, (log.conditionScore / 100) * BAR_H);
+        const dateStr = (log.date ?? '').slice(5); // MM-DD
+        const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+        const dayName = log.date ? dayNames[new Date(log.date).getDay()] : '';
         return (
           <View key={log.date ?? i} style={{ flex: 1, alignItems: 'center' }}>
-            <Text style={{ color: rank.color, fontSize: 10, fontWeight: '900', marginBottom: 2 }}>{log.conditionScore}</Text>
-            <View style={{ width: '100%', height: BAR_H, justifyContent: 'flex-end', backgroundColor: COLORS.bgHighlight, borderRadius: 4 }}>
-              <View style={{ width: '100%', height: h, backgroundColor: rank.color, borderRadius: 4, opacity: 0.9 }} />
+            <Text style={{ color: rank.color, fontSize: 9, fontWeight: '900', marginBottom: 3, fontFamily: 'monospace' }}>
+              {log.conditionScore}
+            </Text>
+            <View style={{ width: '100%', height: BAR_H, justifyContent: 'flex-end', backgroundColor: COLORS.bgHighlight, borderRadius: 5 }}>
+              <View style={{ width: '100%', height: h, backgroundColor: rank.color, borderRadius: 5, opacity: 0.85 }} />
             </View>
-            <Text style={{ color: COLORS.textMuted, fontSize: 10, marginTop: 2 }}>{(log.date ?? '').slice(5)}</Text>
+            <Text style={{ color: COLORS.textMuted, fontSize: 9, marginTop: 3 }}>{dayName}</Text>
+            <Text style={{ color: COLORS.textDisabled, fontSize: 8, marginTop: 1 }}>{dateStr}</Text>
           </View>
         );
       })}
@@ -911,6 +996,9 @@ const s = StyleSheet.create({
   questDone: { color: COLORS.textMuted, textDecorationLine: 'line-through' },
   questArrow: { color: COLORS.purple, fontWeight: '700' },
   questCount: { fontSize: FONTS.xs, fontWeight: '900' },
+  questSub: { color: COLORS.textMuted, fontSize: FONTS.xxs, marginTop: 1 },
+  questXpBadge: { backgroundColor: COLORS.purple + '18', borderRadius: RADIUS.sm, paddingHorizontal: 7, paddingVertical: 3 },
+  questXpText: { color: COLORS.purple, fontSize: FONTS.xxs, fontWeight: '900' },
 
   // 칼로리
   calTriple: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
@@ -935,14 +1023,25 @@ const s = StyleSheet.create({
   birthInputBtnText: { fontSize: FONTS.xxs, fontWeight: '700' },
   birthHint: { color: COLORS.textMuted, fontSize: FONTS.xs, marginBottom: 8, fontStyle: 'italic' },
 
-  // XP 바
+  // XP 카드
+  xpCard: { backgroundColor: COLORS.bgCard, borderRadius: RADIUS.lg, padding: SPACING.md, marginBottom: SPACING.sm, borderWidth: 1 },
+  xpCardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 },
+  xpLevelBig: { color: COLORS.textMuted, fontSize: FONTS.xs, fontWeight: '900', letterSpacing: 1, marginBottom: 2 },
+  xpTitleBig: { fontSize: FONTS.lg, fontWeight: '900', letterSpacing: 0.5 },
+  xpTodayBadge: { backgroundColor: COLORS.purple + '22', borderRadius: RADIUS.full, paddingHorizontal: 10, paddingVertical: 4, marginBottom: 4 },
+  xpTodayText: { color: COLORS.purple, fontSize: FONTS.xs, fontWeight: '900' },
+  xpRemain: { color: COLORS.textMuted, fontSize: FONTS.xxs },
+  xpTrack: { height: 8, backgroundColor: COLORS.bgHighlight, borderRadius: 4, overflow: 'hidden', marginBottom: 6 },
+  xpFill: { height: '100%', borderRadius: 4 },
+  xpBottomRow: { flexDirection: 'row', justifyContent: 'space-between' },
+  xpCurrent: { color: COLORS.textSub, fontSize: FONTS.xxs, fontWeight: '700', fontFamily: 'monospace' },
+  xpNeeded: { color: COLORS.textMuted, fontSize: FONTS.xxs, fontFamily: 'monospace' },
+  // Legacy XP bar (unused but kept to avoid ref errors)
   xpBar: { backgroundColor: COLORS.bgCard, borderRadius: RADIUS.md, padding: SPACING.sm, marginBottom: SPACING.sm, borderWidth: 1 },
   xpTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 },
   xpLevel: { color: COLORS.textSub, fontSize: FONTS.xxs, fontWeight: '900' },
   xpTitle: { color: COLORS.textMuted, fontWeight: '400' },
   xpNext: { color: COLORS.textMuted, fontSize: FONTS.xxs },
-  xpTrack: { height: 6, backgroundColor: COLORS.bgHighlight, borderRadius: 3, overflow: 'hidden' },
-  xpFill: { height: '100%', borderRadius: 3 },
 
   // 물 섭취
   waterTotal: { fontSize: FONTS.xs, fontWeight: '700', fontFamily: 'monospace' },
@@ -957,11 +1056,18 @@ const s = StyleSheet.create({
 
   // 업적
   achieveCount: { color: COLORS.textMuted, fontWeight: '400', fontSize: FONTS.xs },
-  achieveGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
+  achieveGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4, marginBottom: 8 },
   achieveItem: { alignItems: 'center', width: '18%', gap: 3 },
   achieveLocked: {},
   achieveEmoji: { fontSize: 24 },
   achieveName: { color: COLORS.textSub, fontSize: 9, textAlign: 'center' },
+  achieveDone: { color: COLORS.gold, fontSize: 8, fontWeight: '900' },
+  achieveProgressList: { gap: 8, marginTop: 4 },
+  achieveProgressRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  achieveProgressLabel: { color: COLORS.textSub, fontSize: FONTS.xxs, width: 100 },
+  achieveProgressTrack: { flex: 1, height: 6, backgroundColor: COLORS.bgHighlight, borderRadius: 3, overflow: 'hidden' },
+  achieveProgressFill: { height: '100%', backgroundColor: COLORS.purple, borderRadius: 3 },
+  achieveProgressNum: { color: COLORS.textMuted, fontSize: FONTS.xxs, fontFamily: 'monospace', width: 32, textAlign: 'right' },
 
   // 운세 (사주)
   sajuRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },

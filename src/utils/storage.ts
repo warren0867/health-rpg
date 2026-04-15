@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AchievementId, BloodSugarEntry, DailyLog, FoodEntry, FoodItem, MedLog, Medication, MorningBloodSugar, RecentFoodEntry, UnlockedAchievement, UserProfile, UserXP, WeightEntry } from '../types';
 import { getLevelFromXP } from './levelSystem';
+import { calculateScore, calculateStats } from './scoreCalculator';
 
 const KEYS = {
   USER_PROFILE: 'hrpg_profile',
@@ -141,6 +142,39 @@ export function sumFoodEntries(entries: FoodEntry[]) {
     }),
     { calories: 0, carbs: 0, protein: 0, fat: 0 }
   );
+}
+
+// 식단 변경 시 DailyLog 점수·스탯 자동 재계산
+export async function syncDailyLogCalories(date: string): Promise<void> {
+  const log = await getDailyLog(date);
+  if (!log) return; // 아직 일일 기록을 제출하지 않은 날은 스킵
+
+  const profile = await getUserProfile();
+  const targetCal = profile?.targetCalories ?? 2000;
+
+  const foodEntries = await getFoodEntriesByDate(date);
+  const consumed = sumFoodEntries(foodEntries).calories;
+
+  const morningBS = await getMorningBS(date);
+
+  const newBreakdown = calculateScore(
+    log.sleep,
+    log.exercise,
+    log.alcohol,
+    morningBS,
+    consumed,
+    targetCal,
+  );
+  const newStats = calculateStats(newBreakdown, log.exercise, log.sleep, morningBS);
+
+  const updated: DailyLog = {
+    ...log,
+    conditionScore: newBreakdown.total,
+    scoreBreakdown: newBreakdown,
+    stats: newStats,
+    updatedAt: new Date().toISOString(),
+  };
+  await saveDailyLog(updated);
 }
 
 // 어제 식단 복사

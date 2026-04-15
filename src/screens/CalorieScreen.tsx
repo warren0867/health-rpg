@@ -1,6 +1,6 @@
 import * as Haptics from 'expo-haptics';
 import { useFocusEffect } from '@react-navigation/native';
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useRef, useState, useEffect } from 'react';
 import {
   Alert,
   FlatList,
@@ -31,12 +31,13 @@ import {
   saveCustomFood,
   saveFoodEntry,
   sumFoodEntries,
+  syncDailyLogCalories,
   toggleFavoriteFood,
   trackRecentFood,
 } from '../utils/storage';
 
 type MealTime = FoodEntry['mealTime'];
-type SearchTab = 'recent' | 'favorite' | 'search' | 'custom';
+type SearchTab = 'recent' | 'favorite' | 'custom';
 
 const MEAL_LABELS: Record<MealTime, string> = {
   breakfast: '🌅 아침',
@@ -85,6 +86,12 @@ export default function CalorieScreen() {
   const [favIds, setFavIds] = useState<string[]>([]);
   const [recentFoods, setRecentFoods] = useState<RecentFoodEntry[]>([]);
 
+  // 편집 모드 (끼니별)
+  const [editMeal, setEditMeal] = useState<MealTime | null>(null);
+  // 추가 완료 배너
+  const [addedBanner, setAddedBanner] = useState<string | null>(null);
+  const bannerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // 인라인 입력 상태
   const [activeMeal, setActiveMeal] = useState<MealTime | null>(null);
   const [searchTab, setSearchTab] = useState<SearchTab>('recent');
@@ -92,6 +99,7 @@ export default function CalorieScreen() {
   const [searchResults, setSearchResults] = useState<FoodItem[]>([]);
   const [selectedFood, setSelectedFood] = useState<FoodItem | null>(null);
   const [servings, setServings] = useState(1);
+  const [eatPct, setEatPct] = useState(100);
 
   // 커스텀 입력 폼
   const [showCustomForm, setShowCustomForm] = useState(false);
@@ -150,7 +158,6 @@ export default function CalorieScreen() {
     setSelectedFood(null);
     if (q.length >= 1) {
       setSearchResults(searchFoods(q, customFoods));
-      setSearchTab('search');
     } else {
       setSearchResults([]);
     }
@@ -160,11 +167,13 @@ export default function CalorieScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setSelectedFood(food);
     setServings(1);
+    setEatPct(100);
   };
 
   const handleAddEntry = async () => {
     if (!selectedFood || !activeMeal) return;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    const cal = Math.round(selectedFood.cal * servings * eatPct / 100);
     const entry: FoodEntry = {
       id: generateId(),
       date: selectedDate,
@@ -172,14 +181,19 @@ export default function CalorieScreen() {
       foodId: selectedFood.id,
       foodName: selectedFood.name,
       servings,
-      calories: Math.round(selectedFood.cal * servings),
-      carbs: Math.round(selectedFood.carbs * servings * 10) / 10,
-      protein: Math.round(selectedFood.protein * servings * 10) / 10,
-      fat: Math.round(selectedFood.fat * servings * 10) / 10,
+      calories: cal,
+      carbs: Math.round(selectedFood.carbs * servings * eatPct / 100 * 10) / 10,
+      protein: Math.round(selectedFood.protein * servings * eatPct / 100 * 10) / 10,
+      fat: Math.round(selectedFood.fat * servings * eatPct / 100 * 10) / 10,
       mealTime: activeMeal,
     };
     await saveFoodEntry(entry);
     await trackRecentFood(selectedFood.id, selectedFood.name);
+    await syncDailyLogCalories(selectedDate);
+    // 배너 표시
+    if (bannerTimer.current) clearTimeout(bannerTimer.current);
+    setAddedBanner(`${selectedFood.name}  +${cal} kcal`);
+    bannerTimer.current = setTimeout(() => setAddedBanner(null), 2200);
     setSelectedFood(null);
     setSearchQuery('');
     setSearchTab('recent');
@@ -192,11 +206,15 @@ export default function CalorieScreen() {
     setFavIds(await getFavoriteFoodIds());
   };
 
-  const handleDelete = (entry: FoodEntry) => {
-    Alert.alert('삭제', `${entry.foodName}을(를) 삭제할까요?`, [
-      { text: '취소', style: 'cancel' },
-      { text: '삭제', style: 'destructive', onPress: async () => { await deleteFoodEntry(entry.id); load(); } },
-    ]);
+  const handleDelete = async (entry: FoodEntry) => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    // 스토리지에서 삭제
+    await deleteFoodEntry(entry.id);
+    await syncDailyLogCalories(selectedDate);
+    // 화면 즉시 업데이트
+    const fresh = await getFoodEntriesByDate(selectedDate);
+    setEntries(fresh);
+    setSummary(sumFoodEntries(fresh));
   };
 
   const handleCopyYesterday = () => {
@@ -255,6 +273,12 @@ export default function CalorieScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
+      {/* 추가 완료 배너 */}
+      {addedBanner && (
+        <View style={styles.addedBanner}>
+          <Text style={styles.addedBannerText}>✓  {addedBanner}</Text>
+        </View>
+      )}
       <ScrollView
         ref={scrollRef}
         contentContainerStyle={styles.scroll}
@@ -326,25 +350,52 @@ export default function CalorieScreen() {
           return (
             <View key={meal} style={[styles.mealSection, isActive && styles.mealSectionActive]}>
               {/* 끼니 헤더 */}
-              <TouchableOpacity style={styles.mealHeader} onPress={() => openInput(meal)} activeOpacity={0.7}>
-                <Text style={styles.mealTitle}>{MEAL_LABELS[meal]}</Text>
+              <View style={styles.mealHeader}>
+                <TouchableOpacity onPress={() => openInput(meal)} activeOpacity={0.7} style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
+                  <Text style={styles.mealTitle}>{MEAL_LABELS[meal]}</Text>
+                  <Text style={styles.mealCalText}>  {mealEntries.reduce((s, e) => s + e.calories, 0)} kcal</Text>
+                </TouchableOpacity>
                 <View style={styles.mealRight}>
-                  <Text style={styles.mealCalText}>
-                    {mealEntries.reduce((s, e) => s + e.calories, 0)} kcal
-                  </Text>
-                  <View style={[styles.addFoodBtn, isActive && styles.addFoodBtnActive]}>
-                    <Text style={[styles.addFoodBtnText, isActive && { color: COLORS.text }]}>
-                      {isActive ? '✕ 닫기' : '+ 추가'}
-                    </Text>
-                  </View>
+                  {mealEntries.length > 0 && (
+                    <TouchableOpacity
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        setEditMeal(editMeal === meal ? null : meal);
+                      }}
+                      style={[styles.editBtn, editMeal === meal && styles.editBtnActive]}
+                    >
+                      <Text style={[styles.editBtnText, editMeal === meal && { color: COLORS.red }]}>
+                        {editMeal === meal ? '완료' : '편집'}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                  <TouchableOpacity onPress={() => openInput(meal)} activeOpacity={0.7}>
+                    <View style={[styles.addFoodBtn, isActive && styles.addFoodBtnActive]}>
+                      <Text style={[styles.addFoodBtnText, isActive && { color: COLORS.text }]}>
+                        {isActive ? '✕ 닫기' : '+ 추가'}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
                 </View>
-              </TouchableOpacity>
+              </View>
 
               {/* 기존 항목 */}
               {mealEntries.map(entry => {
                 const food = customFoods.find(f => f.id === entry.foodId) ?? KOREAN_FOODS.find(f => f.id === entry.foodId);
+                const isEditing = editMeal === meal;
                 return (
                   <View key={entry.id} style={styles.entryRow}>
+                    {isEditing && (
+                      <TouchableOpacity
+                        style={styles.deleteBtn}
+                        onPress={() => {
+                          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                          handleDelete(entry);
+                        }}
+                      >
+                        <Text style={styles.deleteBtnText}>−</Text>
+                      </TouchableOpacity>
+                    )}
                     <View style={styles.entryLeft}>
                       <View style={styles.entryNameRow}>
                         <Text style={styles.entryName}>{entry.foodName}</Text>
@@ -356,13 +407,6 @@ export default function CalorieScreen() {
                       </Text>
                     </View>
                     <Text style={styles.entryCal}>{entry.calories} kcal</Text>
-                    <TouchableOpacity
-                      style={styles.deleteBtn}
-                      onPress={() => handleDelete(entry)}
-                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                    >
-                      <Text style={styles.deleteBtnText}>✕</Text>
-                    </TouchableOpacity>
                   </View>
                 );
               })}
@@ -378,31 +422,42 @@ export default function CalorieScreen() {
                         style={styles.searchInput}
                         value={searchQuery}
                         onChangeText={handleSearch}
-                        placeholder="음식 검색 (예: 라면, 삼각김밥)"
+                        placeholder="🔍  음식 검색"
                         placeholderTextColor={COLORS.textDisabled}
                         returnKeyType="search"
                         autoFocus={false}
                       />
 
-                      {/* 탭 */}
-                      <View style={styles.tabRow}>
-                        {(['recent', 'favorite', 'search', 'custom'] as SearchTab[]).map(tab => (
-                          <TouchableOpacity
-                            key={tab}
-                            style={[styles.tab, searchTab === tab && styles.tabActive]}
-                            onPress={() => { setSearchTab(tab); if (tab !== 'search') { setSearchQuery(''); setSearchResults([]); } }}
-                          >
-                            <Text style={[styles.tabText, searchTab === tab && { color: COLORS.purple }]}>
-                              {tab === 'recent' ? '최근' : tab === 'favorite' ? '즐겨찾기' : tab === 'search' ? '검색' : '직접입력'}
-                            </Text>
-                          </TouchableOpacity>
-                        ))}
-                      </View>
+                      {/* 탭 — 검색 중이면 숨김 */}
+                      {!searchQuery && (
+                        <View style={styles.tabRow}>
+                          {(['recent', 'favorite', 'custom'] as SearchTab[]).map(tab => (
+                            <TouchableOpacity
+                              key={tab}
+                              style={[styles.tab, searchTab === tab && styles.tabActive]}
+                              onPress={() => setSearchTab(tab)}
+                            >
+                              <Text style={[styles.tabText, searchTab === tab && { color: COLORS.purple }]}>
+                                {tab === 'recent' ? '최근' : tab === 'favorite' ? '즐겨찾기' : '직접입력'}
+                              </Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      )}
+
+                      {/* 검색 결과 (타이핑 중) */}
+                      {searchQuery.length > 0 && (
+                        searchResults.length === 0
+                          ? <Text style={styles.emptyTabText}>"{searchQuery}" 결과 없음</Text>
+                          : searchResults.map(food => (
+                            <FoodRow key={food.id} food={food} isFav={favIds.includes(food.id)} onSelect={handleSelectFood} onFav={handleToggleFav} />
+                          ))
+                      )}
 
                       {/* 최근 */}
-                      {searchTab === 'recent' && (
+                      {!searchQuery && searchTab === 'recent' && (
                         recentFoods.length === 0
-                          ? <Text style={styles.emptyTabText}>아직 기록이 없어요</Text>
+                          ? <Text style={styles.emptyTabText}>아직 기록이 없어요{'\n'}검색해서 음식을 추가해보세요</Text>
                           : recentFoods.map(item => {
                             const food = customFoods.find(f => f.id === item.foodId) ?? KOREAN_FOODS.find(f => f.id === item.foodId);
                             if (!food) return null;
@@ -411,7 +466,7 @@ export default function CalorieScreen() {
                       )}
 
                       {/* 즐겨찾기 */}
-                      {searchTab === 'favorite' && (
+                      {!searchQuery && searchTab === 'favorite' && (
                         favFoods.length === 0
                           ? <Text style={styles.emptyTabText}>⭐를 눌러 즐겨찾기 추가</Text>
                           : favFoods.map(food => (
@@ -419,17 +474,8 @@ export default function CalorieScreen() {
                           ))
                       )}
 
-                      {/* 검색 결과 */}
-                      {searchTab === 'search' && (
-                        searchResults.length === 0
-                          ? <Text style={styles.emptyTabText}>{searchQuery ? `"${searchQuery}" 결과 없음` : '위에서 검색하세요'}</Text>
-                          : searchResults.map(food => (
-                            <FoodRow key={food.id} food={food} isFav={favIds.includes(food.id)} onSelect={handleSelectFood} onFav={handleToggleFav} />
-                          ))
-                      )}
-
                       {/* 직접 입력 */}
-                      {searchTab === 'custom' && (
+                      {!searchQuery && searchTab === 'custom' && (
                         <View>
                           <TouchableOpacity style={styles.newCustomBtn} onPress={() => setShowCustomForm(true)}>
                             <Text style={styles.newCustomBtnText}>+ 새 음식 등록</Text>
@@ -515,12 +561,30 @@ export default function CalorieScreen() {
                         ))}
                       </View>
 
+                      {/* 섭취 비율 (밥/면류) */}
+                      {(selectedFood.category === 'rice' || selectedFood.category === 'noodle') && (
+                        <View style={styles.pctSection}>
+                          <Text style={styles.pctLabel}>섭취량  <Text style={{ color: COLORS.orange, fontWeight: '900' }}>{eatPct}%</Text></Text>
+                          <View style={styles.pctRow}>
+                            {[10, 20, 30, 40, 50, 60, 70, 80, 90, 100].map(p => (
+                              <TouchableOpacity
+                                key={p}
+                                style={[styles.pctBtn, eatPct === p && styles.pctBtnActive]}
+                                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setEatPct(p); }}
+                              >
+                                <Text style={[styles.pctBtnText, eatPct === p && { color: COLORS.orange }]}>{p}</Text>
+                              </TouchableOpacity>
+                            ))}
+                          </View>
+                        </View>
+                      )}
+
                       {/* 영양 미리보기 */}
                       <View style={styles.nutriRow}>
-                        <NutriChip label="칼로리" value={`${Math.round(selectedFood.cal * servings)}kcal`} color={COLORS.gold} />
-                        <NutriChip label="탄" value={`${Math.round(selectedFood.carbs * servings)}g`} color={COLORS.orange} />
-                        <NutriChip label="단" value={`${Math.round(selectedFood.protein * servings)}g`} color={COLORS.teal} />
-                        <NutriChip label="지" value={`${Math.round(selectedFood.fat * servings)}g`} color={COLORS.textMuted} />
+                        <NutriChip label="칼로리" value={`${Math.round(selectedFood.cal * servings * eatPct / 100)}kcal`} color={COLORS.gold} />
+                        <NutriChip label="탄" value={`${Math.round(selectedFood.carbs * servings * eatPct / 100)}g`} color={COLORS.orange} />
+                        <NutriChip label="단" value={`${Math.round(selectedFood.protein * servings * eatPct / 100)}g`} color={COLORS.teal} />
+                        <NutriChip label="지" value={`${Math.round(selectedFood.fat * servings * eatPct / 100)}g`} color={COLORS.textMuted} />
                       </View>
 
                       <View style={styles.actionRow}>
@@ -568,21 +632,21 @@ function FoodRow({ food, isFav, onSelect, onFav, useCount }: {
 }) {
   const gi = GI_CONFIG[food.gi];
   return (
-    <TouchableOpacity style={styles.foodRow} onPress={() => onSelect(food)}>
+    <TouchableOpacity style={styles.foodRow} onPress={() => onSelect(food)} activeOpacity={0.65}>
+      {/* GI 컬러 인디케이터 */}
+      <View style={[styles.foodGiBar, { backgroundColor: gi.color }]} />
       <View style={styles.foodRowLeft}>
         <View style={styles.foodNameRow}>
-          <Text style={styles.foodName}>{food.name}</Text>
+          <Text style={styles.foodName} numberOfLines={1}>{food.name}</Text>
           {food.isCustom && <Text style={styles.customBadge}>MY</Text>}
           {useCount && useCount > 1 && <Text style={styles.countBadge}>{useCount}회</Text>}
         </View>
-        <Text style={styles.foodMeta}>{food.serving} · {CATEGORY_LABELS[food.category] ?? ''} · 탄 {food.carbs}g · 단 {food.protein}g</Text>
+        <Text style={styles.foodMeta} numberOfLines={1}>{food.serving}  ·  탄 {food.carbs}g · 단 {food.protein}g · 지 {food.fat}g</Text>
       </View>
       <View style={styles.foodRowRight}>
-        <Text style={[styles.foodCal, { color: gi.color }]}>{food.cal}</Text>
-        <Text style={styles.foodCalUnit}>kcal</Text>
-        <Text style={{ fontSize: 14 }}>{gi.emoji}</Text>
-        <TouchableOpacity onPress={() => onFav(food.id)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-          <Text style={{ fontSize: 16 }}>{isFav ? '⭐' : '☆'}</Text>
+        <Text style={[styles.foodCal, { color: gi.color }]}>{food.cal}<Text style={styles.foodCalUnit}> kcal</Text></Text>
+        <TouchableOpacity onPress={() => onFav(food.id)} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+          <Text style={styles.favIcon}>{isFav ? '⭐' : '☆'}</Text>
         </TouchableOpacity>
       </View>
     </TouchableOpacity>
@@ -620,6 +684,14 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: COLORS.bg },
   scroll: { padding: SPACING.md },
 
+  // 추가 완료 배너
+  addedBanner: {
+    position: 'absolute', top: 0, left: 0, right: 0, zIndex: 999,
+    backgroundColor: COLORS.teal, paddingVertical: 10, paddingHorizontal: SPACING.md,
+    alignItems: 'center',
+  },
+  addedBannerText: { color: '#fff', fontSize: FONTS.sm, fontWeight: '800', letterSpacing: 0.5 },
+
   // 날짜 선택
   dateChip: {
     borderWidth: 1, borderColor: COLORS.border, borderRadius: RADIUS.md,
@@ -651,7 +723,7 @@ const styles = StyleSheet.create({
   // 끼니 카드
   mealSection: {
     backgroundColor: COLORS.bgCard, borderRadius: RADIUS.lg,
-    marginBottom: SPACING.sm, borderWidth: 1, borderColor: COLORS.border, overflow: 'hidden',
+    marginBottom: SPACING.sm, borderWidth: 1, borderColor: COLORS.border,
   },
   mealSectionActive: { borderColor: COLORS.purple },
   mealHeader: {
@@ -673,12 +745,11 @@ const styles = StyleSheet.create({
     borderTopWidth: 1, borderTopColor: COLORS.border,
   },
   entryLeft: { flex: 1 },
-  deleteBtn: {
-    width: 26, height: 26, borderRadius: 13,
-    backgroundColor: COLORS.red + '18', borderWidth: 1, borderColor: COLORS.red + '44',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  deleteBtnText: { color: COLORS.red, fontSize: 12, fontWeight: '900', lineHeight: 14 },
+  editBtn: { borderRadius: RADIUS.sm, paddingHorizontal: 10, paddingVertical: 4, backgroundColor: COLORS.bgHighlight, marginRight: 6 },
+  editBtnActive: { backgroundColor: COLORS.red + '18' },
+  editBtnText: { color: COLORS.textMuted, fontSize: FONTS.xs, fontWeight: '700' },
+  deleteBtn: { width: 28, height: 28, borderRadius: 14, backgroundColor: COLORS.red, alignItems: 'center', justifyContent: 'center', marginRight: 8 },
+  deleteBtnText: { color: '#fff', fontSize: 18, fontWeight: '900', lineHeight: 20 },
   entryNameRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   entryName: { color: COLORS.text, fontSize: FONTS.sm, fontWeight: '600' },
   customBadge: {
@@ -694,36 +765,38 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.bgInput, padding: SPACING.md,
   },
   searchInput: {
-    backgroundColor: COLORS.bgCard, borderRadius: RADIUS.md,
+    backgroundColor: COLORS.bgCard, borderRadius: RADIUS.full,
     borderWidth: 1.5, borderColor: COLORS.border,
-    color: COLORS.text, fontSize: FONTS.md, padding: SPACING.sm, marginBottom: SPACING.sm,
+    color: COLORS.text, fontSize: FONTS.sm, paddingHorizontal: 14, paddingVertical: 9, marginBottom: 8,
   },
-  tabRow: { flexDirection: 'row', gap: 6, marginBottom: SPACING.sm },
+  tabRow: { flexDirection: 'row', gap: 5, marginBottom: 8 },
   tab: {
-    flex: 1, paddingVertical: 7, alignItems: 'center',
+    flex: 1, paddingVertical: 6, alignItems: 'center',
     borderRadius: RADIUS.md, backgroundColor: COLORS.bgCard,
     borderWidth: 1, borderColor: COLORS.border,
   },
   tabActive: { borderColor: COLORS.purple, backgroundColor: COLORS.purple + '22' },
-  tabText: { color: COLORS.textMuted, fontSize: FONTS.xs, fontWeight: '600' },
-  emptyTabText: { color: COLORS.textMuted, fontSize: FONTS.sm, textAlign: 'center', paddingVertical: 20 },
+  tabText: { color: COLORS.textMuted, fontSize: FONTS.xxs, fontWeight: '700', letterSpacing: 0.5 },
+  emptyTabText: { color: COLORS.textMuted, fontSize: FONTS.xs, textAlign: 'center', paddingVertical: 16, lineHeight: 20 },
 
-  // 음식 행
+  // 음식 행 (compact)
   foodRow: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: COLORS.border,
+    flexDirection: 'row', alignItems: 'center',
+    paddingVertical: 7, borderBottomWidth: 1, borderBottomColor: COLORS.borderSub,
   },
-  foodRowLeft: { flex: 1, marginRight: 8 },
+  foodGiBar: { width: 3, height: 32, borderRadius: 2, marginRight: 8 },
+  foodRowLeft: { flex: 1, marginRight: 6 },
   foodNameRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  foodName: { color: COLORS.text, fontSize: FONTS.sm, fontWeight: '600' },
+  foodName: { color: COLORS.text, fontSize: FONTS.xs, fontWeight: '700', flexShrink: 1 },
   countBadge: {
-    backgroundColor: COLORS.teal + '33', borderRadius: 4,
+    backgroundColor: COLORS.teal + '33', borderRadius: 3,
     paddingHorizontal: 4, color: COLORS.teal, fontSize: 9, fontWeight: '700',
   },
-  foodMeta: { color: COLORS.textMuted, fontSize: FONTS.xs, marginTop: 2 },
-  foodRowRight: { alignItems: 'flex-end', gap: 2 },
-  foodCal: { fontSize: FONTS.md, fontWeight: '900' },
-  foodCalUnit: { color: COLORS.textMuted, fontSize: FONTS.xs },
+  foodMeta: { color: COLORS.textDisabled, fontSize: 10, marginTop: 1 },
+  foodRowRight: { alignItems: 'flex-end', gap: 3 },
+  foodCal: { fontSize: FONTS.xs, fontWeight: '900', fontFamily: 'monospace' },
+  foodCalUnit: { color: COLORS.textMuted, fontSize: 10 },
+  favIcon: { fontSize: 13, color: COLORS.textMuted },
 
   // 선택된 음식 패널
   selectedPanel: {
@@ -742,6 +815,15 @@ const styles = StyleSheet.create({
   },
   servingBtnActive: { borderColor: COLORS.purple, backgroundColor: COLORS.purple + '22' },
   servingBtnText: { color: COLORS.textMuted, fontWeight: '700', fontSize: FONTS.sm },
+  pctSection: { marginTop: 6, marginBottom: 2 },
+  pctLabel: { color: COLORS.textSub, fontSize: FONTS.xs, marginBottom: 6 },
+  pctRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  pctBtn: {
+    borderWidth: 1.5, borderColor: COLORS.border, borderRadius: RADIUS.sm,
+    paddingHorizontal: 8, paddingVertical: 5, backgroundColor: COLORS.bgInput,
+  },
+  pctBtnActive: { borderColor: COLORS.orange, backgroundColor: COLORS.orange + '22' },
+  pctBtnText: { color: COLORS.textMuted, fontWeight: '700', fontSize: FONTS.xs },
   nutriRow: { flexDirection: 'row', gap: 6 },
   nutriChip: {
     flex: 1, backgroundColor: COLORS.bgHighlight, borderRadius: RADIUS.md,
