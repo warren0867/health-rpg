@@ -15,7 +15,9 @@ export interface UserProfile {
   activityLevel: ActivityLevel;
   goal: Goal;
   targetCalories: number;
-  birthDate?: string;   // YYYY-MM-DD (운세용)
+  birthDate?: string;      // YYYY-MM-DD (운세용)
+  waterGoalMl?: number;    // 하루 물 목표 (기본 1500)
+  targetWeightKg?: number; // 목표 체중
   createdAt: string;
 }
 
@@ -347,6 +349,7 @@ export interface DailyLog {
   mood?: MoodLevel;                     // 기분 (1~5)
   bloodPressure?: { systolic: number; diastolic: number; pulse?: number };  // 혈압
   xpGained?: number;                    // 이날 획득한 XP
+  steps?: number;                       // 걸음수
   createdAt: string;
   updatedAt: string;
 }
@@ -447,3 +450,43 @@ export const SYMPTOM_LABELS: Record<IllnessSymptom, string> = {
   fatigue: '피로', muscle: '근육통', headache: '두통',
   chills: '오한', loss_appetite: '식욕부진',
 };
+
+// ─────────────────────────────────────────────
+//  주간 챌린지
+// ─────────────────────────────────────────────
+
+export type ChallengeId =
+  | 'exercise_5'    // 이번 주 5번 운동
+  | 'no_alcohol_5'  // 이번 주 5일 금주
+  | 'sleep_7h_5'    // 이번 주 5일 7시간 이상 수면
+  | 'water_5'       // 이번 주 5일 물 목표 달성
+  | 'steps_7k_3'    // 이번 주 3일 7000보 이상
+  | 'record_7'      // 이번 주 7일 기록
+  | 'score_70_5';   // 이번 주 5일 70점 이상
+
+export interface ChallengeDef {
+  id: ChallengeId;
+  name: string;
+  desc: string;
+  emoji: string;
+  target: number;   // 목표 횟수
+  xpReward: number;
+}
+
+export const CHALLENGE_DEFS: Record<ChallengeId, ChallengeDef> = {
+  exercise_5:    { id: 'exercise_5',    name: '주간 운동왕',     desc: '이번 주 5번 이상 운동하기',       emoji: '💪', target: 5, xpReward: 100 },
+  no_alcohol_5:  { id: 'no_alcohol_5',  name: '금주 챌린지',     desc: '이번 주 5일 이상 금주하기',       emoji: '🧘', target: 5, xpReward: 80  },
+  sleep_7h_5:    { id: 'sleep_7h_5',    name: '숙면 마스터',     desc: '이번 주 5일 이상 7시간+ 수면',    emoji: '😴', target: 5, xpReward: 80  },
+  water_5:       { id: 'water_5',       name: '수분 충전기',     desc: '이번 주 5일 이상 물 목표 달성',   emoji: '💧', target: 5, xpReward: 60  },
+  steps_7k_3:    { id: 'steps_7k_3',    name: '만보의 전사',     desc: '이번 주 3일 이상 7,000보 달성',   emoji: '🚶', target: 3, xpReward: 70  },
+  record_7:      { id: 'record_7',      name: '개근왕',          desc: '이번 주 7일 모두 기록하기',        emoji: '📝', target: 7, xpReward: 120 },
+  score_70_5:    { id: 'score_70_5',    name: '고득점 연속',     desc: '이번 주 5일 이상 70점+ 달성',     emoji: '⚔️', target: 5, xpReward: 90  },
+};
+
+export interface WeeklyChallenge {
+  weekKey: string;         // "YYYY-WNN" 형식
+  challengeIds: ChallengeId[];
+  progress: Record<ChallengeId, number>;
+  completed: ChallengeId[];
+  rewardClaimed: ChallengeId[];
+}

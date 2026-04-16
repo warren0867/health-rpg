@@ -103,6 +103,7 @@ export default function InputScreen() {
   const [bpSys, setBpSys] = useState('');
   const [bpDia, setBpDia] = useState('');
   const [bpPulse, setBpPulse] = useState('');
+  const [steps, setSteps] = useState('');
   const [saving, setSaving] = useState(false);
   const [hasExisting, setHasExisting] = useState(false);
 
@@ -138,6 +139,7 @@ export default function InputScreen() {
       setBpSys(existing.bloodPressure?.systolic ? String(existing.bloodPressure.systolic) : '');
       setBpDia(existing.bloodPressure?.diastolic ? String(existing.bloodPressure.diastolic) : '');
       setBpPulse(existing.bloodPressure?.pulse ? String(existing.bloodPressure.pulse) : '');
+      setSteps(existing.steps ? String(existing.steps) : '');
     } else {
       setHasExisting(false);
       setSleep({ hours: 7 });
@@ -146,6 +148,7 @@ export default function InputScreen() {
       setAlcohol({ consumed: false, items: [] });
       setMood(null);
       setBpSys(''); setBpDia(''); setBpPulse('');
+      setSteps('');
     }
   }, []);
 
@@ -224,6 +227,7 @@ export default function InputScreen() {
       mood: mood ?? undefined,
       bloodPressure,
       xpGained,
+      steps: steps ? parseInt(steps) : undefined,
       createdAt: existingLog?.createdAt ?? now, updatedAt: now,
     };
 
@@ -502,6 +506,36 @@ export default function InputScreen() {
               </View>
             );
           })()}
+        </QuestPanel>
+
+        {/* ── 걸음수 ── */}
+        <QuestPanel icon="🚶" title="걸음수 (선택)">
+          <View style={c.bpRow}>
+            <View style={[c.bpField, { flex: 1 }]}>
+              <Text style={c.bpFieldLabel}>오늘 걸음수</Text>
+              <TextInput
+                style={[c.bpInput, { fontSize: 22 }]}
+                value={steps} onChangeText={setSteps}
+                keyboardType="numeric" placeholder="예: 8500"
+                placeholderTextColor={COLORS.textDisabled}
+                maxLength={6}
+              />
+              <Text style={c.bpUnit}>걸음</Text>
+            </View>
+            {steps.length > 0 && !isNaN(parseInt(steps)) && (
+              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                {parseInt(steps) >= 10000 ? (
+                  <><Text style={{ fontSize: 28 }}>🏆</Text><Text style={{ color: COLORS.gold, fontSize: 12, fontWeight: '700' }}>만보 달성!</Text></>
+                ) : parseInt(steps) >= 7000 ? (
+                  <><Text style={{ fontSize: 28 }}>💪</Text><Text style={{ color: COLORS.teal, fontSize: 12, fontWeight: '700' }}>우수 ({parseInt(steps).toLocaleString()}보)</Text></>
+                ) : parseInt(steps) >= 5000 ? (
+                  <><Text style={{ fontSize: 28 }}>🚶</Text><Text style={{ color: COLORS.blue, fontSize: 12, fontWeight: '700' }}>보통 ({parseInt(steps).toLocaleString()}보)</Text></>
+                ) : (
+                  <><Text style={{ fontSize: 28 }}>🐢</Text><Text style={{ color: COLORS.textMuted, fontSize: 12 }}>조금 더 걸어봐요</Text></>
+                )}
+              </View>
+            )}
+          </View>
         </QuestPanel>
 
         {/* ── 약 복용 ── */}

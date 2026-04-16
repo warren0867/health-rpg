@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { AchievementId, BloodSugarEntry, DailyLog, FoodEntry, FoodItem, IllnessEntry, MedLog, Medication, MorningBloodSugar, RecentFoodEntry, UnlockedAchievement, UserProfile, UserXP, WeightEntry } from '../types';
+import { AchievementId, BloodSugarEntry, ChallengeId, CHALLENGE_DEFS, DailyLog, FoodEntry, FoodItem, IllnessEntry, MedLog, Medication, MorningBloodSugar, RecentFoodEntry, UnlockedAchievement, UserProfile, UserXP, WeeklyChallenge, WeightEntry } from '../types';
 import { getLevelFromXP } from './levelSystem';
 import { calculateScore, calculateStats } from './scoreCalculator';
 
@@ -19,6 +19,7 @@ const KEYS = {
   MEDICATIONS: 'hrpg_medications',
   MED_LOGS: 'hrpg_med_logs',
   ILLNESS_LOG: 'hrpg_illness_log',
+  WEEKLY_CHALLENGE: 'hrpg_weekly_challenge',
 } as const;
 
 // ─────────────────────────────────────────────
@@ -582,4 +583,142 @@ export function illnessDuration(entry: IllnessEntry): number {
   return Math.max(1, Math.round(
     (new Date(end).getTime() - new Date(entry.startDate).getTime()) / 86400000
   ) + 1);
+}
+
+// ─────────────────────────────────────────────
+//  데이터 백업 / 복구
+// ─────────────────────────────────────────────
+
+const BACKUP_KEYS = [
+  KEYS.USER_PROFILE, KEYS.DAILY_LOGS, KEYS.FOOD_ENTRIES, KEYS.MORNING_BS,
+  KEYS.BLOOD_SUGAR, KEYS.WATER_LOG, KEYS.WEIGHT_LOG, KEYS.USER_XP,
+  KEYS.ACHIEVEMENTS, KEYS.MEDICATIONS, KEYS.MED_LOGS, KEYS.ILLNESS_LOG,
+  KEYS.RECENT_FOODS, KEYS.FAVORITE_FOODS, KEYS.CUSTOM_FOODS,
+];
+
+export async function exportAllData(): Promise<string> {
+  const pairs = await AsyncStorage.multiGet(BACKUP_KEYS);
+  const data: Record<string, any> = {};
+  for (const [key, val] of pairs) {
+    if (val) data[key] = JSON.parse(val);
+  }
+  return JSON.stringify({ version: 1, exportedAt: new Date().toISOString(), data });
+}
+
+export async function importAllData(jsonStr: string): Promise<void> {
+  const parsed = JSON.parse(jsonStr);
+  if (!parsed?.data) throw new Error('올바르지 않은 백업 파일입니다');
+  const pairs: [string, string][] = Object.entries(parsed.data).map(([k, v]) => [k, JSON.stringify(v)]);
+  await AsyncStorage.multiSet(pairs);
+}
+
+// ─────────────────────────────────────────────
+//  주간 챌린지
+// ─────────────────────────────────────────────
+
+function getWeekKey(date?: string): string {
+  const d = date ? new Date(date) : new Date();
+  const year = d.getFullYear();
+  const start = new Date(year, 0, 1);
+  const week = Math.ceil(((d.getTime() - start.getTime()) / 86400000 + start.getDay() + 1) / 7);
+  return `${year}-W${String(week).padStart(2, '0')}`;
+}
+
+// 이번 주 챌린지 3개 선택 (주 번호 기반 고정)
+function selectWeeklyChallenges(weekKey: string): ChallengeId[] {
+  const allIds = Object.keys(CHALLENGE_DEFS) as ChallengeId[];
+  // 주 번호로 seed를 결정해서 매주 다른 3개 선택
+  const seed = parseInt(weekKey.replace(/\D/g, '')) % allIds.length;
+  const result: ChallengeId[] = [];
+  for (let i = 0; i < 3; i++) {
+    result.push(allIds[(seed + i) % allIds.length]);
+  }
+  return result;
+}
+
+export async function getWeeklyChallenge(): Promise<WeeklyChallenge> {
+  const weekKey = getWeekKey();
+  const raw = await AsyncStorage.getItem(KEYS.WEEKLY_CHALLENGE);
+  const existing: WeeklyChallenge | null = raw ? JSON.parse(raw) : null;
+  if (existing && existing.weekKey === weekKey) return existing;
+
+  // 새 주 — 새 챌린지 생성
+  const challengeIds = selectWeeklyChallenges(weekKey);
+  const fresh: WeeklyChallenge = {
+    weekKey,
+    challengeIds,
+    progress: {} as Record<ChallengeId, number>,
+    completed: [],
+    rewardClaimed: [],
+  };
+  await AsyncStorage.setItem(KEYS.WEEKLY_CHALLENGE, JSON.stringify(fresh));
+  return fresh;
+}
+
+export async function updateChallengeProgress(logs: DailyLog[], waterGoalMl = 1500): Promise<WeeklyChallenge> {
+  const challenge = await getWeeklyChallenge();
+  const weekKey = challenge.weekKey;
+
+  // 이번 주 월~일 날짜 범위
+  const now = new Date();
+  const dayOfWeek = now.getDay(); // 0=일
+  const monday = new Date(now);
+  monday.setDate(now.getDate() - ((dayOfWeek + 6) % 7));
+  const mondayStr = monday.toISOString().slice(0, 10);
+  const todayStr = now.toISOString().slice(0, 10);
+
+  const thisWeekLogs = logs.filter(l => l.date >= mondayStr && l.date <= todayStr);
+
+  const raw = await AsyncStorage.getItem(KEYS.WATER_LOG);
+  const waterLog: Record<string, number> = raw ? JSON.parse(raw) : {};
+
+  const progress: Record<ChallengeId, number> = {} as any;
+  for (const id of challenge.challengeIds) {
+    switch (id) {
+      case 'exercise_5':
+        progress[id] = thisWeekLogs.filter(l => {
+          const types = l.exercise.types?.filter(t => t !== 'none') ?? [];
+          return types.length > 0 || (l.exercise.type && l.exercise.type !== 'none');
+        }).length;
+        break;
+      case 'no_alcohol_5':
+        progress[id] = thisWeekLogs.filter(l => !l.alcohol.consumed).length;
+        break;
+      case 'sleep_7h_5':
+        progress[id] = thisWeekLogs.filter(l => l.sleep.hours >= 7).length;
+        break;
+      case 'water_5':
+        progress[id] = Object.entries(waterLog).filter(([date, ml]) => date >= mondayStr && date <= todayStr && ml >= waterGoalMl).length;
+        break;
+      case 'steps_7k_3':
+        progress[id] = thisWeekLogs.filter(l => (l.steps ?? 0) >= 7000).length;
+        break;
+      case 'record_7':
+        progress[id] = thisWeekLogs.length;
+        break;
+      case 'score_70_5':
+        progress[id] = thisWeekLogs.filter(l => l.conditionScore >= 70).length;
+        break;
+    }
+  }
+
+  // 완료 여부 체크
+  const completed: ChallengeId[] = [];
+  for (const id of challenge.challengeIds) {
+    if ((progress[id] ?? 0) >= CHALLENGE_DEFS[id].target) completed.push(id);
+  }
+
+  const updated: WeeklyChallenge = { ...challenge, progress, completed };
+  await AsyncStorage.setItem(KEYS.WEEKLY_CHALLENGE, JSON.stringify(updated));
+  return updated;
+}
+
+export async function claimChallengeReward(id: ChallengeId): Promise<number> {
+  const challenge = await getWeeklyChallenge();
+  if (challenge.rewardClaimed.includes(id)) return 0;
+  const xp = CHALLENGE_DEFS[id].xpReward;
+  await addXP(xp);
+  const updated = { ...challenge, rewardClaimed: [...challenge.rewardClaimed, id] };
+  await AsyncStorage.setItem(KEYS.WEEKLY_CHALLENGE, JSON.stringify(updated));
+  return xp;
 }

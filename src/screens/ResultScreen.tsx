@@ -1,11 +1,11 @@
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Animated, Clipboard, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS, FONTS, getAvatar, getRank, RADIUS, SPACING } from '../constants/theme';
 import { MOOD_EMOJI, MOOD_LABEL, RootStackParamList, ScoreFactor } from '../types';
 import { getConditionFeedback, getScoreFactors } from '../utils/feedback';
-import { getXPProgress, getLevelTitle } from '../utils/levelSystem';
+import { getLevelFromXP, getXPProgress, getLevelTitle } from '../utils/levelSystem';
 import { getUserXP } from '../utils/storage';
 
 type Route = RouteProp<RootStackParamList, 'Result'>;
@@ -47,6 +47,9 @@ export default function ResultScreen() {
   const { log } = useRoute<Route>().params;
   const { conditionScore, scoreBreakdown, stats } = log;
   const [xpProgress, setXpProgress] = useState<ReturnType<typeof getXPProgress> | null>(null);
+  const [levelUpModal, setLevelUpModal] = useState<{ newLevel: number; title: string } | null>(null);
+  const levelUpScale = useRef(new Animated.Value(0)).current;
+  const levelUpOpacity = useRef(new Animated.Value(0)).current;
 
   const rank = getRank(conditionScore);
   const avatar = getAvatar(conditionScore);
@@ -63,6 +66,21 @@ export default function ResultScreen() {
       const prog = getXPProgress(xp.totalXP);
       setXpProgress(prog);
       Animated.timing(xpBarAnim, { toValue: prog.pct, duration: 1000, useNativeDriver: false }).start();
+
+      // 레벨업 감지: xpGained 직전 레벨 vs 현재 레벨
+      if (log.xpGained) {
+        const prevXP = xp.totalXP - log.xpGained;
+        const prevLevel = getLevelFromXP(Math.max(0, prevXP));
+        if (prog.level > prevLevel) {
+          setTimeout(() => {
+            setLevelUpModal({ newLevel: prog.level, title: getLevelTitle(prog.level) });
+            Animated.parallel([
+              Animated.spring(levelUpScale, { toValue: 1, tension: 60, friction: 8, useNativeDriver: true }),
+              Animated.timing(levelUpOpacity, { toValue: 1, duration: 300, useNativeDriver: true }),
+            ]).start();
+          }, 1500);
+        }
+      }
     });
     Animated.parallel([
       Animated.timing(scoreAnim, { toValue: conditionScore, duration: 1200, useNativeDriver: false }),
@@ -70,6 +88,27 @@ export default function ResultScreen() {
       Animated.spring(slideUp, { toValue: 0, tension: 80, friction: 12, useNativeDriver: false }),
     ]).start();
   }, []);
+
+  const handleShare = () => {
+    const rankInfo = getRank(conditionScore);
+    const exerciseTypes = log.exercise.types?.filter(t => t !== 'none') ?? [];
+    const text = [
+      `🏆 오늘의 Health RPG 결과`,
+      ``,
+      `${avatar} ${rankInfo.rank}등급  ${conditionScore}점`,
+      `"${feedback}"`,
+      ``,
+      `📊 건강 지표`,
+      `  HP: ${stats.hp}  |  지구력: ${stats.stamina}`,
+      `  회복력: ${stats.recovery}  |  혈당조절: ${stats.bloodSugarControl}`,
+      ``,
+      `😴 수면 ${log.sleep.hours}h  💪 운동 ${exerciseTypes.length > 0 ? log.exercise.minutes + '분' : '없음'}`,
+      log.alcohol.consumed ? `🍺 음주 있음` : `✅ 금주`,
+      log.steps ? `🚶 ${log.steps.toLocaleString()}걸음` : '',
+      log.xpGained ? `✨ +${log.xpGained} XP` : '',
+    ].filter(Boolean).join('\n');
+    Clipboard.setString(text);
+  };
 
   const animatedScore = scoreAnim.interpolate({ inputRange: [0, 100], outputRange: ['0', '100'] });
   const gains = factors.filter(f => f.value > 0);
@@ -178,16 +217,51 @@ export default function ResultScreen() {
           </View>
         )}
 
-        {/* ── 홈 버튼 ── */}
-        <TouchableOpacity
-          style={[r.homeBtn, { borderColor: rank.color + '44' }]}
-          onPress={() => (navigation as any).navigate('MainTabs')}
-        >
-          <Text style={[r.homeBtnText, { color: rank.color }]}>← 홈으로</Text>
-        </TouchableOpacity>
+        {/* ── 공유 + 홈 버튼 ── */}
+        <View style={{ flexDirection: 'row', gap: 10, marginBottom: SPACING.sm }}>
+          <TouchableOpacity
+            style={r.shareBtn}
+            onPress={() => {
+              handleShare();
+              Alert.alert('복사 완료', '결과가 클립보드에 복사됐어요!\n친구에게 붙여넣기로 공유하세요 😎');
+            }}
+          >
+            <Text style={r.shareBtnText}>📋 결과 공유</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[r.homeBtn, { borderColor: rank.color + '44', flex: 2 }]}
+            onPress={() => (navigation as any).navigate('MainTabs')}
+          >
+            <Text style={[r.homeBtnText, { color: rank.color }]}>← 홈으로</Text>
+          </TouchableOpacity>
+        </View>
 
         <View style={{ height: SPACING.xl * 2 }} />
       </ScrollView>
+
+      {/* 레벨업 모달 */}
+      <Modal visible={!!levelUpModal} transparent animationType="none">
+        <View style={r.levelUpOverlay}>
+          <Animated.View style={[r.levelUpBox, { opacity: levelUpOpacity, transform: [{ scale: levelUpScale }] }]}>
+            <Text style={r.levelUpStars}>✨🌟✨</Text>
+            <Text style={r.levelUpTitle}>LEVEL UP!</Text>
+            <Text style={r.levelUpLevel}>Lv.{levelUpModal?.newLevel}</Text>
+            <Text style={r.levelUpSubtitle}>{levelUpModal?.title}</Text>
+            <Text style={r.levelUpDesc}>새로운 칭호를 달성했습니다!</Text>
+            <TouchableOpacity
+              style={r.levelUpBtn}
+              onPress={() => {
+                Animated.parallel([
+                  Animated.timing(levelUpScale, { toValue: 0, duration: 200, useNativeDriver: true }),
+                  Animated.timing(levelUpOpacity, { toValue: 0, duration: 200, useNativeDriver: true }),
+                ]).start(() => setLevelUpModal(null));
+              }}
+            >
+              <Text style={r.levelUpBtnText}>확인</Text>
+            </TouchableOpacity>
+          </Animated.View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -258,7 +332,25 @@ const r = StyleSheet.create({
   xpFill: { height: '100%', backgroundColor: COLORS.purple, borderRadius: 4 },
   moodRow: { color: COLORS.textMuted, fontSize: FONTS.xs, marginTop: 2 },
 
-  // 귀환 버튼
+  // 공유 + 귀환 버튼
+  shareBtn: { flex: 1, borderRadius: RADIUS.lg, paddingVertical: 14, alignItems: 'center', backgroundColor: COLORS.bgHighlight, borderWidth: 1, borderColor: COLORS.border },
+  shareBtnText: { fontSize: FONTS.sm, fontWeight: '700', color: COLORS.textSub },
   homeBtn: { borderRadius: RADIUS.lg, paddingVertical: 14, alignItems: 'center', borderWidth: 1, backgroundColor: COLORS.bgCard },
   homeBtnText: { fontSize: FONTS.sm, fontWeight: '700', letterSpacing: 1 },
+
+  // 레벨업 모달
+  levelUpOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.88)', justifyContent: 'center', alignItems: 'center' },
+  levelUpBox: {
+    backgroundColor: COLORS.bgCard, borderRadius: RADIUS.xl, padding: SPACING.xl,
+    alignItems: 'center', borderWidth: 2, borderColor: COLORS.gold,
+    shadowColor: COLORS.gold, shadowOffset: { width: 0, height: 0 }, shadowRadius: 20, shadowOpacity: 0.5,
+    minWidth: 260,
+  },
+  levelUpStars: { fontSize: 32, marginBottom: 4 },
+  levelUpTitle: { fontSize: FONTS.xs, fontWeight: '900', letterSpacing: 6, color: COLORS.gold, marginBottom: 8 },
+  levelUpLevel: { fontSize: 72, fontWeight: '900', color: COLORS.gold, lineHeight: 78, fontFamily: 'monospace' },
+  levelUpSubtitle: { fontSize: FONTS.lg, fontWeight: '900', color: COLORS.text, marginTop: 4, marginBottom: 4 },
+  levelUpDesc: { fontSize: FONTS.xs, color: COLORS.textMuted, marginBottom: SPACING.md },
+  levelUpBtn: { backgroundColor: COLORS.gold, borderRadius: RADIUS.full, paddingHorizontal: 40, paddingVertical: 12 },
+  levelUpBtnText: { color: '#000', fontWeight: '900', fontSize: FONTS.sm },
 });

@@ -6,10 +6,14 @@ const KEY_NOTIF_SETTINGS = 'hrpg_notif_settings';
 
 export interface NotifSettings {
   enabled: boolean;
-  morningBS: boolean;      // 공복혈당 알림
+  morningBS: boolean;       // 공복혈당 알림
   morningBSHour: number;
-  mealLog: boolean;        // 식단 기록 알림
-  eveningLog: boolean;     // 저녁 기록 알림
+  breakfastLog: boolean;    // 아침 식단 알림
+  breakfastLogHour: number;
+  mealLog: boolean;         // 점심 식단 기록 알림
+  dinnerLog: boolean;       // 저녁 식단 알림
+  dinnerLogHour: number;
+  eveningLog: boolean;      // 저녁 종합 기록 알림
   eveningLogHour: number;
 }
 
@@ -17,7 +21,11 @@ const DEFAULT_SETTINGS: NotifSettings = {
   enabled: false,
   morningBS: true,
   morningBSHour: 7,
+  breakfastLog: true,
+  breakfastLogHour: 8,
   mealLog: true,
+  dinnerLog: true,
+  dinnerLogHour: 18,
   eveningLog: true,
   eveningLogHour: 21,
 };
@@ -63,11 +71,19 @@ export async function scheduleAllNotifications(settings: NotifSettings): Promise
         body: '공복혈당을 기록해서 오늘의 전투를 시작하세요!',
         data: { screen: 'Home' },
       },
-      trigger: {
-        hour: settings.morningBSHour,
-        minute: 0,
-        repeats: true,
-      } as any,
+      trigger: { hour: settings.morningBSHour, minute: 0, repeats: true } as any,
+    });
+  }
+
+  // 아침 식단 알림
+  if (settings.breakfastLog) {
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: '🌅 아침 포션 기록',
+        body: '아침 식단을 기록해서 하루를 시작하세요!',
+        data: { screen: 'Calorie' },
+      },
+      trigger: { hour: settings.breakfastLogHour, minute: 0, repeats: true } as any,
     });
   }
 
@@ -75,7 +91,7 @@ export async function scheduleAllNotifications(settings: NotifSettings): Promise
   if (settings.mealLog) {
     await Notifications.scheduleNotificationAsync({
       content: {
-        title: '🍱 포션 보충 시간',
+        title: '🍱 점심 포션 보충',
         body: '점심 식단을 기록해서 HP를 채우세요!',
         data: { screen: 'Calorie' },
       },
@@ -83,7 +99,19 @@ export async function scheduleAllNotifications(settings: NotifSettings): Promise
     });
   }
 
-  // 저녁 기록 알림
+  // 저녁 식단 알림
+  if (settings.dinnerLog) {
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: '🌙 저녁 식단 기록',
+        body: '저녁 식사를 기록하고 칼로리 목표를 확인하세요!',
+        data: { screen: 'Calorie' },
+      },
+      trigger: { hour: settings.dinnerLogHour, minute: 0, repeats: true } as any,
+    });
+  }
+
+  // 저녁 종합 기록 알림
   if (settings.eveningLog) {
     await Notifications.scheduleNotificationAsync({
       content: {

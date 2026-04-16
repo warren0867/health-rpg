@@ -13,13 +13,13 @@ import { getTodayFortune, SajuFortune } from '../utils/feedback';
 import { calcMacroGoal } from '../utils/calorieCalculator';
 import { BS_STATUS_COLOR, getBSStatus, getBSStatusLabel, calcExerciseCalories } from '../utils/scoreCalculator';
 import {
-  addWater, calcAvgBS, calcImmunity, generateId, getDailyLog, getFoodEntriesByDate,
+  addWater, calcAvgBS, calcImmunity, claimChallengeReward, generateId, getDailyLog, getFoodEntriesByDate,
   getCurrentIllness, getLatestWeight, getMorningBS, getRecentDailyLogs, getRecentMorningBS, getStreak,
   getTodayKey, getUserProfile, getUserXP, getUnlockedAchievementIds,
   getWaterLog, getWaterStreak, saveMorningBS, saveUserProfile, sumFoodEntries, getBSTrend,
-  unlockAchievement,
+  unlockAchievement, updateChallengeProgress, getAllDailyLogs,
 } from '../utils/storage';
-import { IllnessEntry, ILLNESS_EMOJI, ILLNESS_LABELS, SYMPTOM_LABELS } from '../types';
+import { CHALLENGE_DEFS, IllnessEntry, ILLNESS_EMOJI, ILLNESS_LABELS, SYMPTOM_LABELS, WeeklyChallenge } from '../types';
 import {
   getNotifSettings, saveNotifSettings, scheduleAllNotifications,
   cancelAllNotifications, requestPermissions, NotifSettings,
@@ -72,7 +72,9 @@ function HeroBar({ label, value, color, icon }: { label: string; value: number; 
 function NotifModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const [settings, setSettings] = useState<NotifSettings>({
     enabled: false, morningBS: true, morningBSHour: 7,
-    mealLog: true, eveningLog: true, eveningLogHour: 21,
+    breakfastLog: true, breakfastLogHour: 8,
+    mealLog: true, dinnerLog: true, dinnerLogHour: 18,
+    eveningLog: true, eveningLogHour: 21,
   });
   const [loaded, setLoaded] = useState(false);
 
@@ -104,28 +106,32 @@ function NotifModal({ visible, onClose }: { visible: boolean; onClose: () => voi
   return (
     <Modal visible={visible} animationType="slide" transparent>
       <View style={nm.overlay}>
-        <View style={nm.sheet}>
-          <Text style={nm.title}>🔔 알림 설정</Text>
-          <Text style={nm.sub}>퀘스트 알림으로 기록을 잊지 마세요</Text>
+        <ScrollView>
+          <View style={nm.sheet}>
+            <Text style={nm.title}>🔔 알림 설정</Text>
+            <Text style={nm.sub}>퀘스트 알림으로 기록을 잊지 마세요</Text>
 
-          <Row label="알림 활성화" value={settings.enabled} onChange={v => toggle('enabled', v)} />
-          {settings.enabled && (
-            <>
-              <Row label={`⏰ 공복혈당 알림 (${settings.morningBSHour}시)`} value={settings.morningBS} onChange={v => toggle('morningBS', v)} />
-              <Row label="🍱 점심 식단 알림 (12:30)" value={settings.mealLog} onChange={v => toggle('mealLog', v)} />
-              <Row label={`📊 저녁 기록 알림 (${settings.eveningLogHour}시)`} value={settings.eveningLog} onChange={v => toggle('eveningLog', v)} />
-            </>
-          )}
+            <Row label="알림 활성화" value={settings.enabled} onChange={v => toggle('enabled', v)} />
+            {settings.enabled && (
+              <>
+                <Row label={`⏰ 공복혈당 알림 (${settings.morningBSHour}시)`} value={settings.morningBS} onChange={v => toggle('morningBS', v)} />
+                <Row label={`🌅 아침 식단 알림 (${settings.breakfastLogHour}시)`} value={settings.breakfastLog} onChange={v => toggle('breakfastLog', v)} />
+                <Row label="🍱 점심 식단 알림 (12:30)" value={settings.mealLog} onChange={v => toggle('mealLog', v)} />
+                <Row label={`🌙 저녁 식단 알림 (${settings.dinnerLogHour}시)`} value={settings.dinnerLog} onChange={v => toggle('dinnerLog', v)} />
+                <Row label={`📊 저녁 기록 알림 (${settings.eveningLogHour}시)`} value={settings.eveningLog} onChange={v => toggle('eveningLog', v)} />
+              </>
+            )}
 
-          <View style={nm.btns}>
-            <TouchableOpacity style={nm.cancel} onPress={onClose}>
-              <Text style={nm.cancelText}>취소</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={nm.save} onPress={handleSave}>
-              <Text style={nm.saveText}>저장</Text>
-            </TouchableOpacity>
+            <View style={nm.btns}>
+              <TouchableOpacity style={nm.cancel} onPress={onClose}>
+                <Text style={nm.cancelText}>취소</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={nm.save} onPress={handleSave}>
+                <Text style={nm.saveText}>저장</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-        </View>
+        </ScrollView>
       </View>
     </Modal>
   );
@@ -188,12 +194,15 @@ export default function HomeScreen() {
   const [xpProgress, setXpProgress] = useState<ReturnType<typeof getXPProgress> | null>(null);
   const [todayXP, setTodayXP] = useState<number | null>(null);
   const [unlockedIds, setUnlockedIds] = useState<string[]>([]);
+  const [weeklyChallenge, setWeeklyChallenge] = useState<WeeklyChallenge | null>(null);
+  const [showWaterGoalModal, setShowWaterGoalModal] = useState(false);
+  const [waterGoalInput, setWaterGoalInput] = useState('');
   // 업적 진행도용 통계
   const [bestScore, setBestScore] = useState(0);
   const [noAlcoholStreak, setNoAlcoholStreak] = useState(0);
   const [exerciseStreakCount, setExerciseStreakCount] = useState(0);
 
-  const WATER_GOAL = 2000; // 하루 목표 ml
+  const WATER_GOAL = profile?.waterGoalMl ?? 1500;
   const CUP_ML = 250;
 
   const load = useCallback(async () => {
@@ -240,14 +249,20 @@ export default function HomeScreen() {
     setExerciseStreakCount(exStreak);
 
     // 업적 체크
+    const waterGoal = p?.waterGoalMl ?? 1500;
     if (log && recent.length > 0) {
-      const waterStreak = await getWaterStreak(WATER_GOAL);
+      const waterStreak = await getWaterStreak(waterGoal);
       const newAch = checkAchievements(recent, str, xp.level, achIds, waterStreak);
       for (const ach of newAch) {
         await unlockAchievement(ach.id as any);
       }
       if (newAch.length > 0) setUnlockedIds([...achIds, ...newAch.map(a => a.id)]);
     }
+
+    // 주간 챌린지 업데이트
+    const allLogs = await getAllDailyLogs();
+    const challenge = await updateChallengeProgress(allLogs, waterGoal);
+    setWeeklyChallenge(challenge);
 
     setLoading(false);
   }, [today]);
@@ -306,6 +321,30 @@ export default function HomeScreen() {
     const next = await addWater(today, -CUP_ML);
     setWaterMl(next);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
+
+  const handleSaveWaterGoal = async () => {
+    const v = parseInt(waterGoalInput);
+    if (isNaN(v) || v < 500 || v > 5000) {
+      Alert.alert('오류', '500~5000ml 사이로 입력해주세요'); return;
+    }
+    if (profile) {
+      const updated = { ...profile, waterGoalMl: v };
+      await saveUserProfile(updated);
+      setProfile(updated);
+    }
+    setWaterGoalInput('');
+    setShowWaterGoalModal(false);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  };
+
+  const handleClaimChallenge = async (id: any) => {
+    const xp = await claimChallengeReward(id);
+    if (xp > 0) {
+      Alert.alert('보상 수령!', `+${xp} XP 획득했어요! 🎉`);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      load();
+    }
   };
 
   const rank = score !== null ? getRank(score) : null;
@@ -571,9 +610,17 @@ export default function HomeScreen() {
         <View style={s.card}>
           <View style={s.rowBetween}>
             <Text style={s.sectionTitle}>💧 수분 섭취</Text>
-            <Text style={[s.waterTotal, { color: waterMl >= WATER_GOAL ? COLORS.teal : COLORS.textMuted }]}>
-              {waterMl}ml / {WATER_GOAL}ml
-            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Text style={[s.waterTotal, { color: waterMl >= WATER_GOAL ? COLORS.teal : COLORS.textMuted }]}>
+                {waterMl}ml / {WATER_GOAL}ml
+              </Text>
+              <TouchableOpacity
+                onPress={() => { setWaterGoalInput(String(WATER_GOAL)); setShowWaterGoalModal(true); }}
+                style={{ backgroundColor: COLORS.bgHighlight, borderRadius: RADIUS.full, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: COLORS.border }}
+              >
+                <Text style={{ color: COLORS.textMuted, fontSize: 10 }}>목표 설정</Text>
+              </TouchableOpacity>
+            </View>
           </View>
           {/* 물 게이지 바 */}
           <View style={s.waterBar}>
@@ -688,6 +735,49 @@ export default function HomeScreen() {
             </View>
           </View>
         </View>
+
+        {/* ── 주간 챌린지 ── */}
+        {weeklyChallenge && (
+          <View style={s.card}>
+            <Text style={s.sectionTitle}>⚔️ 주간 챌린지</Text>
+            <Text style={{ color: COLORS.textMuted, fontSize: FONTS.xs, marginBottom: SPACING.sm }}>매주 새로운 챌린지가 갱신됩니다</Text>
+            {weeklyChallenge.challengeIds.map(id => {
+              const def = CHALLENGE_DEFS[id];
+              const progress = weeklyChallenge.progress[id] ?? 0;
+              const isCompleted = weeklyChallenge.completed.includes(id);
+              const isClaimed = weeklyChallenge.rewardClaimed.includes(id);
+              const pct = Math.min(100, Math.round((progress / def.target) * 100));
+              return (
+                <View key={id} style={{ marginBottom: SPACING.sm, backgroundColor: COLORS.bgHighlight, borderRadius: RADIUS.md, padding: SPACING.sm, borderWidth: 1, borderColor: isCompleted ? COLORS.gold + '44' : COLORS.border }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                    <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center', flex: 1 }}>
+                      <Text style={{ fontSize: 18 }}>{def.emoji}</Text>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ color: isCompleted ? COLORS.gold : COLORS.text, fontWeight: '700', fontSize: FONTS.sm }}>{def.name}</Text>
+                        <Text style={{ color: COLORS.textMuted, fontSize: FONTS.xxs }}>{def.desc}</Text>
+                      </View>
+                    </View>
+                    {isCompleted && !isClaimed ? (
+                      <TouchableOpacity
+                        style={{ backgroundColor: COLORS.gold, borderRadius: RADIUS.full, paddingHorizontal: 12, paddingVertical: 4 }}
+                        onPress={() => handleClaimChallenge(id)}
+                      >
+                        <Text style={{ color: '#000', fontWeight: '900', fontSize: FONTS.xs }}>+{def.xpReward}XP</Text>
+                      </TouchableOpacity>
+                    ) : isClaimed ? (
+                      <Text style={{ color: COLORS.textMuted, fontSize: FONTS.xxs }}>수령완료</Text>
+                    ) : (
+                      <Text style={{ color: COLORS.textMuted, fontSize: FONTS.xs }}>{progress}/{def.target}</Text>
+                    )}
+                  </View>
+                  <View style={{ height: 4, backgroundColor: COLORS.bgCard, borderRadius: 2, overflow: 'hidden' }}>
+                    <View style={{ height: '100%', width: `${pct}%` as any, backgroundColor: isCompleted ? COLORS.gold : COLORS.purple, borderRadius: 2 }} />
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+        )}
 
         {/* ── 업적 ── */}
         <View style={s.card}>
@@ -873,6 +963,34 @@ export default function HomeScreen() {
       </Modal>
 
       <NotifModal visible={showNotifModal} onClose={() => setShowNotifModal(false)} />
+
+      {/* 물 목표량 설정 모달 */}
+      <Modal visible={showWaterGoalModal} animationType="slide" transparent>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'flex-end' }}>
+          <View style={{ backgroundColor: COLORS.bgCard, borderTopLeftRadius: RADIUS.xl, borderTopRightRadius: RADIUS.xl, padding: SPACING.lg, borderTopWidth: 1, borderColor: COLORS.border }}>
+            <Text style={{ color: COLORS.text, fontSize: FONTS.lg, fontWeight: '900', marginBottom: 4 }}>💧 물 목표량 설정</Text>
+            <Text style={{ color: COLORS.textMuted, fontSize: FONTS.xs, marginBottom: SPACING.md }}>하루 목표 물 섭취량을 ml로 입력하세요 (500~5000ml)</Text>
+            <TextInput
+              style={{ backgroundColor: COLORS.bgInput, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.border, color: COLORS.text, fontSize: 40, fontWeight: '900', padding: SPACING.md, textAlign: 'center', fontFamily: 'monospace', marginBottom: 4 }}
+              value={waterGoalInput}
+              onChangeText={setWaterGoalInput}
+              keyboardType="numeric"
+              placeholder="1500"
+              placeholderTextColor={COLORS.textDisabled}
+              autoFocus
+            />
+            <Text style={{ color: COLORS.textMuted, fontSize: FONTS.xs, textAlign: 'center', marginBottom: SPACING.md }}>ml</Text>
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <TouchableOpacity style={{ flex: 1, backgroundColor: COLORS.bgHighlight, borderRadius: RADIUS.lg, paddingVertical: 12, alignItems: 'center' }} onPress={() => setShowWaterGoalModal(false)}>
+                <Text style={{ color: COLORS.textMuted, fontWeight: '600', fontSize: FONTS.sm }}>취소</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={{ flex: 2, backgroundColor: COLORS.blue, borderRadius: RADIUS.lg, paddingVertical: 12, alignItems: 'center' }} onPress={handleSaveWaterGoal}>
+                <Text style={{ color: '#fff', fontWeight: '900', fontSize: FONTS.sm }}>저장</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }

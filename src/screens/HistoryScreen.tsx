@@ -1,13 +1,61 @@
 import * as Haptics from 'expo-haptics';
 import { useFocusEffect } from '@react-navigation/native';
 import React, { useCallback, useState } from 'react';
-import { ActivityIndicator, Alert, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Clipboard, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MiniGraph from '../components/MiniGraph';
 import { COLORS, FONTS, getRank, RADIUS, SPACING } from '../constants/theme';
 import { DailyLog, IllnessEntry, MorningBloodSugar, WeightEntry, ILLNESS_EMOJI, ILLNESS_LABELS } from '../types';
-import { calcAvgBS, formatDate, generateId, getAllDailyLogs, getIllnesses, getRecentMorningBS, getTodayKey, getWeightHistory, saveWeightEntry } from '../utils/storage';
+import { calcAvgBS, exportAllData, formatDate, generateId, getAllDailyLogs, getIllnesses, getRecentMorningBS, getTodayKey, getUserProfile, getWeightHistory, importAllData, saveWeightEntry } from '../utils/storage';
+import { UserProfile } from '../types';
 import { EXERCISE_LABELS, calcAlcoholCalories } from '../utils/scoreCalculator';
+
+function calcBMI(weightKg: number, heightCm: number): number {
+  return Math.round((weightKg / Math.pow(heightCm / 100, 2)) * 10) / 10;
+}
+
+function getBMILabel(bmi: number): { label: string; color: string } {
+  if (bmi < 18.5) return { label: '저체중', color: COLORS.blue };
+  if (bmi < 23)   return { label: '정상', color: COLORS.teal };
+  if (bmi < 25)   return { label: '과체중', color: COLORS.gold };
+  return { label: '비만', color: COLORS.red };
+}
+
+// 수면 패턴 바 차트
+function SleepChart({ logs }: { logs: DailyLog[] }) {
+  const recent = [...logs].reverse().slice(-14);
+  if (recent.length === 0) return null;
+  const MAX_H = 10;
+  return (
+    <View>
+      <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 3, height: 68 }}>
+        {recent.map((l, i) => {
+          const h = l.sleep.hours;
+          const pct = Math.min(100, (h / MAX_H) * 100);
+          const barH = Math.max(4, (pct / 100) * 52);
+          const isGood = h >= 7 && h <= 8;
+          const color = isGood ? COLORS.teal : h >= 6 ? COLORS.gold : COLORS.red;
+          const isLatest = i === recent.length - 1;
+          return (
+            <View key={l.date} style={{ flex: 1, alignItems: 'center' }}>
+              {isLatest && <Text style={{ color, fontSize: 9, fontWeight: '900', marginBottom: 1 }}>{h}h</Text>}
+              <View style={{ width: '100%', height: 52, justifyContent: 'flex-end', backgroundColor: COLORS.bgHighlight, borderRadius: 3 }}>
+                <View style={{ width: '100%', height: barH, backgroundColor: color, borderRadius: 3, opacity: 0.85 }} />
+              </View>
+              {i % 2 === 0 && <Text style={{ color: COLORS.textMuted, fontSize: 9, marginTop: 2 }}>{l.date.slice(5)}</Text>}
+            </View>
+          );
+        })}
+      </View>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
+        <Text style={{ color: COLORS.textMuted, fontSize: 10 }}>7h 이상 권장</Text>
+        <Text style={{ color: COLORS.teal, fontSize: 10 }}>
+          평균 {(recent.reduce((s, l) => s + l.sleep.hours, 0) / recent.length).toFixed(1)}h
+        </Text>
+      </View>
+    </View>
+  );
+}
 
 // ── 월별 달력 컴포넌트 ──
 function MonthCalendar({ logMap, year, month, onPrev, onNext }: {
@@ -115,6 +163,7 @@ export default function HistoryScreen() {
   const [recentBS, setRecentBS] = useState<MorningBloodSugar[]>([]);
   const [weightHistory, setWeightHistory] = useState<WeightEntry[]>([]);
   const [illnessMap, setIllnessMap] = useState<Record<string, IllnessEntry>>({});
+  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [showWeightModal, setShowWeightModal] = useState(false);
   const [weightInput, setWeightInput] = useState('');
@@ -125,13 +174,14 @@ export default function HistoryScreen() {
     useCallback(() => {
       (async () => {
         setLoading(true);
-        const [all, bs, weights, illnesses] = await Promise.all([getAllDailyLogs(), getRecentMorningBS(7), getWeightHistory(30), getIllnesses()]);
+        const [all, bs, weights, illnesses, prof] = await Promise.all([getAllDailyLogs(), getRecentMorningBS(7), getWeightHistory(30), getIllnesses(), getUserProfile()]);
         setLogs(all);
         const map: Record<string, DailyLog> = {};
         all.forEach(l => { map[l.date] = l; });
         setLogMap(map);
         setRecentBS(bs);
         setWeightHistory(weights);
+        setProfile(prof);
         // 질병 날짜 맵 구성 (각 날짜 → 해당 질병)
         const imap: Record<string, IllnessEntry> = {};
         illnesses.forEach(ill => {
@@ -148,6 +198,40 @@ export default function HistoryScreen() {
       })();
     }, [])
   );
+
+  const handleExportData = async () => {
+    try {
+      const json = await exportAllData();
+      Clipboard.setString(json);
+      Alert.alert('백업 완료', '데이터가 클립보드에 복사됐어요.\n메모장에 붙여넣어 저장하세요.');
+    } catch {
+      Alert.alert('오류', '백업에 실패했습니다.');
+    }
+  };
+
+  const handleImportData = () => {
+    Alert.alert(
+      '데이터 복구',
+      '클립보드의 백업 데이터를 불러옵니다.\n현재 데이터가 덮어씌워질 수 있어요. 계속할까요?',
+      [
+        { text: '취소', style: 'cancel' },
+        {
+          text: '복구',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const text = await Clipboard.getString();
+              await importAllData(text);
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              Alert.alert('복구 완료', '데이터를 성공적으로 불러왔어요. 앱을 재시작해주세요.');
+            } catch {
+              Alert.alert('오류', '올바른 백업 데이터가 아닙니다.');
+            }
+          },
+        },
+      ]
+    );
+  };
 
   const prevMonth = () => {
     if (calMonth === 1) { setCalYear(y => y - 1); setCalMonth(12); }
@@ -246,7 +330,7 @@ export default function HistoryScreen() {
           />
         </View>
 
-        {/* 체중 그래프 */}
+        {/* 체중 + BMI */}
         <View style={styles.card}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.sm }}>
             <Text style={styles.sectionTitle}>⚖️ 체중 변화</Text>
@@ -260,9 +344,42 @@ export default function HistoryScreen() {
           {weightHistory.length === 0 ? (
             <Text style={styles.emptySmall}>아직 체중 기록이 없어요</Text>
           ) : (
-            <WeightGraph entries={[...weightHistory].reverse()} />
+            <>
+              <WeightGraph entries={[...weightHistory].reverse()} />
+              {profile && weightHistory.length > 0 && (() => {
+                const latestW = weightHistory[0].weightKg;
+                const bmi = calcBMI(latestW, profile.heightCm);
+                const { label, color } = getBMILabel(bmi);
+                const targetW = profile.targetWeightKg;
+                return (
+                  <View style={{ marginTop: SPACING.sm, flexDirection: 'row', gap: SPACING.sm, flexWrap: 'wrap' }}>
+                    <View style={{ backgroundColor: color + '18', borderRadius: RADIUS.md, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: color + '44', flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+                      <Text style={{ color, fontWeight: '900', fontSize: FONTS.sm }}>BMI {bmi}</Text>
+                      <Text style={{ color, fontSize: FONTS.xxs }}>{label}</Text>
+                    </View>
+                    {targetW && (
+                      <View style={{ backgroundColor: COLORS.bgHighlight, borderRadius: RADIUS.md, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: COLORS.border, flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+                        <Text style={{ color: COLORS.textMuted, fontSize: FONTS.xxs }}>목표</Text>
+                        <Text style={{ color: COLORS.purple, fontWeight: '900', fontSize: FONTS.sm }}>{targetW}kg</Text>
+                        <Text style={{ color: latestW <= targetW ? COLORS.teal : COLORS.gold, fontSize: FONTS.xxs, fontWeight: '700' }}>
+                          {latestW <= targetW ? '✓ 달성' : `−${(latestW - targetW).toFixed(1)}kg`}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                );
+              })()}
+            </>
           )}
         </View>
+
+        {/* 수면 패턴 */}
+        {logs.length >= 3 && (
+          <View style={styles.card}>
+            <Text style={styles.sectionTitle}>😴 수면 패턴</Text>
+            <SleepChart logs={logs.slice(0, 14)} />
+          </View>
+        )}
 
         {/* 최근 7일 그래프 */}
         {weekLogs.length > 0 && (
@@ -271,6 +388,23 @@ export default function HistoryScreen() {
             <MiniGraph logs={[...weekLogs].reverse()} />
           </View>
         )}
+
+        {/* 데이터 백업/복구 */}
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>💾 데이터 관리</Text>
+          <Text style={{ color: COLORS.textMuted, fontSize: FONTS.xs, marginBottom: SPACING.sm, lineHeight: 18 }}>
+            백업: 모든 기록을 클립보드에 복사해서 메모장에 저장하세요.{'\n'}
+            복구: 저장해둔 백업 텍스트를 클립보드에 복사한 후 복구 버튼을 누르세요.
+          </Text>
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <TouchableOpacity style={styles.backupBtn} onPress={handleExportData}>
+              <Text style={styles.backupBtnText}>📤 백업</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.restoreBtn} onPress={handleImportData}>
+              <Text style={styles.restoreBtnText}>📥 복구</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
 
         {/* 전체 로그 리스트 */}
         {logs.length === 0 ? (
@@ -529,6 +663,12 @@ const styles = StyleSheet.create({
   addWeightBtn: { backgroundColor: COLORS.teal + '22', borderRadius: RADIUS.full, paddingHorizontal: 12, paddingVertical: 5, borderWidth: 1, borderColor: COLORS.teal + '44' },
   addWeightBtnText: { color: COLORS.teal, fontSize: FONTS.xs, fontWeight: '700' },
   emptySmall: { color: COLORS.textMuted, fontSize: FONTS.sm, textAlign: 'center', paddingVertical: SPACING.md },
+
+  // 백업/복구
+  backupBtn: { flex: 1, backgroundColor: COLORS.purple + '22', borderRadius: RADIUS.lg, paddingVertical: 12, alignItems: 'center', borderWidth: 1, borderColor: COLORS.purple + '44' },
+  backupBtnText: { color: COLORS.purple, fontWeight: '700', fontSize: FONTS.sm },
+  restoreBtn: { flex: 1, backgroundColor: COLORS.bgHighlight, borderRadius: RADIUS.lg, paddingVertical: 12, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border },
+  restoreBtnText: { color: COLORS.textSub, fontWeight: '700', fontSize: FONTS.sm },
 
   // 체중 모달
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'flex-end' },

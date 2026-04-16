@@ -1,4 +1,4 @@
-const CACHE_NAME = 'health-rpg-v1';
+const CACHE_NAME = 'health-rpg-v2';
 const BASE = '/health-rpg';
 
 self.addEventListener('install', (event) => {
