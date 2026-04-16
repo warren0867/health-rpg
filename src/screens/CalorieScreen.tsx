@@ -17,6 +17,7 @@ import { KOREAN_FOODS, CATEGORY_LABELS, searchFoods } from '../data/koreanFoods'
 import { COLORS, FONTS, RADIUS, SPACING } from '../constants/theme';
 import { FoodEntry, FoodItem, GlycemicIndex, RecentFoodEntry, UserProfile } from '../types';
 import { calcGaugeData, calcMacroGoal } from '../utils/calorieCalculator';
+import { estimateBGRise, GI_NUM } from './BloodSugarScreen';
 import {
   copyYesterdayMeals,
   deleteFoodEntry,
@@ -587,6 +588,27 @@ export default function CalorieScreen() {
                         <NutriChip label="지" value={`${Math.round(selectedFood.fat * servings * eatPct / 100)}g`} color={COLORS.textMuted} />
                       </View>
 
+                      {/* 혈당 예측 */}
+                      {(() => {
+                        const actualCarbs = Math.round(selectedFood.carbs * servings * eatPct / 100);
+                        const est = estimateBGRise(actualCarbs, selectedFood.gi);
+                        const color = selectedFood.gi === 'high' ? COLORS.red : selectedFood.gi === 'medium' ? COLORS.gold : COLORS.teal;
+                        return (
+                          <View style={[styles.bgEstCard, { borderColor: color + '44', backgroundColor: color + '0C' }]}>
+                            <View style={styles.bgEstTop}>
+                              <Text style={[styles.bgEstTitle, { color }]}>🩸 예상 혈당 상승</Text>
+                              <Text style={[styles.bgEstRange, { color }]}>+{est.min} ~ +{est.max} mg/dL</Text>
+                            </View>
+                            <View style={styles.bgEstBar}>
+                              <View style={[styles.bgEstFill, { width: `${Math.min(100, est.max / 2)}%` as any, backgroundColor: color }]} />
+                            </View>
+                            <Text style={styles.bgEstNote}>
+                              당부하지수(GL) {est.gl} · 개인차가 있는 대략적 추정치입니다
+                            </Text>
+                          </View>
+                        );
+                      })()}
+
                       <View style={styles.actionRow}>
                         <TouchableOpacity style={styles.backBtn} onPress={() => setSelectedFood(null)}>
                           <Text style={styles.backBtnText}>← 다시</Text>
@@ -603,18 +625,51 @@ export default function CalorieScreen() {
           );
         })}
 
-        {/* 팁 */}
-        <View style={[styles.card, { borderColor: COLORS.orange + '44' }]}>
-          <Text style={[styles.sectionTitle, { color: COLORS.orange }]}>🩸 혈당 관리 팁</Text>
-          {[
-            `탄수화물 목표: ${macroGoal.carbs}g (${Math.round(macroGoal.carbs / 3)}g/끼니)`,
-            '🟢 낮은 GI 음식을 우선 선택하세요',
-            '채소 → 단백질 → 탄수화물 순서로 드세요',
-            '식후 10분 산책이 혈당을 낮춰줍니다',
-          ].map((tip, i) => (
-            <Text key={i} style={styles.tipText}>• {tip}</Text>
-          ))}
-        </View>
+        {/* 혈당 영향 요약 */}
+        {(() => {
+          const totalGL = entries.reduce((sum, e) => {
+            const food = customFoods.find(f => f.id === e.foodId) ?? KOREAN_FOODS.find(f => f.id === e.foodId);
+            if (!food) return sum;
+            return sum + ((GI_NUM[food.gi] ?? 60) * e.carbs / 100);
+          }, 0);
+          const glRounded = Math.round(totalGL);
+          const glColor = glRounded < 60 ? COLORS.teal : glRounded < 100 ? COLORS.gold : COLORS.red;
+          const glLabel = glRounded < 60 ? '혈당 영향 낮음' : glRounded < 100 ? '혈당 영향 보통' : '혈당 영향 높음';
+          return entries.length > 0 ? (
+            <View style={[styles.card, { borderColor: glColor + '44' }]}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                <Text style={[styles.sectionTitle, { color: glColor, marginBottom: 0 }]}>🩸 오늘 혈당 부하</Text>
+                <View style={{ alignItems: 'flex-end' }}>
+                  <Text style={{ color: glColor, fontSize: FONTS.xxl, fontWeight: '900', fontFamily: 'monospace' }}>GL {glRounded}</Text>
+                  <Text style={{ color: glColor, fontSize: FONTS.xxs, fontWeight: '700' }}>{glLabel}</Text>
+                </View>
+              </View>
+              <View style={{ height: 8, backgroundColor: COLORS.bgHighlight, borderRadius: 4, overflow: 'hidden', marginBottom: 8 }}>
+                <View style={{ width: `${Math.min(100, Math.round(glRounded / 150 * 100))}%` as any, height: '100%', backgroundColor: glColor, borderRadius: 4 }} />
+              </View>
+              {[
+                `탄수화물 목표: ${macroGoal.carbs}g · 끼니당 ${Math.round(macroGoal.carbs / 3)}g`,
+                'GL 60 이하: 혈당 안정  ·  GL 100+: 스파이크 주의',
+                '🟢 GI 낮은 음식을 골라 GL을 낮추세요',
+                '식후 10분 산책이 혈당을 낮춰줍니다',
+              ].map((tip, i) => (
+                <Text key={i} style={styles.tipText}>• {tip}</Text>
+              ))}
+            </View>
+          ) : (
+            <View style={[styles.card, { borderColor: COLORS.orange + '44' }]}>
+              <Text style={[styles.sectionTitle, { color: COLORS.orange }]}>🩸 혈당 관리 팁</Text>
+              {[
+                `탄수화물 목표: ${macroGoal.carbs}g (${Math.round(macroGoal.carbs / 3)}g/끼니)`,
+                '🟢 낮은 GI 음식을 우선 선택하세요',
+                '채소 → 단백질 → 탄수화물 순서로 드세요',
+                '식후 10분 산책이 혈당을 낮춰줍니다',
+              ].map((tip, i) => (
+                <Text key={i} style={styles.tipText}>• {tip}</Text>
+              ))}
+            </View>
+          );
+        })()}
 
         <View style={{ height: SPACING.xl * 2 }} />
       </ScrollView>
@@ -831,6 +886,17 @@ const styles = StyleSheet.create({
   },
   nutriValue: { fontSize: FONTS.sm, fontWeight: '900' },
   nutriLabel: { color: COLORS.textMuted, fontSize: 10 },
+  // 혈당 예측 카드
+  bgEstCard: {
+    borderRadius: RADIUS.md, borderWidth: 1.5,
+    padding: SPACING.sm, marginBottom: SPACING.sm,
+  },
+  bgEstTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+  bgEstTitle: { fontSize: FONTS.xs, fontWeight: '700' },
+  bgEstRange: { fontSize: FONTS.md, fontWeight: '900', fontFamily: 'monospace' },
+  bgEstBar: { height: 5, backgroundColor: COLORS.bgHighlight, borderRadius: 3, overflow: 'hidden', marginBottom: 5 },
+  bgEstFill: { height: '100%', borderRadius: 3, opacity: 0.7 },
+  bgEstNote: { color: COLORS.textDisabled, fontSize: FONTS.xxs },
   actionRow: { flexDirection: 'row', gap: SPACING.sm },
   backBtn: {
     backgroundColor: COLORS.bgHighlight, borderRadius: RADIUS.xl,
