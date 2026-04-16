@@ -61,7 +61,14 @@
       }*/
     </style>
   <meta name="theme-color" content="#8B45D4">
-<link rel="shortcut icon" href="/health-rpg/favicon.ico" /></head>
+<link rel="shortcut icon" href="/health-rpg/favicon.ico" />
+<link rel="manifest" href="/health-rpg/manifest.json" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Health RPG" />
+<link rel="apple-touch-icon" href="/health-rpg/icon-192.png" />
+</head>
 
   <body>
     <!-- 
@@ -114,6 +121,13 @@
     </noscript>
     <!-- The root element for your Expo app. -->
     <div id="root"></div>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function() {
+        navigator.serviceWorker.register('/health-rpg/sw.js');
+      });
+    }
+  </script>
   <script src="/health-rpg/_expo/static/js/web/AppEntry-242bfef480a9e8dae14efcdd3300999e.js" defer></script>
 </body>
 </html>
