@@ -12,8 +12,20 @@ import {
 } from '../types';
 import {
   calcImmunity, deleteIllness, generateId, getCurrentIllness,
-  getIllnesses, getTodayKey, illnessDuration, saveIllness,
+  getIllnesses, getTodayKey, illnessDuration, saveIllness, syncDailyLogCalories,
 } from '../utils/storage';
+
+// 두 날짜 사이의 모든 날짜 생성 (YYYY-MM-DD)
+function getDatesInRange(start: string, end: string): string[] {
+  const dates: string[] = [];
+  const cur = new Date(start + 'T00:00:00');
+  const last = new Date(end + 'T00:00:00');
+  while (cur <= last) {
+    dates.push(cur.toISOString().slice(0, 10));
+    cur.setDate(cur.getDate() + 1);
+  }
+  return dates;
+}
 
 const ILLNESS_TYPES: IllnessType[] = [
   'cold', 'gastro', 'flu', 'fever', 'headache', 'fatigue', 'allergy', 'covid', 'injury', 'other',
@@ -85,13 +97,21 @@ export default function IllnessScreen() {
       updatedAt: now,
     };
     await saveIllness(entry);
+    // 질병 기간 동안의 점수 재계산
+    const syncEnd = entry.endDate ?? today;
+    const dates = getDatesInRange(entry.startDate, syncEnd);
+    await Promise.all(dates.map(d => syncDailyLogCalories(d)));
     setShowForm(false);
     load();
   };
 
   const handleRecover = async (e: IllnessEntry) => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    await saveIllness({ ...e, endDate: today, updatedAt: new Date().toISOString() });
+    const recovered = { ...e, endDate: today, updatedAt: new Date().toISOString() };
+    await saveIllness(recovered);
+    // 회복 완료 시 전체 기간 재계산
+    const dates = getDatesInRange(e.startDate, today);
+    await Promise.all(dates.map(d => syncDailyLogCalories(d)));
     load();
   };
 

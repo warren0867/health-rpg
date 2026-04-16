@@ -5,8 +5,8 @@ import { ActivityIndicator, Alert, Modal, ScrollView, StyleSheet, Text, TextInpu
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MiniGraph from '../components/MiniGraph';
 import { COLORS, FONTS, getRank, RADIUS, SPACING } from '../constants/theme';
-import { DailyLog, MorningBloodSugar, WeightEntry } from '../types';
-import { calcAvgBS, formatDate, generateId, getAllDailyLogs, getRecentMorningBS, getTodayKey, getWeightHistory, saveWeightEntry } from '../utils/storage';
+import { DailyLog, IllnessEntry, MorningBloodSugar, WeightEntry, ILLNESS_EMOJI, ILLNESS_LABELS } from '../types';
+import { calcAvgBS, formatDate, generateId, getAllDailyLogs, getIllnesses, getRecentMorningBS, getTodayKey, getWeightHistory, saveWeightEntry } from '../utils/storage';
 import { EXERCISE_LABELS, calcAlcoholCalories } from '../utils/scoreCalculator';
 
 // ── 월별 달력 컴포넌트 ──
@@ -114,6 +114,7 @@ export default function HistoryScreen() {
   const [logMap, setLogMap] = useState<Record<string, DailyLog>>({});
   const [recentBS, setRecentBS] = useState<MorningBloodSugar[]>([]);
   const [weightHistory, setWeightHistory] = useState<WeightEntry[]>([]);
+  const [illnessMap, setIllnessMap] = useState<Record<string, IllnessEntry>>({});
   const [loading, setLoading] = useState(true);
   const [showWeightModal, setShowWeightModal] = useState(false);
   const [weightInput, setWeightInput] = useState('');
@@ -124,13 +125,25 @@ export default function HistoryScreen() {
     useCallback(() => {
       (async () => {
         setLoading(true);
-        const [all, bs, weights] = await Promise.all([getAllDailyLogs(), getRecentMorningBS(7), getWeightHistory(30)]);
+        const [all, bs, weights, illnesses] = await Promise.all([getAllDailyLogs(), getRecentMorningBS(7), getWeightHistory(30), getIllnesses()]);
         setLogs(all);
         const map: Record<string, DailyLog> = {};
         all.forEach(l => { map[l.date] = l; });
         setLogMap(map);
         setRecentBS(bs);
         setWeightHistory(weights);
+        // 질병 날짜 맵 구성 (각 날짜 → 해당 질병)
+        const imap: Record<string, IllnessEntry> = {};
+        illnesses.forEach(ill => {
+          const end = ill.endDate ?? getTodayKey();
+          const cur = new Date(ill.startDate + 'T00:00:00');
+          const last = new Date(end + 'T00:00:00');
+          while (cur <= last) {
+            imap[cur.toISOString().slice(0, 10)] = ill;
+            cur.setDate(cur.getDate() + 1);
+          }
+        });
+        setIllnessMap(imap);
         setLoading(false);
       })();
     }, [])
@@ -269,6 +282,13 @@ export default function HistoryScreen() {
               <View key={log.date} style={styles.logCard}>
                 <View style={styles.logHeader}>
                   <Text style={styles.logDate}>{formatDate(log.date)}</Text>
+                  {illnessMap[log.date] && (
+                    <View style={styles.illnessPill}>
+                      <Text style={styles.illnessPillText}>
+                        {ILLNESS_EMOJI[illnessMap[log.date].type]} {ILLNESS_LABELS[illnessMap[log.date].type]}
+                      </Text>
+                    </View>
+                  )}
                   <View style={[styles.logRankBadge, { backgroundColor: rank.color + '22' }]}>
                     <Text style={[styles.logRank, { color: rank.color }]}>{rank.rank}</Text>
                   </View>
@@ -482,8 +502,14 @@ const styles = StyleSheet.create({
     padding: SPACING.md, marginBottom: SPACING.sm,
     borderWidth: 1, borderColor: COLORS.border, gap: SPACING.sm,
   },
-  logHeader: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
-  logDate: { flex: 1, color: COLORS.text, fontWeight: '700', fontSize: FONTS.md },
+  logHeader: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, flexWrap: 'wrap' },
+  logDate: { color: COLORS.text, fontWeight: '700', fontSize: FONTS.md },
+  illnessPill: {
+    backgroundColor: COLORS.red + '18', borderRadius: RADIUS.full,
+    paddingHorizontal: 7, paddingVertical: 2, borderWidth: 1, borderColor: COLORS.red + '44',
+    flexShrink: 1,
+  },
+  illnessPillText: { color: COLORS.red, fontSize: 10, fontWeight: '700' },
   logRankBadge: { borderRadius: RADIUS.full, width: 28, height: 28, justifyContent: 'center', alignItems: 'center' },
   logRank: { fontWeight: '900', fontSize: FONTS.sm },
   logScore: { fontSize: FONTS.lg, fontWeight: '900' },

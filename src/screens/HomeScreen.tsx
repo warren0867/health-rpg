@@ -14,7 +14,7 @@ import { calcMacroGoal } from '../utils/calorieCalculator';
 import { BS_STATUS_COLOR, getBSStatus, getBSStatusLabel, calcExerciseCalories } from '../utils/scoreCalculator';
 import {
   addWater, calcAvgBS, calcImmunity, generateId, getDailyLog, getFoodEntriesByDate,
-  getCurrentIllness, getMorningBS, getRecentDailyLogs, getRecentMorningBS, getStreak,
+  getCurrentIllness, getLatestWeight, getMorningBS, getRecentDailyLogs, getRecentMorningBS, getStreak,
   getTodayKey, getUserProfile, getUserXP, getUnlockedAchievementIds,
   getWaterLog, getWaterStreak, saveMorningBS, saveUserProfile, sumFoodEntries, getBSTrend,
   unlockAchievement,
@@ -183,6 +183,7 @@ export default function HomeScreen() {
   const [todayLog, setTodayLog] = useState<any>(null);
   const [immunity, setImmunity] = useState<number | null>(null);
   const [currentIllness, setCurrentIllness] = useState<IllnessEntry | null>(null);
+  const [latestWeightKg, setLatestWeightKg] = useState<number | null>(null);
   const [waterMl, setWaterMl] = useState(0);
   const [xpProgress, setXpProgress] = useState<ReturnType<typeof getXPProgress> | null>(null);
   const [todayXP, setTodayXP] = useState<number | null>(null);
@@ -196,14 +197,15 @@ export default function HomeScreen() {
   const CUP_ML = 250;
 
   const load = useCallback(async () => {
-    const [p, log, foods, mbs, recentMbs, recent, str, water, xp, achIds, imm, ill] = await Promise.all([
+    const [p, log, foods, mbs, recentMbs, recent, str, water, xp, achIds, imm, ill, latestW] = await Promise.all([
       getUserProfile(), getDailyLog(today), getFoodEntriesByDate(today),
       getMorningBS(today), getRecentMorningBS(7), getRecentDailyLogs(7), getStreak(),
       getWaterLog(today), getUserXP(), getUnlockedAchievementIds(),
-      calcImmunity(), getCurrentIllness(),
+      calcImmunity(), getCurrentIllness(), getLatestWeight(),
     ]);
     setImmunity(imm);
     setCurrentIllness(ill);
+    setLatestWeightKg(latestW?.weightKg ?? null);
     setProfile(p);
     setTodayLog(log);
     setScore(log?.conditionScore ?? null);
@@ -388,6 +390,11 @@ export default function HomeScreen() {
               {score ?? '--'}
             </Text>
             <Text style={s.scoreLabel}>SCORE</Text>
+            {latestWeightKg !== null && (
+              <TouchableOpacity onPress={() => navigation.navigate('History')} activeOpacity={0.7}>
+                <Text style={s.weightChip}>⚖️ {latestWeightKg}kg</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
 
@@ -1008,6 +1015,7 @@ const s = StyleSheet.create({
   characterRight: { alignItems: 'center' },
   scoreNum: { fontSize: FONTS.xxxl, fontWeight: '900', fontFamily: 'monospace', lineHeight: 42 },
   scoreLabel: { color: COLORS.textMuted, fontSize: FONTS.xxs, letterSpacing: 2 },
+  weightChip: { color: COLORS.textSub, fontSize: FONTS.xxs, fontWeight: '700', marginTop: 4 },
 
   // 공통 카드
   card: {
