@@ -1006,18 +1006,20 @@ function Macro({ label, value, goal, color }: { label: string; value: number; go
 function BSSparkline({ entries }: { entries: any[] }) {
   const sorted = [...entries].sort((a, b) => a.date.localeCompare(b.date)).slice(-7);
   const BAR_H = 32;
-  const maxVal = 160;
+  const BAR_W = 8;
+  const maxVal = 180;
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 3, height: BAR_H + 14, marginTop: 10 }}>
+    <View style={{ flexDirection: 'row', alignItems: 'flex-end', marginTop: 10, height: BAR_H + 18 }}>
       {sorted.map(e => {
         const col = BS_STATUS_COLOR[getBSStatus(e.value)];
         const h = Math.max(4, (e.value / maxVal) * BAR_H);
         return (
           <View key={e.date} style={{ flex: 1, alignItems: 'center' }}>
-            <View style={{ width: '100%', height: BAR_H, justifyContent: 'flex-end', backgroundColor: COLORS.bgHighlight, borderRadius: 3 }}>
-              <View style={{ width: '100%', height: h, backgroundColor: col, borderRadius: 3, opacity: 0.9 }} />
+            <Text style={{ color: col, fontSize: 8, fontWeight: '700', marginBottom: 2 }}>{e.value}</Text>
+            <View style={{ width: BAR_W, height: BAR_H, justifyContent: 'flex-end', backgroundColor: COLORS.bgHighlight, borderRadius: BAR_W / 2 }}>
+              <View style={{ width: BAR_W, height: h, backgroundColor: col, borderRadius: BAR_W / 2, opacity: 0.9 }} />
             </View>
-            <Text style={{ color: COLORS.textMuted, fontSize: 10, marginTop: 2 }}>{e.date.slice(5)}</Text>
+            <Text style={{ color: COLORS.textMuted, fontSize: 9, marginTop: 2 }}>{e.date.slice(5)}</Text>
           </View>
         );
       })}
@@ -1026,24 +1028,27 @@ function BSSparkline({ entries }: { entries: any[] }) {
 }
 
 function ScoreSparkline({ logs }: { logs: any[] }) {
-  const BAR_H = 60;
+  const BAR_H = 56;
+  const BAR_W = 10;
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 4, height: BAR_H + 36, marginTop: 8 }}>
+    <View style={{ flexDirection: 'row', alignItems: 'flex-end', marginTop: 8, height: BAR_H + 38 }}>
       {logs.map((log, i) => {
         const rank = getRank(log.conditionScore);
         const h = Math.max(6, (log.conditionScore / 100) * BAR_H);
-        const dateStr = (log.date ?? '').slice(5); // MM-DD
+        const dateStr = (log.date ?? '').slice(5);
         const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
         const dayName = log.date ? dayNames[new Date(log.date).getDay()] : '';
+        const isWeekend = log.date ? (new Date(log.date).getDay() === 0 || new Date(log.date).getDay() === 6) : false;
         return (
           <View key={log.date ?? i} style={{ flex: 1, alignItems: 'center' }}>
             <Text style={{ color: rank.color, fontSize: 9, fontWeight: '900', marginBottom: 3, fontFamily: 'monospace' }}>
               {log.conditionScore}
             </Text>
-            <View style={{ width: '100%', height: BAR_H, justifyContent: 'flex-end', backgroundColor: COLORS.bgHighlight, borderRadius: 5 }}>
-              <View style={{ width: '100%', height: h, backgroundColor: rank.color, borderRadius: 5, opacity: 0.85 }} />
+            {/* 배경 트랙 */}
+            <View style={{ width: BAR_W, height: BAR_H, justifyContent: 'flex-end', backgroundColor: COLORS.bgHighlight, borderRadius: BAR_W / 2 }}>
+              <View style={{ width: BAR_W, height: h, backgroundColor: rank.color, borderRadius: BAR_W / 2, opacity: 0.9 }} />
             </View>
-            <Text style={{ color: COLORS.textMuted, fontSize: 9, marginTop: 3 }}>{dayName}</Text>
+            <Text style={{ color: isWeekend ? COLORS.purple : COLORS.textMuted, fontSize: 9, marginTop: 4 }}>{dayName}</Text>
             <Text style={{ color: COLORS.textDisabled, fontSize: 8, marginTop: 1 }}>{dateStr}</Text>
           </View>
         );

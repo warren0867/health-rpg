@@ -26,32 +26,37 @@ function SleepChart({ logs }: { logs: DailyLog[] }) {
   const recent = [...logs].reverse().slice(-14);
   if (recent.length === 0) return null;
   const MAX_H = 10;
+  const CHART_H = 52;
+  const BAR_W = 7;
+  const avg = recent.reduce((s, l) => s + l.sleep.hours, 0) / recent.length;
   return (
     <View>
-      <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 3, height: 68 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'flex-end', height: CHART_H + 28 }}>
         {recent.map((l, i) => {
           const h = l.sleep.hours;
-          const pct = Math.min(100, (h / MAX_H) * 100);
-          const barH = Math.max(4, (pct / 100) * 52);
+          const barH = Math.max(4, Math.min(CHART_H, (h / MAX_H) * CHART_H));
           const isGood = h >= 7 && h <= 8;
           const color = isGood ? COLORS.teal : h >= 6 ? COLORS.gold : COLORS.red;
-          const isLatest = i === recent.length - 1;
+          const showLabel = i === 0 || i === recent.length - 1 || i % 3 === 0;
           return (
             <View key={l.date} style={{ flex: 1, alignItems: 'center' }}>
-              {isLatest && <Text style={{ color, fontSize: 9, fontWeight: '900', marginBottom: 1 }}>{h}h</Text>}
-              <View style={{ width: '100%', height: 52, justifyContent: 'flex-end', backgroundColor: COLORS.bgHighlight, borderRadius: 3 }}>
-                <View style={{ width: '100%', height: barH, backgroundColor: color, borderRadius: 3, opacity: 0.85 }} />
+              <Text style={{ color, fontSize: 8, fontWeight: '700', marginBottom: 2, opacity: isGood ? 1 : 0.7 }}>
+                {h}h
+              </Text>
+              <View style={{ width: BAR_W, height: CHART_H, justifyContent: 'flex-end', backgroundColor: COLORS.bgHighlight, borderRadius: BAR_W / 2 }}>
+                <View style={{ width: BAR_W, height: barH, backgroundColor: color, borderRadius: BAR_W / 2, opacity: 0.85 }} />
               </View>
-              {i % 2 === 0 && <Text style={{ color: COLORS.textMuted, fontSize: 9, marginTop: 2 }}>{l.date.slice(5)}</Text>}
+              {showLabel
+                ? <Text style={{ color: COLORS.textMuted, fontSize: 8, marginTop: 2 }}>{l.date.slice(5)}</Text>
+                : <View style={{ height: 12 }} />
+              }
             </View>
           );
         })}
       </View>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
         <Text style={{ color: COLORS.textMuted, fontSize: 10 }}>7h 이상 권장</Text>
-        <Text style={{ color: COLORS.teal, fontSize: 10 }}>
-          평균 {(recent.reduce((s, l) => s + l.sleep.hours, 0) / recent.length).toFixed(1)}h
-        </Text>
+        <Text style={{ color: COLORS.teal, fontSize: 10 }}>평균 {avg.toFixed(1)}h</Text>
       </View>
     </View>
   );
@@ -552,25 +557,26 @@ function WeightGraph({ entries }: { entries: WeightEntry[] }) {
   const range = maxW - minW || 1;
   const BAR_H = 60;
 
+  const BAR_W = 7;
   return (
     <View>
-      <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 3, height: BAR_H + 28 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'flex-end', height: BAR_H + 28 }}>
         {display.map((e, i) => {
           const h = Math.max(6, ((e.weightKg - minW) / range) * BAR_H);
           const isLatest = i === display.length - 1;
+          const showLabel = i === 0 || i === display.length - 1 || i % 3 === 0;
           return (
             <View key={e.date} style={{ flex: 1, alignItems: 'center' }}>
-              {isLatest && (
-                <Text style={{ color: COLORS.teal, fontSize: 9, fontWeight: '900', marginBottom: 2 }}>
-                  {e.weightKg}
-                </Text>
-              )}
-              <View style={{ width: '100%', height: BAR_H, justifyContent: 'flex-end', backgroundColor: COLORS.bgHighlight, borderRadius: 3 }}>
-                <View style={{ width: '100%', height: h, backgroundColor: isLatest ? COLORS.teal : COLORS.blue, borderRadius: 3, opacity: 0.85 }} />
+              <Text style={{ color: isLatest ? COLORS.teal : COLORS.textDisabled, fontSize: 8, fontWeight: isLatest ? '900' : '400', marginBottom: 2 }}>
+                {e.weightKg}
+              </Text>
+              <View style={{ width: BAR_W, height: BAR_H, justifyContent: 'flex-end', backgroundColor: COLORS.bgHighlight, borderRadius: BAR_W / 2 }}>
+                <View style={{ width: BAR_W, height: h, backgroundColor: isLatest ? COLORS.teal : COLORS.blue, borderRadius: BAR_W / 2, opacity: 0.85 }} />
               </View>
-              {i % 2 === 0 && (
-                <Text style={{ color: COLORS.textMuted, fontSize: 9, marginTop: 2 }}>{e.date.slice(5)}</Text>
-              )}
+              {showLabel
+                ? <Text style={{ color: COLORS.textMuted, fontSize: 8, marginTop: 2 }}>{e.date.slice(5)}</Text>
+                : <View style={{ height: 12 }} />
+              }
             </View>
           );
         })}

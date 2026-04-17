@@ -8,6 +8,10 @@ interface MiniGraphProps {
   logs: DailyLog[]; // 최근 N일, 오래된 순 정렬
 }
 
+const BAR_W = 10;
+const BAR_MAX_H = 64;
+const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
+
 export default function MiniGraph({ logs }: MiniGraphProps) {
   if (logs.length === 0) {
     return (
@@ -19,42 +23,28 @@ export default function MiniGraph({ logs }: MiniGraphProps) {
     );
   }
 
-  const BAR_MAX_HEIGHT = 70;
-
   return (
     <View style={styles.container}>
       {logs.map((log, index) => {
         const rank = getRank(log.conditionScore);
-        const barH = Math.max(4, (log.conditionScore / 100) * BAR_MAX_HEIGHT);
-        const dateLabel = log.date.slice(5); // MM-DD
+        const barH = Math.max(5, (log.conditionScore / 100) * BAR_MAX_H);
+        const dayName = DAY_NAMES[new Date(log.date).getDay()];
+        const isWeekend = new Date(log.date).getDay() === 0 || new Date(log.date).getDay() === 6;
+        const isLatest = index === logs.length - 1;
 
         return (
           <View key={log.date} style={styles.barCol}>
             <Text style={[styles.scoreLabel, { color: rank.color }]}>
               {log.conditionScore}
             </Text>
-            <View style={styles.barTrack}>
-              <View
-                style={[
-                  styles.bar,
-                  {
-                    height: barH,
-                    backgroundColor: rank.color,
-                  },
-                ]}
-              />
-              {/* glow */}
-              <View
-                style={[
-                  styles.barGlow,
-                  {
-                    height: barH,
-                    backgroundColor: rank.color,
-                  },
-                ]}
-              />
+            {/* 슬림 필 바 */}
+            <View style={[styles.barTrack, { opacity: isLatest ? 1 : 0.75 }]}>
+              <View style={[styles.bar, { height: barH, backgroundColor: rank.color }]} />
             </View>
-            <Text style={styles.dateLabel}>{dateLabel}</Text>
+            <Text style={[styles.dayLabel, { color: isWeekend ? COLORS.purple : COLORS.textMuted }]}>
+              {dayName}
+            </Text>
+            <Text style={styles.dateLabel}>{log.date.slice(5)}</Text>
           </View>
         );
       })}
@@ -66,44 +56,37 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    justifyContent: 'space-around',
     paddingVertical: 8,
-    gap: 5,
   },
   barCol: {
     flex: 1,
     alignItems: 'center',
-    gap: 4,
+    gap: 3,
   },
   barTrack: {
-    width: '100%',
-    height: 70,
+    width: BAR_W,
+    height: BAR_MAX_H,
     justifyContent: 'flex-end',
-    alignItems: 'center',
     backgroundColor: COLORS.bgHighlight,
-    borderRadius: RADIUS.sm,
+    borderRadius: BAR_W / 2,
     overflow: 'hidden',
-    position: 'relative',
   },
   bar: {
-    width: '100%',
-    borderRadius: RADIUS.sm,
-  },
-  barGlow: {
-    position: 'absolute',
-    bottom: 0,
-    width: '100%',
-    borderRadius: RADIUS.sm,
-    opacity: 0.2,
+    width: BAR_W,
+    borderRadius: BAR_W / 2,
   },
   scoreLabel: {
     fontSize: FONTS.xxs,
     fontWeight: '900',
     fontFamily: 'monospace',
   },
+  dayLabel: {
+    fontSize: 9,
+    fontWeight: '600',
+  },
   dateLabel: {
-    fontSize: FONTS.xxs,
-    color: COLORS.textMuted,
+    fontSize: 8,
+    color: COLORS.textDisabled,
   },
   empty: {
     height: 100,
