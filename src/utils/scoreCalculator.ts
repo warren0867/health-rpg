@@ -49,7 +49,7 @@ export function calcExerciseCalories(exercise: ExerciseInput, weightKg = 70): nu
 export const ALCOHOL_CAL_PER_UNIT: Record<AlcoholType, number> = {
   beer_can: 145,    // 맥주 캔 1개 (355ml)
   beer_bottle: 210, // 맥주 병 1개 (500ml)
-  soju: 200,        // 소주 반병 (180ml)
+  soju: 400,        // 소주 1병 (360ml)
   makgeolli: 130,   // 막걸리 1컵 (300ml)
   whiskey: 90,      // 위스키 1잔 (40ml)
   wine: 120,        // 와인 1잔 (150ml)
@@ -71,7 +71,7 @@ export const ALCOHOL_LABELS: Record<AlcoholType, string> = {
 export const ALCOHOL_UNITS: Record<AlcoholType, string> = {
   beer_can: '캔',
   beer_bottle: '병',
-  soju: '반병',
+  soju: '병',
   makgeolli: '컵',
   whiskey: '잔',
   wine: '잔',

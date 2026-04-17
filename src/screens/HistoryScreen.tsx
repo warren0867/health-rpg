@@ -414,6 +414,7 @@ export default function HistoryScreen() {
             const rank = getRank(log.conditionScore);
             return (
               <View key={log.date} style={styles.logCard}>
+                {/* 헤더: 날짜 + 등급 + 점수 */}
                 <View style={styles.logHeader}>
                   <Text style={styles.logDate}>{formatDate(log.date)}</Text>
                   {illnessMap[log.date] && (
@@ -428,6 +429,8 @@ export default function HistoryScreen() {
                   </View>
                   <Text style={[styles.logScore, { color: rank.color }]}>{log.conditionScore}점</Text>
                 </View>
+
+                {/* 행동 통계 */}
                 <View style={styles.logStats}>
                   <LogStat label="수면" value={`${log.sleep.hours}h`} />
                   <LogStat label="운동" value={(() => {
@@ -437,19 +440,64 @@ export default function HistoryScreen() {
                     return active.length > 0 ? `${log.exercise.minutes}분` : '없음';
                   })()} />
                   <LogStat label="음주" value={log.alcohol.consumed ? `${calcAlcoholCalories(log.alcohol)}kcal` : '없음'} danger={log.alcohol.consumed} />
-                  {log.bloodPressure && (
-                    <LogStat label="혈압" value={`${log.bloodPressure.systolic}/${log.bloodPressure.diastolic}`} />
-                  )}
                   {log.mood != null && (
                     <LogStat label="기분" value={['', '😩', '😔', '😐', '😊', '🤩'][log.mood]} />
                   )}
+                  {log.steps != null && (
+                    <LogStat label="걸음" value={`${log.steps.toLocaleString()}보`} />
+                  )}
                 </View>
+
+                {/* 칼로리 + 혈당 행 */}
+                {(() => {
+                  const profile_ = profile;
+                  const targetCal = profile_?.targetCalories ?? 2000;
+                  const consumed = log.caloriesConsumed;
+                  const alcoholCal_ = log.alcoholCalories ?? 0;
+                  const totalCal = (consumed ?? 0) + alcoholCal_;
+                  const calDiff = consumed != null ? Math.round(totalCal - targetCal) : null;
+                  const bs = log.morningBSValue;
+                  const bpStr = log.bloodPressure ? `${log.bloodPressure.systolic}/${log.bloodPressure.diastolic}` : null;
+                  if (calDiff === null && !bs && !bpStr) return null;
+                  return (
+                    <View style={styles.logExtraRow}>
+                      {calDiff !== null && (
+                        <View style={styles.logExtraItem}>
+                          <Text style={styles.logExtraLabel}>🍽 칼로리</Text>
+                          <Text style={[styles.logExtraVal, { color: calDiff > 200 ? COLORS.red : calDiff < -200 ? COLORS.blue : COLORS.teal }]}>
+                            {totalCal}kcal{' '}
+                            <Text style={{ fontSize: 10 }}>
+                              ({calDiff > 0 ? '+' : ''}{calDiff})
+                            </Text>
+                          </Text>
+                        </View>
+                      )}
+                      {bs != null && (
+                        <View style={styles.logExtraItem}>
+                          <Text style={styles.logExtraLabel}>💉 공복혈당</Text>
+                          <Text style={[styles.logExtraVal, { color: bs < 100 ? COLORS.teal : bs < 126 ? COLORS.gold : COLORS.red }]}>
+                            {bs} mg/dL
+                          </Text>
+                        </View>
+                      )}
+                      {bpStr && (
+                        <View style={styles.logExtraItem}>
+                          <Text style={styles.logExtraLabel}>🩺 혈압</Text>
+                          <Text style={styles.logExtraVal}>{bpStr}</Text>
+                        </View>
+                      )}
+                    </View>
+                  );
+                })()}
+
+                {/* RPG 스탯 */}
                 <View style={styles.miniStatRow}>
                   {[
-                    { label: 'HP', value: log.stats.hp, color: COLORS.teal },
-                    { label: '지구력', value: log.stats.stamina, color: COLORS.gold },
-                    { label: '회복', value: log.stats.recovery, color: COLORS.blue },
-                    { label: '혈당', value: log.stats.bloodSugarControl, color: COLORS.green },
+                    { label: 'HP', value: log.stats.hp, color: COLORS.hp },
+                    { label: '지구력', value: log.stats.stamina, color: COLORS.str },
+                    { label: '회복력', value: log.stats.recovery, color: COLORS.vit },
+                    { label: '혈당조절', value: log.stats.bloodSugarControl, color: COLORS.mp },
+                    { label: '컨디션', value: log.stats.condition, color: COLORS.agi },
                   ].map(s => (
                     <View key={s.label} style={styles.miniStat}>
                       <Text style={[styles.miniStatVal, { color: s.color }]}>{s.value}</Text>
@@ -657,7 +705,17 @@ const styles = StyleSheet.create({
   },
   miniStat: { alignItems: 'center' },
   miniStatVal: { fontSize: FONTS.sm, fontWeight: '900' },
-  miniStatLabel: { color: COLORS.textDisabled, fontSize: 10 },
+  miniStatLabel: { color: COLORS.textDisabled, fontSize: 9 },
+
+  // 칼로리 / 혈당 추가 행
+  logExtraRow: {
+    flexDirection: 'row', flexWrap: 'wrap', gap: 6,
+    backgroundColor: COLORS.bgHighlight, borderRadius: RADIUS.md,
+    paddingHorizontal: SPACING.sm, paddingVertical: 6,
+  },
+  logExtraItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  logExtraLabel: { color: COLORS.textMuted, fontSize: 10 },
+  logExtraVal: { color: COLORS.text, fontSize: 11, fontWeight: '700', fontFamily: 'monospace' },
 
   // 체중
   addWeightBtn: { backgroundColor: COLORS.teal + '22', borderRadius: RADIUS.full, paddingHorizontal: 12, paddingVertical: 5, borderWidth: 1, borderColor: COLORS.teal + '44' },

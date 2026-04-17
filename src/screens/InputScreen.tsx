@@ -228,6 +228,8 @@ export default function InputScreen() {
       bloodPressure,
       xpGained,
       steps: steps ? parseInt(steps) : undefined,
+      caloriesConsumed: foodSum.calories,
+      morningBSValue: morningBS?.value,
       createdAt: existingLog?.createdAt ?? now, updatedAt: now,
     };
 

@@ -10,6 +10,7 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import CalorieGauge from '../components/CalorieGauge';
@@ -24,6 +25,7 @@ import {
   deleteCustomFood,
   generateId,
   getCustomFoods,
+  getDailyLog,
   getFavoriteFoodIds,
   getFoodEntriesByDate,
   getRecentFoods,
@@ -36,6 +38,7 @@ import {
   toggleFavoriteFood,
   trackRecentFood,
 } from '../utils/storage';
+import { DailyLog } from '../types';
 
 type MealTime = FoodEntry['mealTime'];
 type SearchTab = 'recent' | 'favorite' | 'custom';
@@ -89,6 +92,11 @@ export default function CalorieScreen() {
 
   // 편집 모드 (끼니별)
   const [editMeal, setEditMeal] = useState<MealTime | null>(null);
+  // 항목 수정
+  const [editingEntry, setEditingEntry] = useState<FoodEntry | null>(null);
+  const [editServings, setEditServings] = useState(1);
+  // 음주 칼로리 (DailyLog에서 로드)
+  const [alcoholCal, setAlcoholCal] = useState(0);
   // 추가 완료 배너
   const [addedBanner, setAddedBanner] = useState<string | null>(null);
   const bannerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -113,9 +121,10 @@ export default function CalorieScreen() {
   const [customGi, setCustomGi] = useState<GlycemicIndex>('medium');
 
   const load = useCallback(async () => {
-    const [p, foodEntries, customs, favs, recents] = await Promise.all([
+    const [p, foodEntries, customs, favs, recents, dayLog] = await Promise.all([
       getUserProfile(), getFoodEntriesByDate(selectedDate),
       getCustomFoods(), getFavoriteFoodIds(), getRecentFoods(),
+      getDailyLog(selectedDate),
     ]);
     setProfile(p);
     setEntries(foodEntries);
@@ -123,6 +132,7 @@ export default function CalorieScreen() {
     setCustomFoods(customs);
     setFavIds(favs);
     setRecentFoods(recents);
+    setAlcoholCal(dayLog?.alcoholCalories ?? 0);
   }, [selectedDate]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
@@ -218,6 +228,34 @@ export default function CalorieScreen() {
     setSummary(sumFoodEntries(fresh));
   };
 
+  const handleOpenEdit = (entry: FoodEntry) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setEditingEntry(entry);
+    setEditServings(entry.servings);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingEntry) return;
+    const ratio = editServings / editingEntry.servings;
+    const updated: FoodEntry = {
+      ...editingEntry,
+      servings: editServings,
+      calories: Math.round(editingEntry.calories * ratio),
+      carbs: Math.round(editingEntry.carbs * ratio * 10) / 10,
+      protein: Math.round(editingEntry.protein * ratio * 10) / 10,
+      fat: Math.round(editingEntry.fat * ratio * 10) / 10,
+    };
+    // 기존 항목 삭제 후 수정 항목 저장
+    await deleteFoodEntry(editingEntry.id);
+    await saveFoodEntry(updated);
+    await syncDailyLogCalories(selectedDate);
+    setEditingEntry(null);
+    const fresh = await getFoodEntriesByDate(selectedDate);
+    setEntries(fresh);
+    setSummary(sumFoodEntries(fresh));
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  };
+
   const handleCopyYesterday = () => {
     const prevDay = (() => {
       const d = new Date(selectedDate); d.setDate(d.getDate() - 1);
@@ -262,7 +300,8 @@ export default function CalorieScreen() {
 
   const targetCal = profile?.targetCalories ?? 2000;
   const macroGoal = calcMacroGoal(targetCal);
-  const gaugeData = calcGaugeData(summary.calories, targetCal);
+  const totalCalWithAlcohol = summary.calories + alcoholCal;
+  const gaugeData = calcGaugeData(totalCalWithAlcohol, targetCal);
   const entriesByMeal = MEAL_ORDER.reduce<Record<MealTime, FoodEntry[]>>((acc, m) => {
     acc[m] = entries.filter(e => e.mealTime === m);
     return acc;
@@ -335,6 +374,14 @@ export default function CalorieScreen() {
             proteinGoal={macroGoal.protein}
             fatGoal={macroGoal.fat}
           />
+          {alcoholCal > 0 && (
+            <View style={{ backgroundColor: COLORS.red + '15', borderRadius: RADIUS.sm, padding: SPACING.sm, marginTop: SPACING.sm, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Text style={{ color: COLORS.red, fontSize: FONTS.xs }}>🍺 음주 칼로리 포함</Text>
+              <Text style={{ color: COLORS.red, fontWeight: '900', fontSize: FONTS.xs, fontFamily: 'monospace' }}>
+                식단 {summary.calories} + 음주 {alcoholCal} = {totalCalWithAlcohol} kcal
+              </Text>
+            </View>
+          )}
           {summary.carbs > macroGoal.carbs && (
             <View style={styles.carbWarning}>
               <Text style={styles.carbWarningText}>
@@ -385,29 +432,36 @@ export default function CalorieScreen() {
                 const food = customFoods.find(f => f.id === entry.foodId) ?? KOREAN_FOODS.find(f => f.id === entry.foodId);
                 const isEditing = editMeal === meal;
                 return (
-                  <View key={entry.id} style={styles.entryRow}>
-                    {isEditing && (
+                  <View key={entry.id}>
+                    <View style={styles.entryRow}>
+                      {isEditing && (
+                        <TouchableOpacity
+                          style={styles.deleteBtn}
+                          onPress={() => {
+                            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                            handleDelete(entry);
+                          }}
+                        >
+                          <Text style={styles.deleteBtnText}>−</Text>
+                        </TouchableOpacity>
+                      )}
                       <TouchableOpacity
-                        style={styles.deleteBtn}
-                        onPress={() => {
-                          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                          handleDelete(entry);
-                        }}
+                        style={styles.entryLeft}
+                        activeOpacity={isEditing ? 0.6 : 1}
+                        onPress={() => isEditing && handleOpenEdit(entry)}
                       >
-                        <Text style={styles.deleteBtnText}>−</Text>
+                        <View style={styles.entryNameRow}>
+                          <Text style={styles.entryName}>{entry.foodName}</Text>
+                          {food?.gi && <Text>{GI_CONFIG[food.gi].emoji}</Text>}
+                          {food?.isCustom && <Text style={styles.customBadge}>MY</Text>}
+                          {isEditing && <Text style={{ color: COLORS.purple, fontSize: 10, marginLeft: 4 }}>✏️ 수정</Text>}
+                        </View>
+                        <Text style={styles.entryMeta}>
+                          {entry.servings}인분 · 탄 {entry.carbs}g · 단 {entry.protein}g · 지 {entry.fat}g
+                        </Text>
                       </TouchableOpacity>
-                    )}
-                    <View style={styles.entryLeft}>
-                      <View style={styles.entryNameRow}>
-                        <Text style={styles.entryName}>{entry.foodName}</Text>
-                        {food?.gi && <Text>{GI_CONFIG[food.gi].emoji}</Text>}
-                        {food?.isCustom && <Text style={styles.customBadge}>MY</Text>}
-                      </View>
-                      <Text style={styles.entryMeta}>
-                        {entry.servings}인분 · 탄 {entry.carbs}g · 단 {entry.protein}g · 지 {entry.fat}g
-                      </Text>
+                      <Text style={styles.entryCal}>{entry.calories} kcal</Text>
                     </View>
-                    <Text style={styles.entryCal}>{entry.calories} kcal</Text>
                   </View>
                 );
               })}
@@ -673,6 +727,51 @@ export default function CalorieScreen() {
 
         <View style={{ height: SPACING.xl * 2 }} />
       </ScrollView>
+
+      {/* ── 항목 수정 모달 ── */}
+      {editingEntry && (
+        <View style={styles.editModalOverlay}>
+          <View style={styles.editModalSheet}>
+            <Text style={styles.editModalTitle}>✏️ 수량 수정</Text>
+            <Text style={styles.editModalFood}>{editingEntry.foodName}</Text>
+            <View style={styles.editServingRow}>
+              <TouchableOpacity
+                style={styles.editServingBtn}
+                onPress={() => setEditServings(prev => Math.max(0.5, Math.round((prev - 0.5) * 2) / 2))}
+              >
+                <Text style={styles.editServingBtnText}>−</Text>
+              </TouchableOpacity>
+              <View style={{ alignItems: 'center' }}>
+                <Text style={styles.editServingVal}>{editServings}</Text>
+                <Text style={styles.editServingUnit}>인분</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.editServingBtn}
+                onPress={() => setEditServings(prev => Math.round((prev + 0.5) * 2) / 2)}
+              >
+                <Text style={styles.editServingBtnText}>+</Text>
+              </TouchableOpacity>
+            </View>
+            <Text style={{ color: COLORS.textMuted, fontSize: FONTS.xs, textAlign: 'center', marginBottom: SPACING.md }}>
+              {Math.round((editingEntry.calories / editingEntry.servings) * editServings)} kcal
+            </Text>
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <TouchableOpacity
+                style={[styles.editModalBtn, { backgroundColor: COLORS.bgHighlight }]}
+                onPress={() => setEditingEntry(null)}
+              >
+                <Text style={{ color: COLORS.textMuted, fontWeight: '700' }}>취소</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.editModalBtn, { backgroundColor: COLORS.teal, flex: 2 }]}
+                onPress={handleSaveEdit}
+              >
+                <Text style={{ color: '#fff', fontWeight: '900' }}>저장</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -947,4 +1046,31 @@ const styles = StyleSheet.create({
 
   sectionTitle: { color: COLORS.text, fontSize: FONTS.md, fontWeight: '700', marginBottom: SPACING.sm },
   tipText: { color: COLORS.textMuted, fontSize: FONTS.sm, lineHeight: 22 },
+
+  // 항목 수정 모달
+  editModalOverlay: {
+    position: 'absolute', bottom: 0, left: 0, right: 0,
+    backgroundColor: 'rgba(0,0,0,0.75)',
+    top: 0, justifyContent: 'flex-end',
+  },
+  editModalSheet: {
+    backgroundColor: COLORS.bgCard,
+    borderTopLeftRadius: RADIUS.xl, borderTopRightRadius: RADIUS.xl,
+    padding: SPACING.lg, borderTopWidth: 1, borderColor: COLORS.border,
+  },
+  editModalTitle: { color: COLORS.textMuted, fontSize: FONTS.xs, fontWeight: '700', letterSpacing: 1, marginBottom: 4 },
+  editModalFood: { color: COLORS.text, fontSize: FONTS.lg, fontWeight: '900', marginBottom: SPACING.md },
+  editServingRow: {
+    flexDirection: 'row', justifyContent: 'center', alignItems: 'center',
+    gap: SPACING.xl, marginBottom: SPACING.sm,
+  },
+  editServingBtn: {
+    width: 48, height: 48, borderRadius: 24,
+    backgroundColor: COLORS.bgHighlight, borderWidth: 1, borderColor: COLORS.border,
+    justifyContent: 'center', alignItems: 'center',
+  },
+  editServingBtnText: { color: COLORS.text, fontSize: 24, fontWeight: '300' },
+  editServingVal: { color: COLORS.teal, fontSize: 48, fontWeight: '900', fontFamily: 'monospace' },
+  editServingUnit: { color: COLORS.textMuted, fontSize: FONTS.xs },
+  editModalBtn: { flex: 1, borderRadius: RADIUS.lg, paddingVertical: 12, alignItems: 'center' },
 });

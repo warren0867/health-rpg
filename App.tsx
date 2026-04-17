@@ -44,7 +44,7 @@ function MainTabs() {
       })}
     >
       <Tab.Screen name="Home" component={HomeScreen} options={{ title: '홈' }} />
-      <Tab.Screen name="Input" component={InputScreen} options={{ title: '오늘 입력' }} />
+      <Tab.Screen name="Input" component={InputScreen} options={{ title: '기록' }} />
       <Tab.Screen name="Calorie" component={CalorieScreen} options={{ title: '식단' }} />
       <Tab.Screen name="BloodSugar" component={BloodSugarScreen} options={{ title: '혈당' }} />
       <Tab.Screen name="History" component={HistoryScreen} options={{ title: '기록' }} />

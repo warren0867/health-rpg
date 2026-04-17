@@ -184,6 +184,8 @@ export async function syncDailyLogCalories(date: string): Promise<void> {
     conditionScore: newBreakdown.total,
     scoreBreakdown: newBreakdown,
     stats: newStats,
+    caloriesConsumed: consumed,
+    morningBSValue: morningBS?.value,
     updatedAt: new Date().toISOString(),
   };
   await saveDailyLog(updated);

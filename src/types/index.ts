@@ -350,6 +350,8 @@ export interface DailyLog {
   bloodPressure?: { systolic: number; diastolic: number; pulse?: number };  // 혈압
   xpGained?: number;                    // 이날 획득한 XP
   steps?: number;                       // 걸음수
+  caloriesConsumed?: number;            // 음식 섭취 칼로리 (음주 제외)
+  morningBSValue?: number;             // 공복혈당 수치
   createdAt: string;
   updatedAt: string;
 }
