@@ -21,6 +21,11 @@ function getBMILabel(bmi: number): { label: string; color: string } {
   return { label: '비만', color: COLORS.red };
 }
 
+// 로컬 타임존 기준 날짜 문자열 (UTC 혼용 버그 방지)
+function localDateStr(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 // 수면 패턴 바 차트 (연속 날짜 보장)
 function SleepChart({ logs }: { logs: DailyLog[] }) {
   if (logs.length === 0) return null;
@@ -29,14 +34,15 @@ function SleepChart({ logs }: { logs: DailyLog[] }) {
   const logMap: Record<string, DailyLog> = {};
   logs.forEach(l => { logMap[l.date] = l; });
 
-  // 첫 기록일부터 오늘까지 연속 날짜 생성 (최대 14일)
-  const today = new Date().toISOString().split('T')[0];
+  // 로컬 타임존 기준으로 연속 날짜 생성 (toISOString은 UTC라 한국에서 날짜 어긋남)
+  const today = localDateStr(new Date());
   const sorted = [...logs].sort((a, b) => a.date.localeCompare(b.date));
   const startDate = sorted[Math.max(0, sorted.length - 14)].date;
   const days: string[] = [];
-  const d = new Date(startDate);
-  while (d.toISOString().split('T')[0] <= today) {
-    days.push(d.toISOString().split('T')[0]);
+  const [sy, sm, sd] = startDate.split('-').map(Number);
+  const d = new Date(sy, sm - 1, sd); // 로컬 자정 — UTC 파싱 금지
+  while (localDateStr(d) <= today) {
+    days.push(localDateStr(d));
     d.setDate(d.getDate() + 1);
   }
 
@@ -52,7 +58,8 @@ function SleepChart({ logs }: { logs: DailyLog[] }) {
       <View style={{ flexDirection: 'row', alignItems: 'flex-end', height: CHART_H + 28 }}>
         {days.map((date, i) => {
           const log = logMap[date];
-          const showLabel = i === 0 || i === days.length - 1 || i % 3 === 0;
+          const labelStep = days.length <= 5 ? 1 : days.length <= 10 ? 2 : 3;
+          const showLabel = i === 0 || i === days.length - 1 || i % labelStep === 0;
           if (!log) {
             // 기록 없는 날 — 빈 칸 표시
             return (

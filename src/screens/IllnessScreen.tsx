@@ -520,7 +520,7 @@ const s = StyleSheet.create({
     backgroundColor: COLORS.bgHighlight, borderRadius: RADIUS.xs,
     paddingHorizontal: 6, paddingVertical: 2,
   },
-  symptomChipSmallText: { color: COLORS.textDisabled, fontSize: 9 },
+  symptomChipSmallText: { color: COLORS.textMuted, fontSize: FONTS.xxs },
   timelineNote: { color: COLORS.textMuted, fontSize: FONTS.xxs, fontStyle: 'italic', marginTop: 4 },
   timelineActions: { flexDirection: 'row', gap: 6, marginTop: 8 },
   recoverSmallBtn: {

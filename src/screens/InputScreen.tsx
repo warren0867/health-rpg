@@ -729,14 +729,14 @@ const c = StyleSheet.create({
   moodRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 4 },
   moodBtn: { flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.bgInput },
   moodEmoji: { fontSize: 22, marginBottom: 3 },
-  moodLabel: { color: COLORS.textMuted, fontSize: 9, textAlign: 'center' },
+  moodLabel: { color: COLORS.textMuted, fontSize: FONTS.xxs, textAlign: 'center' },
 
   // 혈압
   bpRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   bpField: { flex: 1, alignItems: 'center' },
   bpFieldLabel: { color: COLORS.textMuted, fontSize: 10, marginBottom: 4 },
   bpInput: { width: '100%', backgroundColor: COLORS.bgInput, borderRadius: RADIUS.sm, borderWidth: 1, borderColor: COLORS.border, color: COLORS.text, fontSize: FONTS.lg, fontWeight: '700', textAlign: 'center', paddingVertical: 8 },
-  bpUnit: { color: COLORS.textDisabled, fontSize: 10, marginTop: 2 },
+  bpUnit: { color: COLORS.textMuted, fontSize: FONTS.xxs, marginTop: 2 },
   bpSlash: { color: COLORS.textMuted, fontSize: FONTS.xxl, fontWeight: '300', marginTop: 14 },
   bpStatusBox: { borderRadius: RADIUS.sm, padding: 8, alignItems: 'center', marginTop: 8 },
   bpStatusText: { fontSize: FONTS.sm, fontWeight: '700' },

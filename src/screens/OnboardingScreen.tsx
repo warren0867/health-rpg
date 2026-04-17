@@ -351,7 +351,7 @@ const styles = StyleSheet.create({
     minWidth: 80,
   },
   choiceBtnText: { color: COLORS.textMuted, fontSize: FONTS.sm, fontWeight: '600' },
-  choiceBtnSub: { color: COLORS.textDisabled, fontSize: 10 },
+  choiceBtnSub: { color: COLORS.textMuted, fontSize: FONTS.xxs },
   birthRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   birthInput: { flex: 2, fontSize: FONTS.md },
   birthInputSm: { flex: 1, fontSize: FONTS.md },
