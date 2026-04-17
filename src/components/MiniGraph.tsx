@@ -41,7 +41,7 @@ export default function MiniGraph({ logs }: MiniGraphProps) {
             <View style={[styles.barTrack, { opacity: isLatest ? 1 : 0.75 }]}>
               <View style={[styles.bar, { height: barH, backgroundColor: rank.color }]} />
             </View>
-            <Text style={[styles.dayLabel, { color: isWeekend ? COLORS.purple : COLORS.textMuted }]}>
+            <Text style={[styles.dayLabel, { color: isWeekend ? COLORS.purple : COLORS.textSub }]}>
               {dayName}
             </Text>
             <Text style={styles.dateLabel}>{log.date.slice(5)}</Text>
@@ -81,12 +81,12 @@ const styles = StyleSheet.create({
     fontFamily: 'monospace',
   },
   dayLabel: {
-    fontSize: 9,
+    fontSize: 11,
     fontWeight: '600',
   },
   dateLabel: {
-    fontSize: 8,
-    color: COLORS.textDisabled,
+    fontSize: 11,
+    color: COLORS.textMuted,
   },
   empty: {
     height: 100,

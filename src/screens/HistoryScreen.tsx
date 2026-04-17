@@ -40,23 +40,23 @@ function SleepChart({ logs }: { logs: DailyLog[] }) {
           const showLabel = i === 0 || i === recent.length - 1 || i % 3 === 0;
           return (
             <View key={l.date} style={{ flex: 1, alignItems: 'center' }}>
-              <Text style={{ color, fontSize: 8, fontWeight: '700', marginBottom: 2, opacity: isGood ? 1 : 0.7 }}>
+              <Text style={{ color, fontSize: 11, fontWeight: '700', marginBottom: 2, opacity: isGood ? 1 : 0.8 }}>
                 {h}h
               </Text>
               <View style={{ width: BAR_W, height: CHART_H, justifyContent: 'flex-end', backgroundColor: COLORS.bgHighlight, borderRadius: BAR_W / 2 }}>
                 <View style={{ width: BAR_W, height: barH, backgroundColor: color, borderRadius: BAR_W / 2, opacity: 0.85 }} />
               </View>
               {showLabel
-                ? <Text style={{ color: COLORS.textMuted, fontSize: 8, marginTop: 2 }}>{l.date.slice(5)}</Text>
-                : <View style={{ height: 12 }} />
+                ? <Text style={{ color: COLORS.textSub, fontSize: 11, marginTop: 2 }}>{l.date.slice(5)}</Text>
+                : <View style={{ height: 14 }} />
               }
             </View>
           );
         })}
       </View>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
-        <Text style={{ color: COLORS.textMuted, fontSize: 10 }}>7h 이상 권장</Text>
-        <Text style={{ color: COLORS.teal, fontSize: 10 }}>평균 {avg.toFixed(1)}h</Text>
+        <Text style={{ color: COLORS.textSub, fontSize: FONTS.xs }}>7h 이상 권장</Text>
+        <Text style={{ color: COLORS.teal, fontSize: FONTS.xs, fontWeight: '700' }}>평균 {avg.toFixed(1)}h</Text>
       </View>
     </View>
   );
@@ -567,24 +567,24 @@ function WeightGraph({ entries }: { entries: WeightEntry[] }) {
           const showLabel = i === 0 || i === display.length - 1 || i % 3 === 0;
           return (
             <View key={e.date} style={{ flex: 1, alignItems: 'center' }}>
-              <Text style={{ color: isLatest ? COLORS.teal : COLORS.textDisabled, fontSize: 8, fontWeight: isLatest ? '900' : '400', marginBottom: 2 }}>
+              <Text style={{ color: isLatest ? COLORS.teal : COLORS.textSub, fontSize: 11, fontWeight: isLatest ? '900' : '400', marginBottom: 2 }}>
                 {e.weightKg}
               </Text>
               <View style={{ width: BAR_W, height: BAR_H, justifyContent: 'flex-end', backgroundColor: COLORS.bgHighlight, borderRadius: BAR_W / 2 }}>
                 <View style={{ width: BAR_W, height: h, backgroundColor: isLatest ? COLORS.teal : COLORS.blue, borderRadius: BAR_W / 2, opacity: 0.85 }} />
               </View>
               {showLabel
-                ? <Text style={{ color: COLORS.textMuted, fontSize: 8, marginTop: 2 }}>{e.date.slice(5)}</Text>
-                : <View style={{ height: 12 }} />
+                ? <Text style={{ color: COLORS.textSub, fontSize: 11, marginTop: 2 }}>{e.date.slice(5)}</Text>
+                : <View style={{ height: 14 }} />
               }
             </View>
           );
         })}
       </View>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
-        <Text style={{ color: COLORS.textMuted, fontSize: 10 }}>최소 {Math.min(...weights).toFixed(1)}kg</Text>
-        <Text style={{ color: COLORS.teal, fontSize: 10, fontWeight: '700' }}>현재 {display[display.length - 1].weightKg}kg</Text>
-        <Text style={{ color: COLORS.textMuted, fontSize: 10 }}>최대 {Math.max(...weights).toFixed(1)}kg</Text>
+        <Text style={{ color: COLORS.textSub, fontSize: FONTS.xs }}>최소 {Math.min(...weights).toFixed(1)}kg</Text>
+        <Text style={{ color: COLORS.teal, fontSize: FONTS.xs, fontWeight: '700' }}>현재 {display[display.length - 1].weightKg}kg</Text>
+        <Text style={{ color: COLORS.textSub, fontSize: FONTS.xs }}>최대 {Math.max(...weights).toFixed(1)}kg</Text>
       </View>
     </View>
   );
@@ -662,8 +662,8 @@ const styles = StyleSheet.create({
   },
   summaryItem: { alignItems: 'center', minWidth: 60 },
   summaryValue: { fontSize: FONTS.xl, fontWeight: '900', color: COLORS.text },
-  summaryUnit: { color: COLORS.textMuted, fontSize: 9 },
-  summaryLabel: { color: COLORS.textMuted, fontSize: FONTS.xs, marginTop: 2 },
+  summaryUnit: { color: COLORS.textMuted, fontSize: 11 },
+  summaryLabel: { color: COLORS.textSub, fontSize: FONTS.xs, marginTop: 2 },
   divider: { width: 1, backgroundColor: COLORS.border },
   card: {
     backgroundColor: COLORS.bgCard, borderRadius: RADIUS.lg,
@@ -678,7 +678,7 @@ const styles = StyleSheet.create({
   },
   reportEmoji: { fontSize: 20 },
   reportValue: { fontSize: FONTS.md, fontWeight: '900' },
-  reportLabel: { color: COLORS.textMuted, fontSize: 10 },
+  reportLabel: { color: COLORS.textSub, fontSize: FONTS.xs },
   weekAdvice: {
     backgroundColor: COLORS.bgHighlight, borderRadius: RADIUS.md,
     padding: SPACING.sm, marginTop: SPACING.sm,
@@ -703,15 +703,15 @@ const styles = StyleSheet.create({
   logScore: { fontSize: FONTS.lg, fontWeight: '900' },
   logStats: { flexDirection: 'row', gap: SPACING.md },
   logStatItem: { alignItems: 'center' },
-  logStatLabel: { color: COLORS.textMuted, fontSize: FONTS.xs },
-  logStatValue: { color: COLORS.text, fontSize: FONTS.sm, fontWeight: '600' },
+  logStatLabel: { color: COLORS.textSub, fontSize: FONTS.xs },
+  logStatValue: { color: COLORS.text, fontSize: FONTS.sm, fontWeight: '700' },
   miniStatRow: {
     flexDirection: 'row', justifyContent: 'space-around',
     backgroundColor: COLORS.bgHighlight, borderRadius: RADIUS.md, padding: SPACING.sm,
   },
   miniStat: { alignItems: 'center' },
   miniStatVal: { fontSize: FONTS.sm, fontWeight: '900' },
-  miniStatLabel: { color: COLORS.textDisabled, fontSize: 9 },
+  miniStatLabel: { color: COLORS.textMuted, fontSize: FONTS.xxs },
 
   // 칼로리 / 혈당 추가 행
   logExtraRow: {
@@ -720,8 +720,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.sm, paddingVertical: 6,
   },
   logExtraItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  logExtraLabel: { color: COLORS.textMuted, fontSize: 10 },
-  logExtraVal: { color: COLORS.text, fontSize: 11, fontWeight: '700', fontFamily: 'monospace' },
+  logExtraLabel: { color: COLORS.textSub, fontSize: FONTS.xs },
+  logExtraVal: { color: COLORS.text, fontSize: FONTS.sm, fontWeight: '700', fontFamily: 'monospace' },
 
   // 체중
   addWeightBtn: { backgroundColor: COLORS.teal + '22', borderRadius: RADIUS.full, paddingHorizontal: 12, paddingVertical: 5, borderWidth: 1, borderColor: COLORS.teal + '44' },

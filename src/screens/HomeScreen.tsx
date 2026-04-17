@@ -1015,11 +1015,11 @@ function BSSparkline({ entries }: { entries: any[] }) {
         const h = Math.max(4, (e.value / maxVal) * BAR_H);
         return (
           <View key={e.date} style={{ flex: 1, alignItems: 'center' }}>
-            <Text style={{ color: col, fontSize: 8, fontWeight: '700', marginBottom: 2 }}>{e.value}</Text>
+            <Text style={{ color: col, fontSize: 11, fontWeight: '700', marginBottom: 2 }}>{e.value}</Text>
             <View style={{ width: BAR_W, height: BAR_H, justifyContent: 'flex-end', backgroundColor: COLORS.bgHighlight, borderRadius: BAR_W / 2 }}>
               <View style={{ width: BAR_W, height: h, backgroundColor: col, borderRadius: BAR_W / 2, opacity: 0.9 }} />
             </View>
-            <Text style={{ color: COLORS.textMuted, fontSize: 9, marginTop: 2 }}>{e.date.slice(5)}</Text>
+            <Text style={{ color: COLORS.textSub, fontSize: 11, marginTop: 2 }}>{e.date.slice(5)}</Text>
           </View>
         );
       })}
@@ -1041,15 +1041,15 @@ function ScoreSparkline({ logs }: { logs: any[] }) {
         const isWeekend = log.date ? (new Date(log.date).getDay() === 0 || new Date(log.date).getDay() === 6) : false;
         return (
           <View key={log.date ?? i} style={{ flex: 1, alignItems: 'center' }}>
-            <Text style={{ color: rank.color, fontSize: 9, fontWeight: '900', marginBottom: 3, fontFamily: 'monospace' }}>
+            <Text style={{ color: rank.color, fontSize: 11, fontWeight: '900', marginBottom: 3, fontFamily: 'monospace' }}>
               {log.conditionScore}
             </Text>
             {/* 배경 트랙 */}
             <View style={{ width: BAR_W, height: BAR_H, justifyContent: 'flex-end', backgroundColor: COLORS.bgHighlight, borderRadius: BAR_W / 2 }}>
               <View style={{ width: BAR_W, height: h, backgroundColor: rank.color, borderRadius: BAR_W / 2, opacity: 0.9 }} />
             </View>
-            <Text style={{ color: isWeekend ? COLORS.purple : COLORS.textMuted, fontSize: 9, marginTop: 4 }}>{dayName}</Text>
-            <Text style={{ color: COLORS.textDisabled, fontSize: 8, marginTop: 1 }}>{dateStr}</Text>
+            <Text style={{ color: isWeekend ? COLORS.purple : COLORS.textSub, fontSize: 11, marginTop: 4 }}>{dayName}</Text>
+            <Text style={{ color: COLORS.textMuted, fontSize: 11, marginTop: 1 }}>{dateStr}</Text>
           </View>
         );
       })}
@@ -1238,8 +1238,8 @@ const s = StyleSheet.create({
   achieveItem: { alignItems: 'center', width: '18%', gap: 3 },
   achieveLocked: {},
   achieveEmoji: { fontSize: 24 },
-  achieveName: { color: COLORS.textSub, fontSize: 9, textAlign: 'center' },
-  achieveDone: { color: COLORS.gold, fontSize: 8, fontWeight: '900' },
+  achieveName: { color: COLORS.textSub, fontSize: FONTS.xxs, textAlign: 'center' },
+  achieveDone: { color: COLORS.gold, fontSize: FONTS.xxs, fontWeight: '900' },
   achieveProgressList: { gap: 8, marginTop: 4 },
   achieveProgressRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   achieveProgressLabel: { color: COLORS.textSub, fontSize: FONTS.xxs, width: 100 },

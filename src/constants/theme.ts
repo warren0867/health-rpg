@@ -30,11 +30,11 @@ export const COLORS = {
   agi:          '#9B6DFF',   // AGI (바이올렛)
   int:          '#2ECC71',   // INT (에메랄드)
 
-  // 텍스트 (대비 개선)
-  text:         '#E8EDF8',   // 메인 텍스트 (차가운 화이트 → 따뜻한 오프화이트)
-  textSub:      '#9AAABF',   // 서브 텍스트
-  textMuted:    '#627090',   // 뮤트 텍스트
-  textDisabled: '#38445A',   // 비활성
+  // 텍스트 (대비 강화 — 다크 배경 가독성 확보)
+  text:         '#F0F4FF',   // 메인 텍스트 (더 밝게)
+  textSub:      '#C4D4E8',   // 서브 텍스트 (9AAABF → C4D4E8)
+  textMuted:    '#8FA8C8',   // 뮤트 텍스트 (627090 → 8FA8C8, 충분한 대비)
+  textDisabled: '#607088',   // 비활성 (38445A → 607088)
 
   // 테두리 (더 선명하게)
   border:       '#283450',   // 일반 테두리
@@ -43,14 +43,14 @@ export const COLORS = {
 } as const;
 
 export const FONTS = {
-  xxs: 11,   // 10 → 11 (가독성 최소 보장)
-  xs:  12,   // 11 → 12
-  sm:  14,   // 13 → 14
-  md:  16,   // 15 → 16
-  lg:  18,   // 17 → 18
-  xl:  22,   // 21 → 22
-  xxl: 28,   // 26 → 28
-  xxxl: 40,  // 38 → 40
+  xxs: 12,   // 11 → 12
+  xs:  13,   // 12 → 13
+  sm:  15,   // 14 → 15
+  md:  16,
+  lg:  19,   // 18 → 19
+  xl:  22,
+  xxl: 28,
+  xxxl: 40,
 } as const;
 
 export const RADIUS = {
