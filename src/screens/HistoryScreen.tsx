@@ -1,6 +1,7 @@
 import * as Haptics from 'expo-haptics';
 import { useFocusEffect } from '@react-navigation/native';
 import React, { useCallback, useState } from 'react';
+import { useRefresh } from '../context/RefreshContext';
 import { ActivityIndicator, Alert, Clipboard, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MiniGraph from '../components/MiniGraph';
@@ -197,6 +198,7 @@ const cal = StyleSheet.create({
 
 export default function HistoryScreen() {
   const today = getTodayKey();
+  const { triggerRefresh } = useRefresh();
   const now = new Date();
   const [logs, setLogs] = useState<DailyLog[]>([]);
   const [logMap, setLogMap] = useState<Record<string, DailyLog>>({});
@@ -329,6 +331,7 @@ export default function HistoryScreen() {
     setWeightHistory(updated);
     setWeightInput('');
     setShowWeightModal(false);
+    triggerRefresh();
   };
 
   if (loading) {

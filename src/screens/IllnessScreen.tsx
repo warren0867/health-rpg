@@ -1,6 +1,7 @@
 import * as Haptics from 'expo-haptics';
 import { useFocusEffect } from '@react-navigation/native';
 import React, { useCallback, useState } from 'react';
+import { useRefresh } from '../context/RefreshContext';
 import {
   Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
@@ -38,6 +39,7 @@ const SEVERITY_LABELS = ['', '가벼움', '약함', '보통', '심함', '매우 
 const SEVERITY_COLORS = ['', COLORS.teal, COLORS.teal, COLORS.gold, COLORS.orange, COLORS.red];
 
 export default function IllnessScreen() {
+  const { triggerRefresh } = useRefresh();
   const today = getTodayKey();
   const [illnesses, setIllnesses] = useState<IllnessEntry[]>([]);
   const [current, setCurrent] = useState<IllnessEntry | null>(null);
@@ -103,6 +105,7 @@ export default function IllnessScreen() {
     await Promise.all(dates.map(d => syncDailyLogCalories(d)));
     setShowForm(false);
     load();
+    triggerRefresh();
   };
 
   const handleRecover = async (e: IllnessEntry) => {
@@ -113,6 +116,7 @@ export default function IllnessScreen() {
     const dates = getDatesInRange(e.startDate, today);
     await Promise.all(dates.map(d => syncDailyLogCalories(d)));
     load();
+    triggerRefresh();
   };
 
   const handleDelete = (e: IllnessEntry) => {

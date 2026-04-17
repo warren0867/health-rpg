@@ -1,6 +1,7 @@
 import * as Haptics from 'expo-haptics';
 import { useFocusEffect } from '@react-navigation/native';
 import React, { useCallback, useState } from 'react';
+import { useRefresh } from '../context/RefreshContext';
 import {
   Alert,
   Modal,
@@ -109,6 +110,7 @@ const REFERENCE = [
 // ─────────────────────────────────────────────
 
 export default function BloodSugarScreen() {
+  const { triggerRefresh } = useRefresh();
   const today = getTodayKey();
 
   const [todayEntries, setTodayEntries] = useState<BloodSugarEntry[]>([]);
@@ -168,6 +170,7 @@ export default function BloodSugarScreen() {
     setInputTiming('fasting');
     setShowModal(false);
     load();
+    triggerRefresh();
   };
 
   const handleDelete = (entry: BloodSugarEntry) => {

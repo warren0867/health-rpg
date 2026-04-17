@@ -1,6 +1,7 @@
 import * as Haptics from 'expo-haptics';
 import { useFocusEffect } from '@react-navigation/native';
 import React, { useCallback, useRef, useState, useEffect } from 'react';
+import { useRefresh } from '../context/RefreshContext';
 import {
   Alert,
   FlatList,
@@ -120,6 +121,8 @@ export default function CalorieScreen() {
   const [customServing, setCustomServing] = useState('1인분');
   const [customGi, setCustomGi] = useState<GlycemicIndex>('medium');
 
+  const { triggerRefresh } = useRefresh();
+
   const load = useCallback(async () => {
     const [p, foodEntries, customs, favs, recents, dayLog] = await Promise.all([
       getUserProfile(), getFoodEntriesByDate(selectedDate),
@@ -209,6 +212,7 @@ export default function CalorieScreen() {
     setSearchQuery('');
     setSearchTab('recent');
     load();
+    triggerRefresh();
   };
 
   const handleToggleFav = async (foodId: string) => {
@@ -226,6 +230,7 @@ export default function CalorieScreen() {
     const fresh = await getFoodEntriesByDate(selectedDate);
     setEntries(fresh);
     setSummary(sumFoodEntries(fresh));
+    triggerRefresh();
   };
 
   const handleOpenEdit = (entry: FoodEntry) => {
@@ -255,6 +260,7 @@ export default function CalorieScreen() {
     setEntries(fresh);
     setSummary(sumFoodEntries(fresh));
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    triggerRefresh();
   };
 
   const handleCopyYesterday = () => {
@@ -269,7 +275,7 @@ export default function CalorieScreen() {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         const count = await copyYesterdayMeals(selectedDate, prevDay);
         if (count === 0) Alert.alert('알림', `${fromLabel} 기록이 없어요`);
-        else load();
+        else { load(); triggerRefresh(); }
       }},
     ]);
   };

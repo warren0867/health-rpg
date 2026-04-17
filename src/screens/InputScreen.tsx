@@ -2,6 +2,7 @@ import * as Haptics from 'expo-haptics';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import React, { useCallback, useEffect, useState } from 'react';
+import { useRefresh } from '../context/RefreshContext';
 import { Alert, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS, FONTS, RADIUS, SPACING } from '../constants/theme';
@@ -91,6 +92,7 @@ function EffectTag({ label, color }: { label: string; color: string }) {
 
 export default function InputScreen() {
   const navigation = useNavigation<Nav>();
+  const { triggerRefresh } = useRefresh();
   const today = getTodayKey();
   const dateOptions = getDateOptions(7);
 
@@ -238,6 +240,7 @@ export default function InputScreen() {
 
     setSaving(false);
     setHasExisting(true);
+    triggerRefresh();
 
     if (goToResult) {
       navigation.navigate('Result', { log });

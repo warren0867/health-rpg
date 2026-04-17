@@ -7,6 +7,7 @@ import React, { useEffect, useState } from 'react';
 import { StyleSheet } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { COLORS, FONTS } from './src/constants/theme';
+import { RefreshProvider } from './src/context/RefreshContext';
 import BloodSugarScreen from './src/screens/BloodSugarScreen';
 import CalorieScreen from './src/screens/CalorieScreen';
 import HistoryScreen from './src/screens/HistoryScreen';
@@ -66,6 +67,7 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
+      <RefreshProvider>
       <StatusBar style="light" />
       <NavigationContainer>
         <Stack.Navigator
@@ -84,6 +86,7 @@ export default function App() {
           />
         </Stack.Navigator>
       </NavigationContainer>
+      </RefreshProvider>
     </SafeAreaProvider>
   );
 }

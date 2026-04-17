@@ -1,7 +1,8 @@
 import * as Haptics from 'expo-haptics';
 import { useFocusEffect } from '@react-navigation/native';
 import { useNavigation } from '@react-navigation/native';
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
+import { useRefresh } from '../context/RefreshContext';
 import {
   Alert, Modal, ScrollView, StyleSheet, Switch,
   Text, TextInput, TouchableOpacity, View,
@@ -251,6 +252,10 @@ export default function HomeScreen() {
   }, [today]);
 
   useFocusEffect(useCallback(() => { setLoading(true); load(); }, [load]));
+
+  // 다른 탭에서 데이터 저장 시 자동 갱신
+  const { refreshKey } = useRefresh();
+  useEffect(() => { load(); }, [refreshKey]);
 
   const handleSaveBS = async () => {
     const v = parseInt(bsInput);
