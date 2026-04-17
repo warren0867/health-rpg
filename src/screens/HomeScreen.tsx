@@ -513,17 +513,15 @@ export default function HomeScreen() {
           </TouchableOpacity>
         )}
 
-        {/* ── HP/MP 스탯 ── */}
+        {/* ── 캐릭터 스탯 ── */}
         {stats && (
           <View style={s.card}>
             <Text style={s.sectionTitle}>⚡ 캐릭터 스탯</Text>
-            <HeroBar label="HP  체력" value={stats.hp}               color={COLORS.hp}  icon="❤️" />
-            <HeroBar label="MP  혈당제어" value={stats.bloodSugarControl} color={COLORS.mp}  icon="💧" />
-            <View style={{ height: 6 }} />
-            <StatBar label="지구력" abbr="STR" value={stats.stamina}           color={COLORS.str} />
-            <StatBar label="회복력" abbr="VIT" value={stats.recovery}          color={COLORS.vit} />
-            <StatBar label="컨디션" abbr="AGI" value={stats.condition}         color={COLORS.agi} />
-            <StatBar label="혈당제어" abbr="INT" value={stats.bloodSugarControl} color={COLORS.int} />
+            <StatBar label="체력"    abbr="HP"  value={stats.hp}                color={COLORS.hp}  />
+            <StatBar label="지구력"  abbr="STR" value={stats.stamina}           color={COLORS.str} />
+            <StatBar label="회복력"  abbr="VIT" value={stats.recovery}          color={COLORS.vit} />
+            <StatBar label="혈당조절" abbr="MP"  value={stats.bloodSugarControl} color={COLORS.mp}  />
+            <StatBar label="컨디션"  abbr="CON" value={stats.condition}         color={COLORS.agi} />
           </View>
         )}
         {!stats && (
@@ -1131,7 +1129,7 @@ const s = StyleSheet.create({
   rankBadge: { borderRadius: RADIUS.xs, paddingHorizontal: 6, paddingVertical: 2 },
   rankText: { fontSize: FONTS.xxs, fontWeight: '700' },
   characterRight: { alignItems: 'center' },
-  scoreNum: { fontSize: FONTS.xxxl, fontWeight: '900', fontFamily: 'monospace', lineHeight: 42 },
+  scoreNum: { fontSize: 32, fontWeight: '900', fontFamily: 'monospace', lineHeight: 36 },
   scoreLabel: { color: COLORS.textMuted, fontSize: FONTS.xxs, letterSpacing: 2 },
   weightChip: { color: COLORS.textSub, fontSize: FONTS.xxs, fontWeight: '700', marginTop: 4 },
 

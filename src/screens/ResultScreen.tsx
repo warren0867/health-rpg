@@ -230,7 +230,7 @@ export default function ResultScreen() {
           </TouchableOpacity>
           <TouchableOpacity
             style={[r.homeBtn, { borderColor: rank.color + '44', flex: 2 }]}
-            onPress={() => (navigation as any).navigate('MainTabs')}
+            onPress={() => (navigation as any).navigate('MainTabs', { screen: 'Home' })}
           >
             <Text style={[r.homeBtnText, { color: rank.color }]}>← 홈으로</Text>
           </TouchableOpacity>
@@ -280,11 +280,11 @@ const r = StyleSheet.create({
   scroll: { padding: SPACING.md },
 
   // 결과 배너
-  resultBanner: { backgroundColor: COLORS.bgCard, borderRadius: RADIUS.xl, padding: SPACING.lg, alignItems: 'center', marginBottom: SPACING.sm, borderWidth: 1 },
-  resultLabel: { fontSize: FONTS.xs, fontWeight: '900', letterSpacing: 4, marginBottom: 8 },
-  avatarText: { fontSize: 60, marginBottom: 4 },
-  scoreNum: { fontSize: 80, fontWeight: '900', lineHeight: 86, fontFamily: 'monospace' },
-  scoreUnit: { color: COLORS.textMuted, fontSize: FONTS.sm, marginBottom: 10 },
+  resultBanner: { backgroundColor: COLORS.bgCard, borderRadius: RADIUS.xl, padding: SPACING.md, alignItems: 'center', marginBottom: SPACING.sm, borderWidth: 1 },
+  resultLabel: { fontSize: FONTS.xs, fontWeight: '900', letterSpacing: 3, marginBottom: 6 },
+  avatarText: { fontSize: 42, marginBottom: 2 },
+  scoreNum: { fontSize: 56, fontWeight: '900', lineHeight: 62, fontFamily: 'monospace' },
+  scoreUnit: { color: COLORS.textMuted, fontSize: FONTS.xs, marginBottom: 8 },
   rankPill: { borderRadius: RADIUS.full, borderWidth: 1, paddingHorizontal: 16, paddingVertical: 5, marginBottom: 12 },
   rankPillText: { fontSize: FONTS.sm, fontWeight: '700', letterSpacing: 1 },
   feedbackText: { color: COLORS.textMuted, fontSize: FONTS.sm, fontStyle: 'italic', textAlign: 'center', lineHeight: 20 },
@@ -348,7 +348,7 @@ const r = StyleSheet.create({
   },
   levelUpStars: { fontSize: 32, marginBottom: 4 },
   levelUpTitle: { fontSize: FONTS.xs, fontWeight: '900', letterSpacing: 6, color: COLORS.gold, marginBottom: 8 },
-  levelUpLevel: { fontSize: 72, fontWeight: '900', color: COLORS.gold, lineHeight: 78, fontFamily: 'monospace' },
+  levelUpLevel: { fontSize: 52, fontWeight: '900', color: COLORS.gold, lineHeight: 58, fontFamily: 'monospace' },
   levelUpSubtitle: { fontSize: FONTS.lg, fontWeight: '900', color: COLORS.text, marginTop: 4, marginBottom: 4 },
   levelUpDesc: { fontSize: FONTS.xs, color: COLORS.textMuted, marginBottom: SPACING.md },
   levelUpBtn: { backgroundColor: COLORS.gold, borderRadius: RADIUS.full, paddingHorizontal: 40, paddingVertical: 12 },
