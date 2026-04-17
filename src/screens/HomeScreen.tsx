@@ -599,7 +599,7 @@ export default function HomeScreen() {
                 onPress={() => { setWaterGoalInput(String(WATER_GOAL)); setShowWaterGoalModal(true); }}
                 style={{ backgroundColor: COLORS.bgHighlight, borderRadius: RADIUS.full, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: COLORS.border }}
               >
-                <Text style={{ color: COLORS.textMuted, fontSize: 10 }}>목표 설정</Text>
+                <Text style={{ color: COLORS.textMuted, fontSize: FONTS.xs }}>목표 설정</Text>
               </TouchableOpacity>
             </View>
           </View>

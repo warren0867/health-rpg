@@ -473,7 +473,7 @@ const s = StyleSheet.create({
     borderRadius: RADIUS.md, borderWidth: 1.5, borderColor: COLORS.border, backgroundColor: COLORS.bgInput,
   },
   svBtnNum: { color: COLORS.textMuted, fontSize: FONTS.md, fontWeight: '900' },
-  svBtnLabel: { color: COLORS.textDisabled, fontSize: 9 },
+  svBtnLabel: { color: COLORS.textMuted, fontSize: FONTS.xs },
   symptomGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 10 },
   symptomPick: {
     borderWidth: 1.5, borderColor: COLORS.border, borderRadius: RADIUS.sm,

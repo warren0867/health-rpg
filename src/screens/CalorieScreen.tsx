@@ -455,7 +455,7 @@ export default function CalorieScreen() {
                           <Text style={styles.entryName}>{entry.foodName}</Text>
                           {food?.gi && <Text>{GI_CONFIG[food.gi].emoji}</Text>}
                           {food?.isCustom && <Text style={styles.customBadge}>MY</Text>}
-                          {isEditing && <Text style={{ color: COLORS.purple, fontSize: 10, marginLeft: 4 }}>✏️ 수정</Text>}
+                          {isEditing && <Text style={{ color: COLORS.purple, fontSize: FONTS.xs, marginLeft: 4 }}>✏️ 수정</Text>}
                         </View>
                         <Text style={styles.entryMeta}>
                           {entry.servings}인분 · 탄 {entry.carbs}g · 단 {entry.protein}g · 지 {entry.fat}g
@@ -909,7 +909,7 @@ const styles = StyleSheet.create({
   entryName: { color: COLORS.text, fontSize: FONTS.sm, fontWeight: '600' },
   customBadge: {
     backgroundColor: COLORS.purple + '33', borderRadius: 4,
-    paddingHorizontal: 4, color: COLORS.purple, fontSize: 9, fontWeight: '900',
+    paddingHorizontal: 4, color: COLORS.purple, fontSize: FONTS.xxs, fontWeight: '900',
   },
   entryMeta: { color: COLORS.textMuted, fontSize: FONTS.xs, marginTop: 2 },
   entryCal: { color: COLORS.gold, fontWeight: '700', fontSize: FONTS.sm },
@@ -945,12 +945,12 @@ const styles = StyleSheet.create({
   foodName: { color: COLORS.text, fontSize: FONTS.xs, fontWeight: '700', flexShrink: 1 },
   countBadge: {
     backgroundColor: COLORS.teal + '33', borderRadius: 3,
-    paddingHorizontal: 4, color: COLORS.teal, fontSize: 9, fontWeight: '700',
+    paddingHorizontal: 4, color: COLORS.teal, fontSize: FONTS.xxs, fontWeight: '700',
   },
-  foodMeta: { color: COLORS.textDisabled, fontSize: 10, marginTop: 1 },
+  foodMeta: { color: COLORS.textSub, fontSize: FONTS.xs, marginTop: 1 },
   foodRowRight: { alignItems: 'flex-end', gap: 3 },
   foodCal: { fontSize: FONTS.xs, fontWeight: '900', fontFamily: 'monospace' },
-  foodCalUnit: { color: COLORS.textMuted, fontSize: 10 },
+  foodCalUnit: { color: COLORS.textSub, fontSize: FONTS.xs },
   favIcon: { fontSize: 13, color: COLORS.textMuted },
 
   // 선택된 음식 패널
@@ -985,7 +985,7 @@ const styles = StyleSheet.create({
     padding: 6, alignItems: 'center',
   },
   nutriValue: { fontSize: FONTS.sm, fontWeight: '900' },
-  nutriLabel: { color: COLORS.textMuted, fontSize: 10 },
+  nutriLabel: { color: COLORS.textSub, fontSize: FONTS.xs },
   // 혈당 예측 카드
   bgEstCard: {
     borderRadius: RADIUS.md, borderWidth: 1.5,

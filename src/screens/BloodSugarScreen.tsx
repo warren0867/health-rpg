@@ -617,7 +617,7 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: COLORS.gold + '88',
   },
-  trendDate: { fontSize: 10, color: COLORS.textMuted },
+  trendDate: { fontSize: FONTS.xs, color: COLORS.textSub },
   thresholdLabel: { color: COLORS.gold, fontSize: FONTS.xs, marginTop: 4 },
   // 오늘 기록
   entryCard: {
@@ -632,14 +632,14 @@ const styles = StyleSheet.create({
   entryStatus: { fontSize: FONTS.xs, fontWeight: '700' },
   entryValue: { fontSize: FONTS.xxl, fontWeight: '900', marginVertical: 2 },
   entryAdvice: { color: COLORS.textMuted, fontSize: FONTS.xs, marginBottom: 2 },
-  entryTime: { color: COLORS.textDisabled, fontSize: FONTS.xs },
-  longPressHint: { color: COLORS.textDisabled, fontSize: 10, marginTop: 2 },
+  entryTime: { color: COLORS.textMuted, fontSize: FONTS.xs },
+  longPressHint: { color: COLORS.textMuted, fontSize: FONTS.xs, marginTop: 2 },
   // 정상 범위
   refRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 3 },
   refDot: { width: 8, height: 8, borderRadius: 4 },
   refLabel: { flex: 1, color: COLORS.textMuted, fontSize: FONTS.xs },
   refRange: { fontSize: FONTS.xs, fontWeight: '700' },
-  disclaimerText: { color: COLORS.textDisabled, fontSize: FONTS.xs, marginTop: 8, lineHeight: 16 },
+  disclaimerText: { color: COLORS.textMuted, fontSize: FONTS.xs, marginTop: 8, lineHeight: 16 },
   // HbA1c
   hbRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   hbLeft: { flex: 1 },
@@ -667,24 +667,24 @@ const styles = StyleSheet.create({
   timingFill: { height: '100%', borderRadius: 4 },
   timingThreshold: { position: 'absolute', top: -3, bottom: -3, width: 1.5, backgroundColor: COLORS.border },
   timingAvgVal: { fontSize: FONTS.sm, fontWeight: '900', width: 36, textAlign: 'right', fontFamily: 'monospace' },
-  timingCount: { color: COLORS.textDisabled, fontSize: FONTS.xxs, width: 24, textAlign: 'right' },
-  timingNote: { color: COLORS.textDisabled, fontSize: FONTS.xxs, marginTop: 6 },
+  timingCount: { color: COLORS.textMuted, fontSize: FONTS.xxs, width: 24, textAlign: 'right' },
+  timingNote: { color: COLORS.textMuted, fontSize: FONTS.xxs, marginTop: 6 },
   // 팁
   tipRow: { flexDirection: 'row', gap: 10, paddingVertical: 5 },
   tipEmoji: { fontSize: 18, marginTop: 2 },
   tipTagRow: { flexDirection: 'row', marginBottom: 2 },
   tipTag: { backgroundColor: COLORS.purple + '22', borderRadius: RADIUS.full, paddingHorizontal: 7, paddingVertical: 1 },
-  tipTagText: { color: COLORS.purple, fontSize: 10, fontWeight: '700' },
+  tipTagText: { color: COLORS.purple, fontSize: FONTS.xs, fontWeight: '700' },
   tipText: { color: COLORS.textMuted, fontSize: FONTS.xs, lineHeight: 18 },
   // 스파이크 설명
   spikeDesc: { color: COLORS.textMuted, fontSize: FONTS.xs, lineHeight: 18, marginBottom: 14 },
   spikeChart: { flexDirection: 'row', alignItems: 'flex-end', gap: 4, height: 110, marginBottom: 8 },
   spikeCol: { flex: 1, alignItems: 'center' },
-  spikeVal: { fontSize: 9, fontWeight: '700', marginBottom: 3 },
+  spikeVal: { fontSize: FONTS.xs, fontWeight: '700', marginBottom: 3 },
   spikeBarTrack: { width: '80%', height: 80, justifyContent: 'flex-end', alignItems: 'center' },
   spikeBar: { width: '100%', borderRadius: 3, opacity: 0.85 },
-  spikeLabel: { color: COLORS.textMuted, fontSize: 9, marginTop: 4, textAlign: 'center' },
-  spikeNote: { color: COLORS.textDisabled, fontSize: FONTS.xxs, textAlign: 'center' },
+  spikeLabel: { color: COLORS.textSub, fontSize: FONTS.xs, marginTop: 4, textAlign: 'center' },
+  spikeNote: { color: COLORS.textMuted, fontSize: FONTS.xxs, textAlign: 'center' },
   // 모달
   modalOverlay: {
     flex: 1,
@@ -743,7 +743,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.purple + '22',
   },
   timingBtnText: { color: COLORS.textMuted, fontSize: FONTS.sm, fontWeight: '600' },
-  timingBtnDesc: { color: COLORS.textDisabled, fontSize: 10 },
+  timingBtnDesc: { color: COLORS.textMuted, fontSize: FONTS.xs },
   modalBtnRow: {
     flexDirection: 'row',
     gap: SPACING.sm,

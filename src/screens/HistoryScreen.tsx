@@ -21,41 +21,69 @@ function getBMILabel(bmi: number): { label: string; color: string } {
   return { label: '비만', color: COLORS.red };
 }
 
-// 수면 패턴 바 차트
+// 수면 패턴 바 차트 (연속 날짜 보장)
 function SleepChart({ logs }: { logs: DailyLog[] }) {
-  const recent = [...logs].reverse().slice(-14);
-  if (recent.length === 0) return null;
-  const MAX_H = 10;
+  if (logs.length === 0) return null;
+
+  // 날짜→로그 맵
+  const logMap: Record<string, DailyLog> = {};
+  logs.forEach(l => { logMap[l.date] = l; });
+
+  // 첫 기록일부터 오늘까지 연속 날짜 생성 (최대 14일)
+  const today = new Date().toISOString().split('T')[0];
+  const sorted = [...logs].sort((a, b) => a.date.localeCompare(b.date));
+  const startDate = sorted[Math.max(0, sorted.length - 14)].date;
+  const days: string[] = [];
+  const d = new Date(startDate);
+  while (d.toISOString().split('T')[0] <= today) {
+    days.push(d.toISOString().split('T')[0]);
+    d.setDate(d.getDate() + 1);
+  }
+
   const CHART_H = 52;
   const BAR_W = 7;
-  const avg = recent.reduce((s, l) => s + l.sleep.hours, 0) / recent.length;
+  const MAX_H = 10;
+  const logsWithData = days.filter(date => logMap[date]);
+  if (logsWithData.length === 0) return null;
+  const avg = logsWithData.reduce((s, date) => s + logMap[date].sleep.hours, 0) / logsWithData.length;
+
   return (
     <View>
       <View style={{ flexDirection: 'row', alignItems: 'flex-end', height: CHART_H + 28 }}>
-        {recent.map((l, i) => {
-          const h = l.sleep.hours;
+        {days.map((date, i) => {
+          const log = logMap[date];
+          const showLabel = i === 0 || i === days.length - 1 || i % 3 === 0;
+          if (!log) {
+            // 기록 없는 날 — 빈 칸 표시
+            return (
+              <View key={date} style={{ flex: 1, alignItems: 'center' }}>
+                <View style={{ height: 14 }} />
+                <View style={{ width: BAR_W, height: CHART_H, backgroundColor: COLORS.bgHighlight, borderRadius: BAR_W / 2, opacity: 0.3 }} />
+                {showLabel
+                  ? <Text style={{ color: COLORS.textDisabled, fontSize: 11, marginTop: 2 }}>{date.slice(5)}</Text>
+                  : <View style={{ height: 14 }} />}
+              </View>
+            );
+          }
+          const h = log.sleep.hours;
           const barH = Math.max(4, Math.min(CHART_H, (h / MAX_H) * CHART_H));
           const isGood = h >= 7 && h <= 8;
           const color = isGood ? COLORS.teal : h >= 6 ? COLORS.gold : COLORS.red;
-          const showLabel = i === 0 || i === recent.length - 1 || i % 3 === 0;
           return (
-            <View key={l.date} style={{ flex: 1, alignItems: 'center' }}>
-              <Text style={{ color, fontSize: 11, fontWeight: '700', marginBottom: 2, opacity: isGood ? 1 : 0.8 }}>
-                {h}h
-              </Text>
+            <View key={date} style={{ flex: 1, alignItems: 'center' }}>
+              <Text style={{ color, fontSize: 11, fontWeight: '700', marginBottom: 2 }}>{h}h</Text>
               <View style={{ width: BAR_W, height: CHART_H, justifyContent: 'flex-end', backgroundColor: COLORS.bgHighlight, borderRadius: BAR_W / 2 }}>
-                <View style={{ width: BAR_W, height: barH, backgroundColor: color, borderRadius: BAR_W / 2, opacity: 0.85 }} />
+                <View style={{ width: BAR_W, height: barH, backgroundColor: color, borderRadius: BAR_W / 2, opacity: 0.9 }} />
               </View>
               {showLabel
-                ? <Text style={{ color: COLORS.textSub, fontSize: 11, marginTop: 2 }}>{l.date.slice(5)}</Text>
-                : <View style={{ height: 14 }} />
-              }
+                ? <Text style={{ color: COLORS.textSub, fontSize: 11, marginTop: 2 }}>{date.slice(5)}</Text>
+                : <View style={{ height: 14 }} />}
             </View>
           );
         })}
       </View>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
-        <Text style={{ color: COLORS.textSub, fontSize: FONTS.xs }}>7h 이상 권장</Text>
+        <Text style={{ color: COLORS.textSub, fontSize: FONTS.xs }}>7h 이상 권장  ·  기록 없는 날은 흐리게 표시</Text>
         <Text style={{ color: COLORS.teal, fontSize: FONTS.xs, fontWeight: '700' }}>평균 {avg.toFixed(1)}h</Text>
       </View>
     </View>
@@ -138,7 +166,7 @@ function MonthCalendar({ logMap, year, month, onPrev, onNext }: {
         {[{ label: '90+ 전설', color: '#FFD700' }, { label: '75+ 우수', color: '#9B6DFF' }, { label: '60+ 보통', color: '#56B4F5' }, { label: '60미만', color: '#FF5370' }].map(l => (
           <View key={l.label} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
             <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: l.color }} />
-            <Text style={{ color: COLORS.textMuted, fontSize: 10 }}>{l.label}</Text>
+            <Text style={{ color: COLORS.textSub, fontSize: FONTS.xs }}>{l.label}</Text>
           </View>
         ))}
       </View>
@@ -156,7 +184,7 @@ const cal = StyleSheet.create({
   cellToday: { backgroundColor: COLORS.purple + '12', borderRadius: 8 },
   dayNum: { color: COLORS.textSub, fontSize: FONTS.xxs, marginBottom: 3 },
   dot: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  dotScore: { color: '#fff', fontSize: 9, fontWeight: '900' },
+  dotScore: { color: '#fff', fontSize: FONTS.xxs, fontWeight: '900' },
   dotEmpty: { width: 6, height: 6, borderRadius: 3, backgroundColor: COLORS.bgHighlight, marginTop: 4 },
 });
 
@@ -471,7 +499,7 @@ export default function HistoryScreen() {
                           <Text style={styles.logExtraLabel}>🍽 칼로리</Text>
                           <Text style={[styles.logExtraVal, { color: calDiff > 200 ? COLORS.red : calDiff < -200 ? COLORS.blue : COLORS.teal }]}>
                             {totalCal}kcal{' '}
-                            <Text style={{ fontSize: 10 }}>
+                            <Text style={{ fontSize: FONTS.xs }}>
                               ({calDiff > 0 ? '+' : ''}{calDiff})
                             </Text>
                           </Text>
@@ -697,7 +725,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 7, paddingVertical: 2, borderWidth: 1, borderColor: COLORS.red + '44',
     flexShrink: 1,
   },
-  illnessPillText: { color: COLORS.red, fontSize: 10, fontWeight: '700' },
+  illnessPillText: { color: COLORS.red, fontSize: FONTS.xs, fontWeight: '700' },
   logRankBadge: { borderRadius: RADIUS.full, width: 28, height: 28, justifyContent: 'center', alignItems: 'center' },
   logRank: { fontWeight: '900', fontSize: FONTS.sm },
   logScore: { fontSize: FONTS.lg, fontWeight: '900' },
