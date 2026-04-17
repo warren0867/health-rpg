@@ -1,7 +1,7 @@
 import * as Haptics from 'expo-haptics';
 import { useFocusEffect } from '@react-navigation/native';
 import React, { useCallback, useState } from 'react';
-import { ActivityIndicator, Alert, Clipboard, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Clipboard, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MiniGraph from '../components/MiniGraph';
 import { COLORS, FONTS, getRank, RADIUS, SPACING } from '../constants/theme';
@@ -242,35 +242,70 @@ export default function HistoryScreen() {
   const handleExportData = async () => {
     try {
       const json = await exportAllData();
-      Clipboard.setString(json);
-      Alert.alert('백업 완료', '데이터가 클립보드에 복사됐어요.\n메모장에 붙여넣어 저장하세요.');
+      if (Platform.OS === 'web') {
+        // 웹: JSON 파일로 다운로드
+        const blob = new Blob([json], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `health-rpg-backup-${getTodayKey()}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+        Alert.alert('📦 백업 완료', 'JSON 파일이 다운로드됐어요!\n안전한 곳에 보관하세요.');
+      } else {
+        Clipboard.setString(json);
+        Alert.alert('📦 백업 완료', '데이터가 클립보드에 복사됐어요.\n메모장에 붙여넣어 저장하세요.');
+      }
     } catch {
       Alert.alert('오류', '백업에 실패했습니다.');
     }
   };
 
   const handleImportData = () => {
-    Alert.alert(
-      '데이터 복구',
-      '클립보드의 백업 데이터를 불러옵니다.\n현재 데이터가 덮어씌워질 수 있어요. 계속할까요?',
-      [
-        { text: '취소', style: 'cancel' },
-        {
-          text: '복구',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              const text = await Clipboard.getString();
-              await importAllData(text);
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-              Alert.alert('복구 완료', '데이터를 성공적으로 불러왔어요. 앱을 재시작해주세요.');
-            } catch {
-              Alert.alert('오류', '올바른 백업 데이터가 아닙니다.');
-            }
+    if (Platform.OS === 'web') {
+      // 웹: 파일 선택으로 복구
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.json,application/json';
+      input.onchange = async (e: Event) => {
+        const file = (e.target as HTMLInputElement).files?.[0];
+        if (!file) return;
+        try {
+          const text = await file.text();
+          await importAllData(text);
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          Alert.alert('✅ 복구 완료', '데이터를 성공적으로 불러왔어요!', [
+            { text: '새로고침 (적용)', onPress: () => (window as any).location.reload() },
+            { text: '나중에' },
+          ]);
+        } catch {
+          Alert.alert('오류', '올바른 백업 파일이 아닙니다.\nhealth-rpg-backup-*.json 파일을 선택해주세요.');
+        }
+      };
+      input.click();
+    } else {
+      Alert.alert(
+        '데이터 복구',
+        '클립보드의 백업 데이터를 불러옵니다.\n현재 데이터가 덮어씌워질 수 있어요. 계속할까요?',
+        [
+          { text: '취소', style: 'cancel' },
+          {
+            text: '복구',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                const text = await Clipboard.getString();
+                await importAllData(text);
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                Alert.alert('✅ 복구 완료', '데이터를 성공적으로 불러왔어요. 앱을 재시작해주세요.');
+              } catch {
+                Alert.alert('오류', '올바른 백업 데이터가 아닙니다.');
+              }
+            },
           },
-        },
-      ]
-    );
+        ]
+      );
+    }
   };
 
   const prevMonth = () => {
@@ -433,8 +468,8 @@ export default function HistoryScreen() {
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>💾 데이터 관리</Text>
           <Text style={{ color: COLORS.textMuted, fontSize: FONTS.xs, marginBottom: SPACING.sm, lineHeight: 18 }}>
-            백업: 모든 기록을 클립보드에 복사해서 메모장에 저장하세요.{'\n'}
-            복구: 저장해둔 백업 텍스트를 클립보드에 복사한 후 복구 버튼을 누르세요.
+            📤 백업: 모든 탐험 기록을 JSON 파일로 저장합니다.{'\n'}
+            📥 복구: 저장된 백업 파일을 선택해서 기록을 복원합니다.
           </Text>
           <View style={{ flexDirection: 'row', gap: 10 }}>
             <TouchableOpacity style={styles.backupBtn} onPress={handleExportData}>
@@ -448,7 +483,7 @@ export default function HistoryScreen() {
 
         {/* 전체 로그 리스트 */}
         {logs.length === 0 ? (
-          <Text style={styles.emptyText}>아직 기록이 없어요{'\n'}입력 탭에서 첫 기록을 남겨보세요!</Text>
+          <Text style={styles.emptyText}>아직 탐험 기록이 없어요{'\n'}⚔️ 첫 던전에 입장해보세요!</Text>
         ) : (
           logs.map(log => {
             const rank = getRank(log.conditionScore);

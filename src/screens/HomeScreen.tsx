@@ -92,7 +92,7 @@ function NotifModal({ visible, onClose }: { visible: boolean; onClose: () => voi
         <ScrollView>
           <View style={nm.sheet}>
             <Text style={nm.title}>🔔 알림 설정</Text>
-            <Text style={nm.sub}>퀘스트 알림으로 기록을 잊지 마세요</Text>
+            <Text style={nm.sub}>퀘스트 알림으로 던전을 잊지 마세요</Text>
 
             <Row label="알림 활성화" value={settings.enabled} onChange={v => toggle('enabled', v)} />
             {settings.enabled && (
@@ -345,11 +345,11 @@ export default function HomeScreen() {
     return types.length > 0 || (todayLog.exercise?.type && todayLog.exercise.type !== 'none');
   })();
   const quests = [
-    { label: '오늘 기록 완료', sub: '수면·운동·음주 입력', done: !!todayLog, action: () => navigation.navigate('Input'), xp: 50 },
-    { label: '식단 입력', sub: '하루 먹은 것 기록', done: foodSummary.calories > 0, action: () => navigation.navigate('Calorie'), xp: 20 },
-    { label: '공복혈당 기록', sub: '기상 후 측정값 입력', done: !!morningBS, action: () => setShowBSModal(true), xp: 10 },
-    { label: '운동 기록', sub: '오늘 운동했나요?', done: todayHasExercise, action: () => navigation.navigate('Input'), xp: 25 },
-    { label: '물 2L 달성', sub: `${waterMl}ml / 2000ml`, done: waterMl >= 2000, action: () => {}, xp: 15 },
+    { label: '⚔️ 일일 던전 클리어', sub: '수면·운동·음주 기록', done: !!todayLog, action: () => navigation.navigate('Input'), xp: 50 },
+    { label: '🍱 식량 보급 완료', sub: '오늘 먹은 것 기록', done: foodSummary.calories > 0, action: () => navigation.navigate('Calorie'), xp: 20 },
+    { label: '💧 HP 아침 체크', sub: '기상 후 공복혈당 측정', done: !!morningBS, action: () => setShowBSModal(true), xp: 10 },
+    { label: '🏋️ 전투 훈련 완료', sub: '오늘의 전투 기록', done: todayHasExercise, action: () => navigation.navigate('Input'), xp: 25 },
+    { label: '🚰 물 포션 보충', sub: `${waterMl}ml / 2000ml`, done: waterMl >= 2000, action: () => {}, xp: 15 },
   ];
   const questDone = quests.filter(q => q.done).length;
   const questPct = Math.round((questDone / quests.length) * 100);
@@ -402,7 +402,7 @@ export default function HomeScreen() {
               </TouchableOpacity>
               <View style={[s.rankBadge, { backgroundColor: (rank?.glow ?? COLORS.purpleGlow) }]}>
                 <Text style={[s.rankText, { color: rank?.color ?? COLORS.textMuted }]}>
-                  {rank ? `${rank.rank}  ${rank.label}` : '기록 없음'}
+                  {rank ? `${rank.rank}  ${rank.label}` : '미탐험'}
                 </Text>
               </View>
             </View>
@@ -510,10 +510,10 @@ export default function HomeScreen() {
         {!stats && (
           <TouchableOpacity style={[s.card, s.emptyCard]} onPress={() => navigation.navigate('Input')}>
             <Text style={s.emptyCardIcon}>⚔️</Text>
-            <Text style={s.emptyStatText}>오늘의 퀘스트를 시작하세요</Text>
-            <Text style={s.emptyStatSub}>기록하면 캐릭터 스탯이 올라가요</Text>
+            <Text style={s.emptyStatText}>던전에 입장하지 않았어요</Text>
+            <Text style={s.emptyStatSub}>던전을 클리어하면 스탯이 올라가요</Text>
             <View style={s.startBtn}>
-              <Text style={s.startBtnText}>기록 시작 →</Text>
+              <Text style={s.startBtnText}>⚔️ 던전 입장</Text>
             </View>
           </TouchableOpacity>
         )}
@@ -540,7 +540,7 @@ export default function HomeScreen() {
               <Text style={s.questIcon}>{q.done ? '✅' : '⬜'}</Text>
               <View style={{ flex: 1 }}>
                 <Text style={[s.questLabel, q.done && s.questDone]}>{q.label}</Text>
-                <Text style={s.questSub}>{q.done ? '완료!' : q.sub}</Text>
+                <Text style={s.questSub}>{q.done ? '✨ 클리어!' : q.sub}</Text>
               </View>
               <View style={[s.questXpBadge, q.done && { backgroundColor: COLORS.gold + '20' }]}>
                 <Text style={[s.questXpText, q.done && { color: COLORS.gold }]}>+{q.xp} XP</Text>
@@ -553,7 +553,7 @@ export default function HomeScreen() {
         {/* ── 칼로리 현황 ── */}
         <View style={s.card}>
           <View style={s.rowBetween}>
-            <Text style={s.sectionTitle}>🍱 오늘의 칼로리</Text>
+            <Text style={s.sectionTitle}>🍱 오늘의 식량</Text>
             <TouchableOpacity onPress={() => navigation.navigate('Calorie')}>
               <Text style={s.link}>+ 식단 추가</Text>
             </TouchableOpacity>

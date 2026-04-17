@@ -315,9 +315,9 @@ export default function InputScreen() {
         </View>
 
         <View style={c.pageHeader}>
-          <Text style={c.pageTitle}>{dateLabel(selectedDate, today)} 기록</Text>
+          <Text style={c.pageTitle}>{dateLabel(selectedDate, today)} 던전</Text>
           <Text style={c.pageSub}>
-            {hasExisting ? '저장된 기록 있음 — 수정 후 다시 저장하세요' : '기록하면 캐릭터 스탯이 올라갑니다'}
+            {hasExisting ? '⚔️ 기존 기록 있음 — 수정 후 재저장' : '던전 클리어 시 캐릭터 스탯이 올라갑니다'}
           </Text>
         </View>
 
@@ -463,7 +463,7 @@ export default function InputScreen() {
         </QuestPanel>
 
         {/* ── 혈압 (선택) ── */}
-        <QuestPanel icon="🩺" title="혈압 기록 (선택)">
+        <QuestPanel icon="🩺" title="혈압 체크 (선택)">
           <View style={c.bpRow}>
             <View style={c.bpField}>
               <Text style={c.bpFieldLabel}>수축기 (위)</Text>
@@ -588,7 +588,7 @@ export default function InputScreen() {
 
         {/* 안내 */}
         <View style={c.infoBox}>
-          <Text style={c.infoText}>식단은 하단 "식단" 탭에서 입력 · 공복혈당은 홈 화면에서 기록</Text>
+          <Text style={c.infoText}>🍱 식량은 "식단" 탭에서 · 💧 HP(혈당)는 홈 화면에서 체크</Text>
         </View>
 
         {/* ── 버튼 영역 ── */}
@@ -597,13 +597,13 @@ export default function InputScreen() {
             style={[c.saveOnlyBtn, saving && { opacity: 0.5 }]}
             onPress={() => buildLog(false)} disabled={saving}
           >
-            <Text style={c.saveOnlyText}>{saving ? '저장 중...' : '저장'}</Text>
+            <Text style={c.saveOnlyText}>{saving ? '전송 중...' : '기록만 저장'}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[c.submitBtn, saving && { opacity: 0.5 }]}
             onPress={() => buildLog(true)} disabled={saving}
           >
-            <Text style={c.submitText}>{saving ? '계산 중...' : '결과 확인 →'}</Text>
+            <Text style={c.submitText}>{saving ? '계산 중...' : '⚔️ 던전 클리어!'}</Text>
           </TouchableOpacity>
         </View>
 
