@@ -51,23 +51,6 @@ const sb = StyleSheet.create({
   val: { fontSize: FONTS.xxs, fontWeight: '900', width: 28, textAlign: 'right', fontFamily: 'monospace' },
 });
 
-// ─── RPG HP/MP 바 (큰 버전) ───────────────────────────────
-function HeroBar({ label, value, color, icon }: { label: string; value: number; color: string; icon: string }) {
-  const pct = Math.min(100, value);
-  return (
-    <View style={{ marginBottom: 6 }}>
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 3 }}>
-        <Text style={{ color: COLORS.textMuted, fontSize: FONTS.xxs, fontWeight: '600' }}>{icon} {label}</Text>
-        <Text style={{ color, fontSize: FONTS.xxs, fontWeight: '900', fontFamily: 'monospace' }}>{value} / 100</Text>
-      </View>
-      <View style={{ height: 10, backgroundColor: COLORS.bgHighlight, borderRadius: 5, overflow: 'hidden' }}>
-        <View style={{ width: `${pct}%` as any, height: '100%', backgroundColor: color, borderRadius: 5 }} />
-        <View style={{ position: 'absolute', width: `${pct}%` as any, height: '100%', backgroundColor: color, borderRadius: 5, opacity: 0.3 }} />
-      </View>
-    </View>
-  );
-}
-
 // ─── 알림 설정 모달 ───────────────────────────────────────
 function NotifModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const [settings, setSettings] = useState<NotifSettings>({

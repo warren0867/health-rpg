@@ -236,6 +236,7 @@ export default function CalorieScreen() {
 
   const handleSaveEdit = async () => {
     if (!editingEntry) return;
+    if (editServings <= 0 || editingEntry.servings <= 0) return;
     const ratio = editServings / editingEntry.servings;
     const updated: FoodEntry = {
       ...editingEntry,
