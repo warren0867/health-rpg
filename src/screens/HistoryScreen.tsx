@@ -26,7 +26,7 @@ function localDateStr(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-// 수면 패턴 바 차트 (연속 날짜 보장)
+// 수면 패턴 바 차트 (연속 날짜 보장, v2)
 function SleepChart({ logs }: { logs: DailyLog[] }) {
   if (logs.length === 0) return null;
 
@@ -47,7 +47,7 @@ function SleepChart({ logs }: { logs: DailyLog[] }) {
   }
 
   const CHART_H = 52;
-  const BAR_W = 7;
+  const BAR_W = 8;
   const MAX_H = 10;
   const logsWithData = days.filter(date => logMap[date]);
   if (logsWithData.length === 0) return null;
