@@ -398,7 +398,31 @@ export type MainTabParamList = {
   BloodSugar: undefined;
   History: undefined;
   Illness: undefined;
+  InBody: undefined;
 };
+
+// ─────────────────────────────────────────────
+//  인바디 기록
+// ─────────────────────────────────────────────
+
+export interface InBodyRecord {
+  id: string;
+  date: string;                  // YYYY-MM-DD (측정일)
+  score: number;                 // 인바디점수
+  weight: number;                // 체중 kg
+  skeletalMuscleMass: number;    // 골격근량 kg
+  bodyFatMass: number;           // 체지방량 kg
+  bodyFatPercentage: number;     // 체지방률 %
+  bmi: number;                   // BMI
+  visceralFatLevel?: number;     // 내장지방레벨
+  totalBodyWater?: number;       // 체수분 L
+  protein?: number;              // 단백질 kg
+  minerals?: number;             // 무기질 kg
+  whr?: number;                  // 복부비만율
+  bmr?: number;                  // 기초대사량 kcal
+  note?: string;
+  createdAt: string;
+}
 
 // ─────────────────────────────────────────────
 //  질병 기록
