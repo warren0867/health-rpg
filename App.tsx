@@ -28,9 +28,15 @@ function MainTabs() {
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarStyle: styles.tabBar,
-        tabBarActiveTintColor: COLORS.purple,
+        // Vital Quest: 사이안 액센트 (RPG 보라 → 헬스 사이안으로 전환)
+        tabBarActiveTintColor: COLORS.primary,
         tabBarInactiveTintColor: COLORS.textDisabled,
-        tabBarLabelStyle: { fontSize: FONTS.xs, fontWeight: '600' },
+        tabBarLabelStyle: {
+          fontSize: FONTS.xs - 2,
+          fontWeight: '600',
+          letterSpacing: 0.3,
+          marginTop: -2,
+        },
         tabBarIcon: ({ focused, color, size }) => {
           const icons: Record<string, keyof typeof Ionicons.glyphMap> = {
             Home: focused ? 'home' : 'home-outline',
@@ -40,16 +46,16 @@ function MainTabs() {
             History: focused ? 'bar-chart' : 'bar-chart-outline',
             Illness: focused ? 'medkit' : 'medkit-outline',
           };
-          return <Ionicons name={icons[route.name] ?? 'ellipse'} size={size} color={color} />;
+          return <Ionicons name={icons[route.name] ?? 'ellipse'} size={size - 1} color={color} />;
         },
       })}
     >
       <Tab.Screen name="Home" component={HomeScreen} options={{ title: '홈' }} />
-      <Tab.Screen name="Input" component={InputScreen} options={{ title: '기록' }} />
+      <Tab.Screen name="Input" component={InputScreen} options={{ title: '체크인' }} />
       <Tab.Screen name="Calorie" component={CalorieScreen} options={{ title: '식단' }} />
       <Tab.Screen name="BloodSugar" component={BloodSugarScreen} options={{ title: '혈당' }} />
       <Tab.Screen name="History" component={HistoryScreen} options={{ title: '기록' }} />
-      <Tab.Screen name="Illness" component={IllnessScreen} options={{ title: '건강상태' }} />
+      <Tab.Screen name="Illness" component={IllnessScreen} options={{ title: '컨디션' }} />
     </Tab.Navigator>
   );
 }
@@ -68,24 +74,31 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <RefreshProvider>
-      <StatusBar style="light" />
-      <NavigationContainer>
-        <Stack.Navigator
-          initialRouteName={initialRoute}
-          screenOptions={{ headerShown: false }}
-        >
-          <Stack.Screen name="Onboarding" component={OnboardingScreen} />
-          <Stack.Screen name="MainTabs" component={MainTabs} />
-          <Stack.Screen
-            name="Result"
-            component={ResultScreen}
-            options={{
-              presentation: 'modal',
-              gestureEnabled: true,
-            }}
-          />
-        </Stack.Navigator>
-      </NavigationContainer>
+        <StatusBar style="light" />
+        <NavigationContainer theme={{
+          dark: true,
+          colors: {
+            primary: COLORS.primary,
+            background: COLORS.bg,
+            card: COLORS.bgCard,
+            text: COLORS.text,
+            border: COLORS.border as string,
+            notification: COLORS.amber,
+          },
+        }}>
+          <Stack.Navigator
+            initialRouteName={initialRoute}
+            screenOptions={{ headerShown: false }}
+          >
+            <Stack.Screen name="Onboarding" component={OnboardingScreen} />
+            <Stack.Screen name="MainTabs" component={MainTabs} />
+            <Stack.Screen
+              name="Result"
+              component={ResultScreen}
+              options={{ presentation: 'modal', gestureEnabled: true }}
+            />
+          </Stack.Navigator>
+        </NavigationContainer>
       </RefreshProvider>
     </SafeAreaProvider>
   );
