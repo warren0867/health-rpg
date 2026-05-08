@@ -270,6 +270,79 @@ export interface ExerciseInput {
 }
 
 // ─────────────────────────────────────────────
+//  운동 세트별 입력 (entries 분리)
+// ─────────────────────────────────────────────
+
+export type ExerciseIntensity = 'low' | 'medium' | 'high';
+
+export interface ExerciseEntry {
+  id: string;
+  date: string;            // YYYY-MM-DD
+  timestamp: string;
+  type: ExerciseType;
+  minutes: number;
+  intensity?: ExerciseIntensity;
+  caloriesBurned?: number;
+  note?: string;
+}
+
+// ─────────────────────────────────────────────
+//  누적(영구) 스탯 — RPG 정체성 핵심
+//  운동·수면·혈압·streak·인바디 향상 등으로
+//  영구히 누적되는 캐릭터 능력치.
+// ─────────────────────────────────────────────
+
+export interface PermanentStats {
+  str: number;             // 근력 (헬스, 등산 등)
+  end: number;             // 지구력 (달리기, 수영, 자전거)
+  vit: number;             // 체력/면역 (수면, 혈압 안정, 식단)
+  agi: number;             // 민첩 (요가, 필라테스, 테니스)
+  wis: number;             // 생활관리 (streak, 약 복용, 챌린지)
+  totalGained: number;     // 누적 총합 (오버롤 지표)
+  lastRecalc: string;      // 마지막 재계산 시각 (ISO)
+}
+
+export const EMPTY_PERMANENT_STATS: PermanentStats = {
+  str: 0, end: 0, vit: 0, agi: 0, wis: 0,
+  totalGained: 0, lastRecalc: '',
+};
+
+export type StatKey = 'str' | 'end' | 'vit' | 'agi' | 'wis';
+
+// 운동 종목 → 10분당 스탯 게인. 모든 운동은 base vit +0.05/10min 추가됨.
+// 수치는 "꾸준히 해야 의미있게 오르는" 강도로 튜닝. 30분 헬스 = STR +2.1.
+export const EXERCISE_STAT_GAIN_PER_10MIN: Record<ExerciseType, Partial<Record<StatKey, number>>> = {
+  none:    {},
+  walk:    { end: 0.30, vit: 0.10 },
+  run:     { end: 0.70, agi: 0.20 },
+  cycling: { end: 0.60, str: 0.20 },
+  gym:     { str: 0.70, vit: 0.20 },
+  swim:    { end: 0.55, str: 0.30 },
+  hiking:  { str: 0.40, end: 0.40 },
+  yoga:    { agi: 0.50, vit: 0.20 },
+  pilates: { agi: 0.45, str: 0.25 },
+  tennis:  { agi: 0.45, end: 0.30 },
+  soccer:  { end: 0.50, agi: 0.40 },
+  both:    { str: 0.30, end: 0.30 },   // 레거시
+};
+
+export const STAT_LABEL: Record<StatKey, string> = {
+  str: 'STR',
+  end: 'END',
+  vit: 'VIT',
+  agi: 'AGI',
+  wis: 'WIS',
+};
+
+export const STAT_FULLNAME: Record<StatKey, string> = {
+  str: '근력',
+  end: '지구력',
+  vit: '체력',
+  agi: '민첩',
+  wis: '의지',
+};
+
+// ─────────────────────────────────────────────
 //  음주 (주종별 상세)
 // ─────────────────────────────────────────────
 

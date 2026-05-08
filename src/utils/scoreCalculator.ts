@@ -1,4 +1,4 @@
-import { AlcoholInput, AlcoholType, BloodSugarStatus, BloodSugarTiming, CharacterStats, ExerciseInput, ExerciseType, MorningBloodSugar, ScoreBreakdown, SleepInput } from '../types';
+import { AlcoholInput, AlcoholType, BloodSugarStatus, BloodSugarTiming, CharacterStats, ExerciseEntry, ExerciseInput, ExerciseIntensity, ExerciseType, MorningBloodSugar, ScoreBreakdown, SleepInput } from '../types';
 
 const BASE_SCORE = 50;
 
@@ -43,6 +43,32 @@ export function calcExerciseCalories(exercise: ExerciseInput, weightKg = 70): nu
   if (activeTypes.length === 0 || exercise.minutes === 0) return 0;
   const avgMET = activeTypes.reduce((sum, t) => sum + (EXERCISE_MET[t] ?? 5), 0) / activeTypes.length;
   return Math.round(avgMET * weightKg * (exercise.minutes / 60));
+}
+
+// 단일 운동 entry 칼로리 (강도 보정 포함). entries 기반 정확 계산용.
+export function calcExerciseCaloriesForEntry(
+  type: ExerciseType,
+  minutes: number,
+  weightKg = 70,
+  intensity?: ExerciseIntensity,
+): number {
+  if (!minutes || minutes <= 0 || type === 'none') return 0;
+  const met = EXERCISE_MET[type] ?? 5;
+  const intensityMul =
+    intensity === 'high' ? 1.15 :
+    intensity === 'low' ? 0.85 : 1.0;
+  return Math.round(met * weightKg * (minutes / 60) * intensityMul);
+}
+
+// entries 합산 칼로리 (저장된 caloriesBurned 우선, 없으면 재계산)
+export function calcExerciseCaloriesFromEntries(
+  entries: ExerciseEntry[],
+  weightKg = 70,
+): number {
+  return entries.reduce((sum, e) => {
+    const cal = e.caloriesBurned ?? calcExerciseCaloriesForEntry(e.type, e.minutes, weightKg, e.intensity);
+    return sum + cal;
+  }, 0);
 }
 
 // ─── 음주 칼로리 ───

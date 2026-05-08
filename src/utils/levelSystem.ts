@@ -67,12 +67,70 @@ export function getXPProgress(xp: number): {
   };
 }
 
-// 하루 기록 시 XP 계산
+// 하루 기록 시 XP 계산 (기본 — 호환용)
 export function calcXPGain(score: number, streak: number): number {
   const base = Math.round(score * 1.5);
   const streakBonus = Math.min(streak * 3, 25);        // 최대 +25
   const excellenceBonus = score >= 90 ? 20 : score >= 75 ? 10 : 0;
   return base + streakBonus + excellenceBonus;
+}
+
+// ─── 건강 추세 보너스 ──────────────────────────────────
+// "출석 점수"가 아니라 "실제로 건강해지고 있는가"에 무게를 둔 XP.
+// 사용처: InputScreen에서 buildLog 시점에 trends를 계산해 전달.
+
+export interface HealthTrendInputs {
+  // 체중 관련
+  weightGoal?: 'lose' | 'maintain' | 'gain';
+  weightChangeKg?: number;       // 시작체중 - 현재체중. lose 목표면 + 가 좋음
+  // 혈압 관련
+  bpStableDays?: number;         // 최근 N일 중 정상 혈압이었던 날 수
+  // 혈당 관련
+  bsNormalDays?: number;         // 최근 N일 중 공복혈당 정상이었던 날 수
+  // 운동 누적
+  exerciseMinutesThisWeek?: number;
+}
+
+// 추세 보너스 — 매 체크인마다 한 번에 다 받지 않고 점진적으로
+export function calcHealthTrendBonus(t: HealthTrendInputs): number {
+  let bonus = 0;
+
+  // 1) 체중 목표 진행 (cap 30)
+  if (t.weightGoal === 'lose' && (t.weightChangeKg ?? 0) > 0) {
+    bonus += Math.min(30, Math.round((t.weightChangeKg ?? 0) * 6));
+  } else if (t.weightGoal === 'gain' && (t.weightChangeKg ?? 0) < 0) {
+    bonus += Math.min(30, Math.round(-(t.weightChangeKg ?? 0) * 8));
+  }
+
+  // 2) 혈압 안정 (최대 +10)
+  bonus += Math.min(10, (t.bpStableDays ?? 0));
+
+  // 3) 혈당 안정 (최대 +10)
+  bonus += Math.min(10, (t.bsNormalDays ?? 0));
+
+  // 4) 주간 운동량 (cap +20)
+  const wk = t.exerciseMinutesThisWeek ?? 0;
+  if (wk >= 150) bonus += 20;        // WHO 권장 충족
+  else if (wk >= 90) bonus += 12;
+  else if (wk >= 30) bonus += 5;
+
+  return bonus;
+}
+
+// 건강 추세 + 출석 결합 XP. 추세를 모르면 calcXPGain과 동일.
+export function calcXPGainWithTrends(
+  score: number,
+  streak: number,
+  trends?: HealthTrendInputs,
+): { total: number; base: number; streakBonus: number; excellenceBonus: number; trendBonus: number } {
+  const base = Math.round(score * 1.0);                      // 기본 비중 축소 (1.5 → 1.0)
+  const streakBonus = Math.min(streak * 2, 20);              // (3*max25 → 2*max20)
+  const excellenceBonus = score >= 90 ? 15 : score >= 75 ? 8 : 0;
+  const trendBonus = trends ? calcHealthTrendBonus(trends) : 0;
+  return {
+    total: base + streakBonus + excellenceBonus + trendBonus,
+    base, streakBonus, excellenceBonus, trendBonus,
+  };
 }
 
 // ─── 업적 조건 체크 ──────────────────────────────────────

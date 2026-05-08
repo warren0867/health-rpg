@@ -6,24 +6,33 @@ import { useRefresh } from '../context/RefreshContext';
 import { Alert, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS, FONTS, RADIUS, SPACING } from '../constants/theme';
-import { AlcoholInput, AlcoholType, BP_STATUS_COLOR, BP_STATUS_LABEL, DailyLog, ExerciseInput, ExerciseType, getBPStatus, MedLog, Medication, MED_TIME_LABEL, MOOD_EMOJI, MOOD_LABEL, MoodLevel, RootStackParamList, SleepInput } from '../types';
+import { AlcoholInput, AlcoholType, BP_STATUS_COLOR, BP_STATUS_LABEL, DailyLog, ExerciseEntry, ExerciseInput, ExerciseIntensity, ExerciseType, getBPStatus, MedLog, Medication, MED_TIME_LABEL, MOOD_EMOJI, MOOD_LABEL, MoodLevel, RootStackParamList, SleepInput } from '../types';
 import {
-  addXP, generateId, getDailyLog, getFoodEntriesByDate,
-  getMedications, getMedLog, toggleMedTaken,
-  getMorningBS, getStreak, getTodayKey, getUserProfile, saveDailyLog, saveMedication, deleteMedication, sumFoodEntries,
+  addXP, deleteExerciseEntry, generateId, getAllExerciseEntries,
+  getDailyLog, getExerciseEntriesByDate, getFoodEntriesByDate,
+  getMedications, getMedLog, getMorningBS, getRecentDailyLogs,
+  getStreak, getTodayKey, getUserProfile, getWeightHistory,
+  recalcAndSavePermanentStats, saveDailyLog, saveExerciseEntry,
+  saveMedication, deleteMedication, sumFoodEntries, toggleMedTaken,
 } from '../utils/storage';
-import { calcXPGain } from '../utils/levelSystem';
+import { calcXPGainWithTrends } from '../utils/levelSystem';
 import {
   ALCOHOL_CAL_PER_UNIT, ALCOHOL_EMOJI, ALCOHOL_LABELS, ALCOHOL_UNITS,
   EXERCISE_LABELS, EXERCISE_MET,
-  calculateScore, calculateStats, calcAlcoholCalories, calcExerciseCalories,
+  calcAlcoholCalories, calcExerciseCaloriesForEntry, calcExerciseCaloriesFromEntries,
+  calculateScore, calculateStats,
 } from '../utils/scoreCalculator';
 
 type Nav = StackNavigationProp<RootStackParamList>;
 
 const EXERCISE_OPTIONS: ExerciseType[] = ['walk', 'run', 'cycling', 'gym', 'swim', 'hiking', 'yoga', 'pilates', 'tennis', 'soccer'];
 const ALCOHOL_TYPES: AlcoholType[] = ['beer_can', 'beer_bottle', 'soju', 'makgeolli', 'whiskey', 'wine', 'highball', 'bomb'];
-const DURATION_OPTIONS = [30, 40, 50, 60, 70, 80, 90];
+const DURATION_OPTIONS = [10, 20, 30, 40, 50, 60, 90, 120];
+const INTENSITY_OPTIONS: { value: ExerciseIntensity; label: string }[] = [
+  { value: 'low',    label: '가볍게' },
+  { value: 'medium', label: '보통' },
+  { value: 'high',   label: '강하게' },
+];
 
 // 최근 N일 날짜 배열 (오늘 포함, 최신 순)
 function getDateOptions(n = 7): string[] {
@@ -98,8 +107,11 @@ export default function InputScreen() {
 
   const [selectedDate, setSelectedDate] = useState(today);
   const [sleep, setSleep] = useState<SleepInput>({ hours: 7 });
-  const [selectedExercises, setSelectedExercises] = useState<ExerciseType[]>([]);
-  const [duration, setDuration] = useState(30);
+  const [exerciseEntries, setExerciseEntries] = useState<ExerciseEntry[]>([]);
+  const [showExAddForm, setShowExAddForm] = useState(false);
+  const [newExType, setNewExType] = useState<ExerciseType | null>(null);
+  const [newExMinutes, setNewExMinutes] = useState(30);
+  const [newExIntensity, setNewExIntensity] = useState<ExerciseIntensity>('medium');
   const [alcohol, setAlcohol] = useState<AlcoholInput>({ consumed: false, items: [] });
   const [mood, setMood] = useState<MoodLevel | null>(null);
   const [bpSys, setBpSys] = useState('');
@@ -127,15 +139,15 @@ export default function InputScreen() {
   // 선택한 날짜의 기존 데이터 불러와서 폼에 채우기
   const loadDate = useCallback(async (date: string) => {
     loadMeds(date);
-    const existing = await getDailyLog(date);
+    const [existing, entries] = await Promise.all([
+      getDailyLog(date),
+      getExerciseEntriesByDate(date),
+    ]);
+    setExerciseEntries(entries);
+    setShowExAddForm(false);
     if (existing) {
       setHasExisting(true);
       setSleep(existing.sleep ?? { hours: 7 });
-      const exTypes = existing.exercise?.types?.filter(t => t !== 'none') ?? [];
-      const legacyType = existing.exercise?.type;
-      const activeTypes = exTypes.length > 0 ? exTypes : (legacyType && legacyType !== 'none' ? [legacyType] : []);
-      setSelectedExercises(activeTypes as ExerciseType[]);
-      setDuration(existing.exercise?.minutes > 0 ? existing.exercise.minutes : 30);
       setAlcohol(existing.alcohol ?? { consumed: false, items: [] });
       setMood(existing.mood ?? null);
       setBpSys(existing.bloodPressure?.systolic ? String(existing.bloodPressure.systolic) : '');
@@ -145,14 +157,12 @@ export default function InputScreen() {
     } else {
       setHasExisting(false);
       setSleep({ hours: 7 });
-      setSelectedExercises([]);
-      setDuration(30);
       setAlcohol({ consumed: false, items: [] });
       setMood(null);
       setBpSys(''); setBpDia(''); setBpPulse('');
       setSteps('');
     }
-  }, []);
+  }, [loadMeds]);
 
   // 날짜 변경 시 데이터 로드
   useEffect(() => { loadDate(selectedDate); }, [selectedDate, loadDate]);
@@ -160,13 +170,52 @@ export default function InputScreen() {
   // 화면 포커스될 때마다 현재 날짜 데이터 새로고침
   useFocusEffect(useCallback(() => { loadDate(selectedDate); }, [selectedDate, loadDate]));
 
-  const toggleExercise = (type: ExerciseType) => {
-    setSelectedExercises(prev =>
-      prev.includes(type) ? prev.filter(t => t !== type) : [...prev, type]
-    );
+  const handleAddExercise = async () => {
+    if (!newExType) {
+      Alert.alert('운동 종목', '종목을 먼저 선택해주세요');
+      return;
+    }
+    const profile = await getUserProfile();
+    const weightKg = profile?.weightKg ?? 70;
+    const cal = calcExerciseCaloriesForEntry(newExType, newExMinutes, weightKg, newExIntensity);
+    const entry: ExerciseEntry = {
+      id: generateId(),
+      date: selectedDate,
+      timestamp: new Date().toISOString(),
+      type: newExType,
+      minutes: newExMinutes,
+      intensity: newExIntensity,
+      caloriesBurned: cal,
+    };
+    await saveExerciseEntry(entry);
+    await recalcAndSavePermanentStats();
+    setExerciseEntries(prev => [...prev, entry]);
+    setShowExAddForm(false);
+    setNewExType(null);
+    setNewExMinutes(30);
+    setNewExIntensity('medium');
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    triggerRefresh();
   };
 
-  const burnCal = calcExerciseCalories({ types: selectedExercises, minutes: duration }, 70);
+  const handleRemoveExercise = (id: string) => {
+    Alert.alert('운동 삭제', '이 운동 기록을 삭제할까요?', [
+      { text: '취소', style: 'cancel' },
+      {
+        text: '삭제', style: 'destructive', onPress: async () => {
+          await deleteExerciseEntry(id);
+          await recalcAndSavePermanentStats();
+          setExerciseEntries(prev => prev.filter(e => e.id !== id));
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          triggerRefresh();
+        }
+      }
+    ]);
+  };
+
+  const totalExerciseMinutes = exerciseEntries.reduce((s, e) => s + e.minutes, 0);
+  const totalExerciseCal = calcExerciseCaloriesFromEntries(exerciseEntries, 70);
+  const burnCal = totalExerciseCal;
   const alcoholCal = calcAlcoholCalories(alcohol);
 
   const toggleAlcohol = (type: AlcoholType) => {
@@ -194,8 +243,11 @@ export default function InputScreen() {
     setSaving(true);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
-    const exercise: ExerciseInput = selectedExercises.length > 0
-      ? { types: selectedExercises, minutes: duration }
+    // 운동은 entries로부터 합산해서 호환 필드를 채움
+    const exerciseTypes = Array.from(new Set(exerciseEntries.map(e => e.type))) as ExerciseType[];
+    const exerciseMinutesSum = exerciseEntries.reduce((s, e) => s + e.minutes, 0);
+    const exercise: ExerciseInput = exerciseTypes.length > 0
+      ? { types: exerciseTypes, minutes: exerciseMinutesSum }
       : { types: [], minutes: 0 };
 
     const [morningBS, foodEntries, profile, existingLog, streak] = await Promise.all([
@@ -209,8 +261,41 @@ export default function InputScreen() {
 
     const breakdown = calculateScore(sleep, exercise, alcohol, morningBS, foodSum.calories, targetCal);
     const stats = calculateStats(breakdown, exercise, sleep, morningBS);
-    const exerciseCalories = calcExerciseCalories(exercise, weightKg);
-    const xpGained = calcXPGain(breakdown.total, streak);
+    const exerciseCalories = calcExerciseCaloriesFromEntries(exerciseEntries, weightKg);
+
+    // ─── 건강 추세 보너스용 데이터 수집 ───
+    const [weightLog, recent7, allEx] = await Promise.all([
+      getWeightHistory(365), getRecentDailyLogs(7), getAllExerciseEntries(),
+    ]);
+    const sortedW = [...weightLog].sort((a, b) => a.date.localeCompare(b.date));
+    const weightChangeKg = sortedW.length >= 2
+      ? sortedW[0].weightKg - sortedW[sortedW.length - 1].weightKg
+      : 0;
+    const bpStableDays = recent7.filter(l =>
+      l.bloodPressure && l.bloodPressure.systolic > 0 &&
+      l.bloodPressure.systolic < 130 && l.bloodPressure.diastolic < 85
+    ).length;
+    const bsNormalDays = recent7.filter(l => {
+      const bs = l.morningBSValue;
+      return bs != null && bs >= 70 && bs < 100;
+    }).length;
+    const weekStartDate = (() => {
+      const d = new Date(); const dow = d.getDay();
+      d.setDate(d.getDate() - ((dow + 6) % 7));
+      return d.toISOString().slice(0, 10);
+    })();
+    const exerciseMinutesThisWeek = allEx
+      .filter(e => e.date >= weekStartDate)
+      .reduce((s, e) => s + e.minutes, 0);
+
+    const xpResult = calcXPGainWithTrends(breakdown.total, streak, {
+      weightGoal: profile?.goal,
+      weightChangeKg,
+      bpStableDays,
+      bsNormalDays,
+      exerciseMinutesThisWeek,
+    });
+    const xpGained = xpResult.total;
     const now = new Date().toISOString();
 
     const sys = parseInt(bpSys);
@@ -237,6 +322,7 @@ export default function InputScreen() {
 
     await saveDailyLog(log);
     if (!existingLog) await addXP(xpGained); // 첫 저장 시만 XP 지급
+    await recalcAndSavePermanentStats();     // DailyLog 변경분 영구 스탯 반영
 
     setSaving(false);
     setHasExisting(true);
@@ -361,46 +447,105 @@ export default function InputScreen() {
           </View>
         </QuestPanel>
 
-        {/* ── 운동 ── */}
+        {/* ── 운동 (세트별 분리 입력) ── */}
         <QuestPanel
           icon="🏃"
           title="운동"
-          badge={selectedExercises.length > 0 ? `${burnCal}kcal 소모` : undefined}
+          badge={exerciseEntries.length > 0
+            ? `${totalExerciseMinutes}분 / ${totalExerciseCal}kcal`
+            : undefined}
         >
-          <Text style={c.subLabel}>종류 선택 (다중)</Text>
-          <View style={c.chips}>
-            {EXERCISE_OPTIONS.map(type => (
-              <ChipBtn
-                key={type}
-                label={EXERCISE_LABELS[type]}
-                sub={`MET ${EXERCISE_MET[type]}`}
-                selected={selectedExercises.includes(type)}
-                onPress={() => toggleExercise(type)}
-                color={COLORS.gold}
-              />
-            ))}
-          </View>
+          {exerciseEntries.length === 0 && !showExAddForm && (
+            <Text style={c.exEmptyHint}>
+              종목별로 따로 기록하면 캐릭터의 STR·END·AGI가 영구히 누적됩니다.
+            </Text>
+          )}
 
-          {selectedExercises.length > 0 && (
-            <>
-              <Text style={c.subLabel}>훈련 시간</Text>
+          {/* 운동 entries 리스트 */}
+          {exerciseEntries.map(e => (
+            <View key={e.id} style={c.exEntryRow}>
+              <View style={c.exEntryDot} />
+              <View style={{ flex: 1 }}>
+                <Text style={c.exEntryName}>
+                  {EXERCISE_LABELS[e.type]} <Text style={c.exEntryDim}>· {e.minutes}분</Text>
+                  {e.intensity ? <Text style={c.exEntryDim}> · {INTENSITY_OPTIONS.find(i => i.value === e.intensity)?.label}</Text> : null}
+                </Text>
+                <Text style={c.exEntryMeta}>
+                  MET {EXERCISE_MET[e.type] ?? 5} · {e.caloriesBurned ?? 0} kcal
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => handleRemoveExercise(e.id)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Text style={c.exEntryDelete}>✕</Text>
+              </TouchableOpacity>
+            </View>
+          ))}
+
+          {/* 추가 폼 */}
+          {showExAddForm ? (
+            <View style={c.exAddForm}>
+              <Text style={c.subLabel}>종목</Text>
               <View style={c.chips}>
-                {DURATION_OPTIONS.map(m => (
-                  <ChipBtn key={m} label={`${m}분`} selected={duration === m}
-                    onPress={() => setDuration(m)} color={COLORS.gold} />
+                {EXERCISE_OPTIONS.map(type => (
+                  <ChipBtn
+                    key={type}
+                    label={EXERCISE_LABELS[type]}
+                    sub={`MET ${EXERCISE_MET[type]}`}
+                    selected={newExType === type}
+                    onPress={() => setNewExType(type)}
+                    color={COLORS.gold}
+                  />
                 ))}
               </View>
-              <View style={c.calPreview}>
-                <Text style={c.calPreviewLabel}>예상 소모 칼로리</Text>
-                <Text style={[c.calPreviewVal, { color: COLORS.gold }]}>−{burnCal} kcal</Text>
-                <Text style={c.calPreviewSub}>(70kg 기준)</Text>
+
+              <Text style={c.subLabel}>시간</Text>
+              <View style={c.chips}>
+                {DURATION_OPTIONS.map(m => (
+                  <ChipBtn key={m} label={`${m}분`} selected={newExMinutes === m}
+                    onPress={() => setNewExMinutes(m)} color={COLORS.gold} />
+                ))}
               </View>
-              <View style={c.effectRow}>
-                <EffectTag label={`STR +${Math.round(burnCal / 15)}`} color={COLORS.gold} />
-                <EffectTag label={`AGI +${selectedExercises.length > 1 ? 5 : 3}`} color={COLORS.str} />
-                {selectedExercises.length > 1 && <EffectTag label="복합훈련 보너스" color={COLORS.purple} />}
+
+              <Text style={c.subLabel}>강도</Text>
+              <View style={c.chips}>
+                {INTENSITY_OPTIONS.map(opt => (
+                  <ChipBtn
+                    key={opt.value}
+                    label={opt.label}
+                    selected={newExIntensity === opt.value}
+                    onPress={() => setNewExIntensity(opt.value)}
+                    color={COLORS.gold}
+                  />
+                ))}
               </View>
-            </>
+
+              <View style={c.exFormBtns}>
+                <TouchableOpacity
+                  style={c.exFormCancel}
+                  onPress={() => { setShowExAddForm(false); setNewExType(null); }}
+                >
+                  <Text style={c.exFormCancelText}>취소</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[c.exFormSave, !newExType && { opacity: 0.4 }]}
+                  onPress={handleAddExercise}
+                  disabled={!newExType}
+                >
+                  <Text style={c.exFormSaveText}>추가</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : (
+            <TouchableOpacity style={c.exAddBtn} onPress={() => setShowExAddForm(true)}>
+              <Text style={c.exAddBtnText}>＋ 운동 추가</Text>
+            </TouchableOpacity>
+          )}
+
+          {exerciseEntries.length > 0 && (
+            <View style={c.effectRow}>
+              <EffectTag label={`총 ${totalExerciseMinutes}분`} color={COLORS.gold} />
+              <EffectTag label={`−${totalExerciseCal} kcal`} color={COLORS.gold} />
+              {exerciseEntries.length > 1 && <EffectTag label={`${exerciseEntries.length}세트`} color={COLORS.purple} />}
+            </View>
           )}
         </QuestPanel>
 
@@ -714,6 +859,40 @@ const c = StyleSheet.create({
   calPreviewLabel: { color: COLORS.textMuted, fontSize: FONTS.xxs, flex: 1 },
   calPreviewVal: { fontSize: FONTS.md, fontWeight: '900', fontFamily: 'monospace' },
   calPreviewSub: { color: COLORS.textDisabled, fontSize: FONTS.xxs },
+
+  // 운동 entries
+  exEmptyHint: { color: COLORS.textMuted, fontSize: FONTS.xxs, marginBottom: 8, lineHeight: 16 },
+  exEntryRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: COLORS.borderSub,
+  },
+  exEntryDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: COLORS.gold },
+  exEntryName: { color: COLORS.text, fontSize: FONTS.sm, fontWeight: '700' },
+  exEntryDim: { color: COLORS.textMuted, fontWeight: '500' },
+  exEntryMeta: { color: COLORS.textMuted, fontSize: FONTS.xxs, marginTop: 2, fontFamily: 'monospace' },
+  exEntryDelete: { color: COLORS.textDisabled, fontSize: FONTS.md, paddingHorizontal: 4 },
+  exAddBtn: {
+    borderWidth: 1, borderColor: COLORS.gold + '55', borderStyle: 'dashed',
+    borderRadius: RADIUS.md, paddingVertical: 12, alignItems: 'center', marginTop: 8,
+    backgroundColor: COLORS.gold + '08',
+  },
+  exAddBtnText: { color: COLORS.gold, fontSize: FONTS.sm, fontWeight: '700' },
+  exAddForm: {
+    backgroundColor: COLORS.bgInput, borderRadius: RADIUS.md,
+    padding: SPACING.sm, marginTop: 10,
+    borderWidth: 1, borderColor: COLORS.border,
+  },
+  exFormBtns: { flexDirection: 'row', gap: 8, marginTop: 6 },
+  exFormCancel: {
+    flex: 1, backgroundColor: COLORS.bgCard, borderWidth: 1, borderColor: COLORS.border,
+    borderRadius: RADIUS.md, paddingVertical: 11, alignItems: 'center',
+  },
+  exFormCancelText: { color: COLORS.textSub, fontSize: FONTS.sm, fontWeight: '700' },
+  exFormSave: {
+    flex: 2, backgroundColor: COLORS.gold,
+    borderRadius: RADIUS.md, paddingVertical: 11, alignItems: 'center',
+  },
+  exFormSaveText: { color: '#000', fontSize: FONTS.sm, fontWeight: '900' },
 
   // 음주 테이블
   alcoholTable: { backgroundColor: COLORS.bgHighlight, borderRadius: RADIUS.sm, padding: SPACING.sm, marginTop: 6, gap: 6 },

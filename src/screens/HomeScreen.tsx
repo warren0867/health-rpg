@@ -9,21 +9,22 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import CharacterCard from '../components/CharacterCard';
 import DailyRings from '../components/DailyRings';
+import PermanentStatPanel from '../components/PermanentStatPanel';
 import QuestList, { Quest } from '../components/QuestList';
 import StatGrid from '../components/StatGrid';
 import { COLORS, FONTS, RADIUS, SPACING, getRank } from '../constants/theme';
 import { useRefresh } from '../context/RefreshContext';
-import { IllnessEntry, ILLNESS_LABELS, UserProfile } from '../types';
+import { EMPTY_PERMANENT_STATS, IllnessEntry, ILLNESS_LABELS, PermanentStats, UserProfile } from '../types';
 import { calcMacroGoal } from '../utils/calorieCalculator';
 import { checkAchievements, getLevelTitle, getXPProgress } from '../utils/levelSystem';
 import { calcExerciseCalories } from '../utils/scoreCalculator';
 import {
   addWater, calcImmunity, generateId, getAllDailyLogs, getCurrentIllness,
   getDailyLog, getFoodEntriesByDate, getLatestWeight, getMorningBS,
-  getRecentDailyLogs, getRecentMorningBS, getStreak, getTodayKey,
-  getUnlockedAchievementIds, getUserProfile, getUserXP, getWaterLog,
-  getWaterStreak, saveMorningBS, saveUserProfile, sumFoodEntries,
-  unlockAchievement, updateChallengeProgress,
+  getPermanentStats, getRecentDailyLogs, getRecentMorningBS, getStreak,
+  getTodayKey, getUnlockedAchievementIds, getUserProfile, getUserXP,
+  getWaterLog, getWaterStreak, recalcAndSavePermanentStats, saveMorningBS,
+  saveUserProfile, sumFoodEntries, unlockAchievement, updateChallengeProgress,
 } from '../utils/storage';
 
 /**
@@ -55,6 +56,7 @@ export default function HomeScreen() {
   const [todayXP, setTodayXP] = useState<number | null>(null);
   const [immunity, setImmunity] = useState<number | null>(null);
   const [currentIllness, setCurrentIllness] = useState<IllnessEntry | null>(null);
+  const [permStats, setPermStats] = useState<PermanentStats>(EMPTY_PERMANENT_STATS);
 
   // 모달
   const [showBSModal, setShowBSModal] = useState(false);
@@ -68,6 +70,10 @@ export default function HomeScreen() {
 
   // ─── 데이터 로딩 ──────────────────────────────────
   const load = useCallback(async () => {
+    // 영구 스탯은 매번 재계산 후 사용 (이력 변경분 즉시 반영)
+    const ps = await recalcAndSavePermanentStats();
+    setPermStats(ps);
+
     const [p, log, foods, mbs, recent, str, water, xp, achIds, imm, ill, latestW] = await Promise.all([
       getUserProfile(), getDailyLog(today), getFoodEntriesByDate(today),
       getMorningBS(today), getRecentDailyLogs(7), getStreak(),
@@ -233,10 +239,14 @@ export default function HomeScreen() {
           quest={{ done: quests.filter(q => q.done).length, total: quests.length }}
         />
 
-        {/* ── 캐릭터 스탯 ── */}
+        {/* ── 영구 능력치 (누적 성장) ── */}
+        <SectionLabel>영구 능력치</SectionLabel>
+        <PermanentStatPanel stats={permStats} />
+
+        {/* ── 오늘의 컨디션 (일일 변동) ── */}
         {stats ? (
           <>
-            <SectionLabel>캐릭터 스탯</SectionLabel>
+            <SectionLabel>오늘의 컨디션</SectionLabel>
             <StatGrid stats={stats} />
           </>
         ) : (

@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { AchievementId, BloodSugarEntry, ChallengeId, CHALLENGE_DEFS, DailyLog, FoodEntry, FoodItem, IllnessEntry, MedLog, Medication, MorningBloodSugar, RecentFoodEntry, UnlockedAchievement, UserProfile, UserXP, WeeklyChallenge, WeightEntry } from '../types';
+import { AchievementId, BloodSugarEntry, ChallengeId, CHALLENGE_DEFS, DailyLog, EMPTY_PERMANENT_STATS, ExerciseEntry, FoodEntry, FoodItem, IllnessEntry, MedLog, Medication, MorningBloodSugar, PermanentStats, RecentFoodEntry, UnlockedAchievement, UserProfile, UserXP, WeeklyChallenge, WeightEntry } from '../types';
 import { getLevelFromXP } from './levelSystem';
+import { recalcPermanentStats } from './permanentStats';
 import { calculateScore, calculateStats } from './scoreCalculator';
 
 const KEYS = {
@@ -20,6 +21,8 @@ const KEYS = {
   MED_LOGS: 'hrpg_med_logs',
   ILLNESS_LOG: 'hrpg_illness_log',
   WEEKLY_CHALLENGE: 'hrpg_weekly_challenge',
+  PERMANENT_STATS: 'hrpg_permanent_stats',
+  EXERCISE_ENTRIES: 'hrpg_exercise_entries',
 } as const;
 
 // ─────────────────────────────────────────────
@@ -723,4 +726,101 @@ export async function claimChallengeReward(id: ChallengeId): Promise<number> {
   const updated = { ...challenge, rewardClaimed: [...challenge.rewardClaimed, id] };
   await AsyncStorage.setItem(KEYS.WEEKLY_CHALLENGE, JSON.stringify(updated));
   return xp;
+}
+
+// ─────────────────────────────────────────────
+//  운동 세트 (ExerciseEntry) — 종목별 분리 기록
+// ─────────────────────────────────────────────
+
+export async function getAllExerciseEntries(): Promise<ExerciseEntry[]> {
+  const raw = await AsyncStorage.getItem(KEYS.EXERCISE_ENTRIES);
+  if (!raw) return [];
+  return (JSON.parse(raw) as ExerciseEntry[])
+    .sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+}
+
+export async function getExerciseEntriesByDate(date: string): Promise<ExerciseEntry[]> {
+  const all = await getAllExerciseEntries();
+  return all.filter(e => e.date === date)
+    .sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+}
+
+export async function saveExerciseEntry(entry: ExerciseEntry): Promise<void> {
+  const all = await getAllExerciseEntries();
+  const idx = all.findIndex(e => e.id === entry.id);
+  if (idx >= 0) all[idx] = entry; else all.push(entry);
+  await AsyncStorage.setItem(KEYS.EXERCISE_ENTRIES, JSON.stringify(all));
+}
+
+export async function replaceExerciseEntriesForDate(
+  date: string,
+  entries: ExerciseEntry[],
+): Promise<void> {
+  const all = await getAllExerciseEntries();
+  const others = all.filter(e => e.date !== date);
+  await AsyncStorage.setItem(KEYS.EXERCISE_ENTRIES, JSON.stringify([...others, ...entries]));
+}
+
+export async function deleteExerciseEntry(id: string): Promise<void> {
+  const all = await getAllExerciseEntries();
+  await AsyncStorage.setItem(KEYS.EXERCISE_ENTRIES, JSON.stringify(all.filter(e => e.id !== id)));
+}
+
+// ─────────────────────────────────────────────
+//  영구 스탯 — 누적치 저장/조회
+// ─────────────────────────────────────────────
+
+export async function getPermanentStats(): Promise<PermanentStats> {
+  const raw = await AsyncStorage.getItem(KEYS.PERMANENT_STATS);
+  if (!raw) return { ...EMPTY_PERMANENT_STATS };
+  try {
+    return { ...EMPTY_PERMANENT_STATS, ...JSON.parse(raw) };
+  } catch {
+    return { ...EMPTY_PERMANENT_STATS };
+  }
+}
+
+export async function setPermanentStats(stats: PermanentStats): Promise<void> {
+  await AsyncStorage.setItem(KEYS.PERMANENT_STATS, JSON.stringify(stats));
+}
+
+// 이력 전체로부터 영구 스탯을 재계산해 저장. 운동/체크인 추가·수정 후 호출.
+export async function recalcAndSavePermanentStats(): Promise<PermanentStats> {
+  const [exerciseEntries, dailyLogs, weightLog, profile, maxStreak] = await Promise.all([
+    getAllExerciseEntries(),
+    getAllDailyLogs(),
+    getWeightHistory(365),
+    getUserProfile(),
+    computeMaxStreakEver(),
+  ]);
+  const stats = recalcPermanentStats({
+    exerciseEntries,
+    dailyLogs,
+    weightLog,
+    weightGoal: profile?.goal,
+    maxStreakEverDays: maxStreak,
+  });
+  await setPermanentStats(stats);
+  return stats;
+}
+
+// 역대 최장 streak (영구 보너스 산정용)
+export async function computeMaxStreakEver(): Promise<number> {
+  const logs = await getAllDailyLogs();
+  if (logs.length === 0) return 0;
+  // 날짜 오름차순으로 연속 길이 트래킹
+  const dates = logs.map(l => l.date).sort();
+  let max = 1, run = 1;
+  for (let i = 1; i < dates.length; i++) {
+    const prev = new Date(dates[i - 1]);
+    const cur = new Date(dates[i]);
+    const diff = Math.round((cur.getTime() - prev.getTime()) / 86400000);
+    if (diff === 1) {
+      run++;
+      if (run > max) max = run;
+    } else if (diff > 1) {
+      run = 1;
+    }
+  }
+  return max;
 }
