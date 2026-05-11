@@ -3,6 +3,7 @@ import {
   EMPTY_PERMANENT_STATS,
   EXERCISE_STAT_GAIN_PER_10MIN,
   ExerciseEntry,
+  InBodyRecord,
   PermanentStats,
   StatKey,
   WeightEntry,
@@ -106,22 +107,58 @@ export function gainsFromWeightProgress(
   return acc;
 }
 
-// ─── 5) 종합 재계산 ──────────────────────────────────────
+// ─── 5) 인바디 향상 → 영구 스탯 ─────────────────────────
+//    측정 사이의 변화에 대해 보너스 (최신 - 최초 시점 기준)
+//    - 골격근량 +1kg → STR +3, VIT +1
+//    - 체지방률 -1%p → AGI +2, END +1
+//    - 인바디 점수 +5 → 보너스 분산 (STR/VIT/AGI 각 +0.5)
+//    감소 케이스는 보너스 차감하지 않음 (영구 누적 의미를 유지)
+export function gainsFromInBody(records: InBodyRecord[]): Record<StatKey, number> {
+  const acc = emptyAccumulator();
+  if (records.length < 2) return acc;
+  const sorted = [...records].sort((a, b) => a.date.localeCompare(b.date));
+  const first = sorted[0];
+  const latest = sorted[sorted.length - 1];
+
+  const smmDelta = latest.skeletalMuscleMass - first.skeletalMuscleMass;
+  if (smmDelta > 0) {
+    acc.str += smmDelta * 3;
+    acc.vit += smmDelta * 1;
+  }
+
+  const fatPctDelta = first.bodyFatPercentage - latest.bodyFatPercentage; // 감소가 +
+  if (fatPctDelta > 0) {
+    acc.agi += fatPctDelta * 2;
+    acc.end += fatPctDelta * 1;
+  }
+
+  const scoreDelta = latest.score - first.score;
+  if (scoreDelta > 0) {
+    const each = scoreDelta * 0.1;
+    acc.str += each; acc.vit += each; acc.agi += each;
+  }
+
+  return acc;
+}
+
+// ─── 6) 종합 재계산 ──────────────────────────────────────
 export function recalcPermanentStats(opts: {
   exerciseEntries: ExerciseEntry[];
   dailyLogs: DailyLog[];
   weightLog: WeightEntry[];
   weightGoal?: 'lose' | 'maintain' | 'gain';
   maxStreakEverDays: number;
+  inbodyRecords?: InBodyRecord[];
 }): PermanentStats {
   const a = gainsFromExerciseEntries(opts.exerciseEntries);
   const b = gainsFromDailyLogs(opts.dailyLogs);
   const c = gainsFromStreakMilestones(opts.maxStreakEverDays);
   const d = gainsFromWeightProgress(opts.weightLog, opts.weightGoal);
+  const e = gainsFromInBody(opts.inbodyRecords ?? []);
 
   const merged = emptyAccumulator();
   for (const k of STAT_KEYS) {
-    merged[k] = round1(a[k] + b[k] + c[k] + d[k]);
+    merged[k] = round1(a[k] + b[k] + c[k] + d[k] + e[k]);
   }
   const total = round1(merged.str + merged.end + merged.vit + merged.agi + merged.wis);
 

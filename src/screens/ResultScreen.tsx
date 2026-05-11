@@ -7,7 +7,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS, FONTS, RADIUS, SPACING, getRank } from '../constants/theme';
-import { RootStackParamList, ScoreFactor } from '../types';
+import { PermanentStats, RootStackParamList, STAT_FULLNAME, STAT_LABEL, ScoreFactor, StatKey } from '../types';
 import { getConditionFeedback, getScoreFactors } from '../utils/feedback';
 import { getLevelFromXP, getLevelTitle, getXPProgress } from '../utils/levelSystem';
 import { getUserXP } from '../utils/storage';
@@ -25,8 +25,12 @@ type Route = RouteProp<RootStackParamList, 'Result'>;
  */
 export default function ResultScreen() {
   const navigation = useNavigation<any>();
-  const { log } = useRoute<Route>().params;
+  const { log, permStatsBefore, permStatsAfter } = useRoute<Route>().params;
   const { conditionScore, scoreBreakdown, stats } = log;
+  const previousScore = (log as any).previousScore as number | undefined;
+
+  // 영구 스탯 게인 diff
+  const permGains = computePermGainDiff(permStatsBefore, permStatsAfter);
   const [xpProgress, setXpProgress] = useState<ReturnType<typeof getXPProgress> | null>(null);
   const [levelUpModal, setLevelUpModal] = useState<{ newLevel: number; title: string } | null>(null);
 
@@ -129,21 +133,21 @@ export default function ResultScreen() {
             </Animated.Text>
             <Text style={s.scoreLabel}>TODAY SCORE</Text>
           </View>
-          {log.previousScore != null && (
+          {previousScore != null && (
             <View style={{ alignItems: 'flex-end' }}>
-              <Text style={s.prevText}>어제 {log.previousScore}</Text>
+              <Text style={s.prevText}>어제 {previousScore}</Text>
               <View style={s.deltaRow}>
-                {conditionScore > log.previousScore ? (
+                {conditionScore > previousScore ? (
                   <Ionicons name="chevron-up" size={14} color={COLORS.good} />
-                ) : conditionScore < log.previousScore ? (
+                ) : conditionScore < previousScore ? (
                   <Ionicons name="chevron-down" size={14} color={COLORS.bad} />
                 ) : null}
                 <Text style={[
                   s.deltaText,
-                  conditionScore > log.previousScore && { color: COLORS.good },
-                  conditionScore < log.previousScore && { color: COLORS.bad },
+                  conditionScore > previousScore && { color: COLORS.good },
+                  conditionScore < previousScore && { color: COLORS.bad },
                 ]}>
-                  {conditionScore > log.previousScore ? '+' : ''}{conditionScore - log.previousScore}
+                  {conditionScore > previousScore ? '+' : ''}{conditionScore - previousScore}
                 </Text>
               </View>
             </View>
@@ -198,10 +202,25 @@ export default function ResultScreen() {
             <Text style={s.cardTitle}>SCORE BREAKDOWN</Text>
             {factors.map((f, i) => (
               <View key={i} style={s.factorRow}>
-                <Text style={[s.factorPoints, f.points >= 0 ? s.good : s.bad]}>
-                  {f.points >= 0 ? '+' : ''}{f.points}
+                <Text style={[s.factorPoints, f.value >= 0 ? s.good : s.bad]}>
+                  {f.value >= 0 ? '+' : ''}{f.value}
                 </Text>
-                <Text style={s.factorReason}>{f.reason}</Text>
+                <Text style={s.factorReason}>{f.emoji} {f.label}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* ── 영구 스탯 게인 모먼트 ── */}
+        {permGains.length > 0 && (
+          <View style={s.permGainCard}>
+            <Text style={s.cardTitle}>PERMANENT STAT GAINS</Text>
+            <Text style={s.permGainSub}>이번 체크인으로 캐릭터가 영구히 강해졌어요</Text>
+            {permGains.map(g => (
+              <View key={g.key} style={s.permGainRow}>
+                <Text style={[s.permGainAbbr, { color: g.color }]}>{STAT_LABEL[g.key]}</Text>
+                <Text style={s.permGainName}>{STAT_FULLNAME[g.key]}</Text>
+                <Text style={[s.permGainDelta, { color: g.color }]}>+{g.delta.toFixed(1)}</Text>
               </View>
             ))}
           </View>
@@ -471,4 +490,45 @@ const s = StyleSheet.create({
     borderRadius: RADIUS.full, marginTop: SPACING.lg,
   },
   luBtnText: { color: '#000', fontWeight: '800', fontSize: 14 },
+
+  // 영구 스탯 게인 카드
+  permGainCard: {
+    backgroundColor: COLORS.bgCard, borderRadius: RADIUS.lg,
+    padding: SPACING.md, marginBottom: SPACING.md,
+    borderWidth: 1, borderColor: COLORS.amberLine,
+  },
+  permGainSub: { color: COLORS.textMuted, fontSize: FONTS.xxs, marginBottom: 10 },
+  permGainRow: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingVertical: 7,
+    borderBottomWidth: 1, borderBottomColor: COLORS.borderSub,
+  },
+  permGainAbbr: {
+    fontFamily: 'monospace', fontSize: FONTS.xs, fontWeight: '900',
+    letterSpacing: 1, width: 40,
+  },
+  permGainName: { color: COLORS.textSub, fontSize: FONTS.sm, fontWeight: '600', flex: 1 },
+  permGainDelta: {
+    fontFamily: 'monospace', fontSize: FONTS.md, fontWeight: '900',
+  },
 });
+
+// ─── 헬퍼: 영구 스탯 diff 추출 ────────────────────────
+type PermGain = { key: StatKey; delta: number; color: string };
+const STAT_COLOR: Record<StatKey, string> = {
+  str: COLORS.str,
+  end: COLORS.primary,
+  vit: COLORS.vit,
+  agi: COLORS.agi,
+  wis: COLORS.amber,
+};
+function computePermGainDiff(
+  before?: PermanentStats,
+  after?: PermanentStats,
+): PermGain[] {
+  if (!before || !after) return [];
+  const keys: StatKey[] = ['str', 'end', 'vit', 'agi', 'wis'];
+  return keys
+    .map(k => ({ key: k, delta: +(after[k] - before[k]).toFixed(1), color: STAT_COLOR[k] }))
+    .filter(g => g.delta > 0);
+}

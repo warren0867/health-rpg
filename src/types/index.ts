@@ -461,7 +461,11 @@ export const MED_TIME_LABEL: Record<string, string> = {
 export type RootStackParamList = {
   Onboarding: undefined;
   MainTabs: undefined;
-  Result: { log: DailyLog };
+  Result: {
+    log: DailyLog;
+    permStatsBefore?: PermanentStats;
+    permStatsAfter?: PermanentStats;
+  };
 };
 
 export type MainTabParamList = {

@@ -10,10 +10,11 @@ import { AlcoholInput, AlcoholType, BP_STATUS_COLOR, BP_STATUS_LABEL, DailyLog, 
 import {
   addXP, deleteExerciseEntry, generateId, getAllExerciseEntries,
   getDailyLog, getExerciseEntriesByDate, getFoodEntriesByDate,
-  getMedications, getMedLog, getMorningBS, getRecentDailyLogs,
-  getStreak, getTodayKey, getUserProfile, getWeightHistory,
-  recalcAndSavePermanentStats, saveDailyLog, saveExerciseEntry,
-  saveMedication, deleteMedication, sumFoodEntries, toggleMedTaken,
+  getMedications, getMedLog, getMorningBS, getPermanentStats,
+  getRecentDailyLogs, getStreak, getTodayKey, getUserProfile,
+  getWeightHistory, recalcAndSavePermanentStats, saveDailyLog,
+  saveExerciseEntry, saveMedication, deleteMedication, sumFoodEntries,
+  toggleMedTaken,
 } from '../utils/storage';
 import { calcXPGainWithTrends } from '../utils/levelSystem';
 import {
@@ -320,16 +321,17 @@ export default function InputScreen() {
       createdAt: existingLog?.createdAt ?? now, updatedAt: now,
     };
 
+    const permStatsBefore = await getPermanentStats();
     await saveDailyLog(log);
     if (!existingLog) await addXP(xpGained); // 첫 저장 시만 XP 지급
-    await recalcAndSavePermanentStats();     // DailyLog 변경분 영구 스탯 반영
+    const permStatsAfter = await recalcAndSavePermanentStats();
 
     setSaving(false);
     setHasExisting(true);
     triggerRefresh();
 
     if (goToResult) {
-      navigation.navigate('Result', { log });
+      navigation.navigate('Result', { log, permStatsBefore, permStatsAfter });
     }
   };
 

@@ -2,6 +2,8 @@ import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View, ViewStyle } from 'react-native';
 import { COLORS, FONTS, RADIUS, SPACING } from '../constants/theme';
+import { EMPTY_PERMANENT_STATS, PermanentStats } from '../types';
+import AvatarEvo, { getEvoStage, getNextEvoStage } from './AvatarEvo';
 
 type Rank = { rank: string; label: string; color: string; glow: string };
 
@@ -14,6 +16,7 @@ interface Props {
   xpCurrent: number;
   xpNeeded: number;
   todayXp: number | null;
+  permStats?: PermanentStats;
   onEditName?: () => void;
 }
 
@@ -24,11 +27,15 @@ interface Props {
  */
 export default function CharacterCard({
   name, score, rank, level, levelTitle,
-  xpCurrent, xpNeeded, todayXp, onEditName,
+  xpCurrent, xpNeeded, todayXp, permStats, onEditName,
 }: Props) {
   const rankColor = rank?.color ?? COLORS.textMuted;
   const rankGlow = rank?.glow ?? COLORS.primaryGlow;
   const xpPct = Math.min(100, Math.round((xpCurrent / xpNeeded) * 100));
+  const ps = permStats ?? EMPTY_PERMANENT_STATS;
+  const evo = getEvoStage(ps.totalGained);
+  const nextEvo = getNextEvoStage(ps.totalGained);
+  const toNext = nextEvo ? Math.max(0, nextEvo.threshold - ps.totalGained) : 0;
 
   return (
     <View style={[styles.card, { borderColor: rankColor + '33' } as ViewStyle]}>
@@ -37,21 +44,20 @@ export default function CharacterCard({
 
       <View style={styles.row}>
         <View style={styles.left}>
-          {/* 캐릭터 아바타 — 등급 컬러 박스 */}
-          <View style={[styles.avatar, { borderColor: rankColor, backgroundColor: rankGlow }]}>
-            <Ionicons name="person" size={32} color={rankColor} />
-          </View>
+          {/* 캐릭터 아바타 — 영구 스탯 기반 진화 */}
+          <AvatarEvo stats={ps} size={60} />
 
           <View style={styles.charInfo}>
             <TouchableOpacity onPress={onEditName} style={styles.nameRow} activeOpacity={0.7}>
               <Text style={styles.name}>{name || '용사'}</Text>
               <Ionicons name="create-outline" size={14} color={COLORS.textDisabled} />
             </TouchableOpacity>
-            {rank && (
-              <View style={[styles.rankPill, { backgroundColor: rankGlow, borderColor: rankColor + '55' }]}>
-                <Text style={[styles.rankBadge, { color: '#000', backgroundColor: rankColor }]}>{rank.rank}</Text>
-                <Text style={[styles.rankLabel, { color: rankColor }]}>{rank.label}</Text>
-              </View>
+            <View style={[styles.rankPill, { backgroundColor: evo.bgColor, borderColor: evo.borderColor }]}>
+              <Text style={[styles.evoStage, { color: evo.iconColor }]}>EVO {evo.stage}</Text>
+              <Text style={[styles.rankLabel, { color: evo.iconColor }]}>{evo.label}</Text>
+            </View>
+            {nextEvo && (
+              <Text style={styles.nextEvo}>다음 진화까지 {toNext.toFixed(1)}</Text>
             )}
           </View>
         </View>
@@ -120,6 +126,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4,
   },
   rankLabel: { fontSize: FONTS.xxs, fontWeight: '700' },
+  evoStage: {
+    fontFamily: 'monospace',
+    fontSize: FONTS.xxs - 1, fontWeight: '900', letterSpacing: 0.8,
+    paddingHorizontal: 5, paddingVertical: 1,
+  },
+  nextEvo: {
+    color: COLORS.textMuted,
+    fontSize: FONTS.xxs - 1,
+    marginTop: 4,
+    fontFamily: 'monospace',
+  },
 
   right: { alignItems: 'flex-end' },
   score: {

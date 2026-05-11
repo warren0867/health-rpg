@@ -13,6 +13,7 @@ import CalorieScreen from './src/screens/CalorieScreen';
 import HistoryScreen from './src/screens/HistoryScreen';
 import HomeScreen from './src/screens/HomeScreen';
 import IllnessScreen from './src/screens/IllnessScreen';
+import InBodyScreen from './src/screens/InBodyScreen';
 import InputScreen from './src/screens/InputScreen';
 import OnboardingScreen from './src/screens/OnboardingScreen';
 import ResultScreen from './src/screens/ResultScreen';
@@ -45,6 +46,7 @@ function MainTabs() {
             BloodSugar: focused ? 'water' : 'water-outline',
             History: focused ? 'bar-chart' : 'bar-chart-outline',
             Illness: focused ? 'medkit' : 'medkit-outline',
+            InBody: focused ? 'body' : 'body-outline',
           };
           return <Ionicons name={icons[route.name] ?? 'ellipse'} size={size - 1} color={color} />;
         },
@@ -54,6 +56,7 @@ function MainTabs() {
       <Tab.Screen name="Input" component={InputScreen} options={{ title: '체크인' }} />
       <Tab.Screen name="Calorie" component={CalorieScreen} options={{ title: '식단' }} />
       <Tab.Screen name="BloodSugar" component={BloodSugarScreen} options={{ title: '혈당' }} />
+      <Tab.Screen name="InBody" component={InBodyScreen} options={{ title: '인바디' }} />
       <Tab.Screen name="History" component={HistoryScreen} options={{ title: '기록' }} />
       <Tab.Screen name="Illness" component={IllnessScreen} options={{ title: '컨디션' }} />
     </Tab.Navigator>

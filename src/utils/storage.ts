@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { AchievementId, BloodSugarEntry, ChallengeId, CHALLENGE_DEFS, DailyLog, EMPTY_PERMANENT_STATS, ExerciseEntry, FoodEntry, FoodItem, IllnessEntry, MedLog, Medication, MorningBloodSugar, PermanentStats, RecentFoodEntry, UnlockedAchievement, UserProfile, UserXP, WeeklyChallenge, WeightEntry } from '../types';
+import { AchievementId, BloodSugarEntry, ChallengeId, CHALLENGE_DEFS, DailyLog, EMPTY_PERMANENT_STATS, ExerciseEntry, FoodEntry, FoodItem, IllnessEntry, InBodyRecord, MedLog, Medication, MorningBloodSugar, PermanentStats, RecentFoodEntry, UnlockedAchievement, UserProfile, UserXP, WeeklyChallenge, WeightEntry } from '../types';
 import { getLevelFromXP } from './levelSystem';
 import { recalcPermanentStats } from './permanentStats';
 import { calculateScore, calculateStats } from './scoreCalculator';
@@ -23,6 +23,7 @@ const KEYS = {
   WEEKLY_CHALLENGE: 'hrpg_weekly_challenge',
   PERMANENT_STATS: 'hrpg_permanent_stats',
   EXERCISE_ENTRIES: 'hrpg_exercise_entries',
+  INBODY_RECORDS: 'hrpg_inbody_records',
 } as const;
 
 // ─────────────────────────────────────────────
@@ -786,12 +787,13 @@ export async function setPermanentStats(stats: PermanentStats): Promise<void> {
 
 // 이력 전체로부터 영구 스탯을 재계산해 저장. 운동/체크인 추가·수정 후 호출.
 export async function recalcAndSavePermanentStats(): Promise<PermanentStats> {
-  const [exerciseEntries, dailyLogs, weightLog, profile, maxStreak] = await Promise.all([
+  const [exerciseEntries, dailyLogs, weightLog, profile, maxStreak, inbody] = await Promise.all([
     getAllExerciseEntries(),
     getAllDailyLogs(),
     getWeightHistory(365),
     getUserProfile(),
     computeMaxStreakEver(),
+    getInBodyRecords(),
   ]);
   const stats = recalcPermanentStats({
     exerciseEntries,
@@ -799,9 +801,38 @@ export async function recalcAndSavePermanentStats(): Promise<PermanentStats> {
     weightLog,
     weightGoal: profile?.goal,
     maxStreakEverDays: maxStreak,
+    inbodyRecords: inbody,
   });
   await setPermanentStats(stats);
   return stats;
+}
+
+// ─────────────────────────────────────────────
+//  인바디 기록 (수동 입력)
+// ─────────────────────────────────────────────
+
+export async function getInBodyRecords(): Promise<InBodyRecord[]> {
+  const raw = await AsyncStorage.getItem(KEYS.INBODY_RECORDS);
+  if (!raw) return [];
+  return (JSON.parse(raw) as InBodyRecord[])
+    .sort((a, b) => b.date.localeCompare(a.date));
+}
+
+export async function saveInBodyRecord(rec: InBodyRecord): Promise<void> {
+  const all = await getInBodyRecords();
+  const idx = all.findIndex(r => r.id === rec.id);
+  if (idx >= 0) all[idx] = rec; else all.push(rec);
+  await AsyncStorage.setItem(KEYS.INBODY_RECORDS, JSON.stringify(all));
+}
+
+export async function deleteInBodyRecord(id: string): Promise<void> {
+  const all = await getInBodyRecords();
+  await AsyncStorage.setItem(KEYS.INBODY_RECORDS, JSON.stringify(all.filter(r => r.id !== id)));
+}
+
+export async function getLatestInBody(): Promise<InBodyRecord | null> {
+  const all = await getInBodyRecords();
+  return all[0] ?? null;
 }
 
 // 역대 최장 streak (영구 보너스 산정용)

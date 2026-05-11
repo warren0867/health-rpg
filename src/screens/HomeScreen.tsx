@@ -206,6 +206,7 @@ export default function HomeScreen() {
           xpCurrent={xpProgress?.current ?? 0}
           xpNeeded={xpProgress?.needed ?? 100}
           todayXp={todayXP}
+          permStats={permStats}
           onEditName={() => {
             setEditName(profile?.name ?? '');
             setEditWeight(String(profile?.weightKg ?? ''));
