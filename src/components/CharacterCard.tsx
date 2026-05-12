@@ -53,8 +53,8 @@ export default function CharacterCard({
               <Ionicons name="create-outline" size={14} color={COLORS.textDisabled} />
             </TouchableOpacity>
             <View style={[styles.rankPill, { backgroundColor: evo.bgColor, borderColor: evo.borderColor }]}>
-              <Text style={[styles.evoStage, { color: evo.iconColor }]}>EVO {evo.stage}</Text>
-              <Text style={[styles.rankLabel, { color: evo.iconColor }]}>{evo.label}</Text>
+              <Text style={[styles.evoStage, { color: evo.textColor }]}>EVO {evo.stage}</Text>
+              <Text style={[styles.rankLabel, { color: evo.textColor }]}>{evo.label}</Text>
             </View>
             {nextEvo && (
               <Text style={styles.nextEvo}>다음 진화까지 {toNext.toFixed(1)}</Text>
