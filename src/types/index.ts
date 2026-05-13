@@ -466,6 +466,7 @@ export type RootStackParamList = {
     permStatsBefore?: PermanentStats;
     permStatsAfter?: PermanentStats;
   };
+  Coach: undefined;
 };
 
 export type MainTabParamList = {

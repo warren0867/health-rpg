@@ -7,10 +7,12 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS, FONTS, RADIUS, SPACING, getRank } from '../constants/theme';
-import { PermanentStats, RootStackParamList, STAT_FULLNAME, STAT_LABEL, ScoreFactor, StatKey } from '../types';
+import { DailyLog, InBodyRecord, PermanentStats, RootStackParamList, STAT_FULLNAME, STAT_LABEL, ScoreFactor, StatKey, UserProfile } from '../types';
+import AiCoachCard from '../components/AiCoachCard';
 import { getConditionFeedback, getScoreFactors } from '../utils/feedback';
 import { getLevelFromXP, getLevelTitle, getXPProgress } from '../utils/levelSystem';
-import { getUserXP } from '../utils/storage';
+import { calcRecentCondition, RecentCondition } from '../utils/permanentStats';
+import { getAllDailyLogs, getInBodyRecords, getUserProfile, getUserXP } from '../utils/storage';
 
 type Route = RouteProp<RootStackParamList, 'Result'>;
 
@@ -33,6 +35,12 @@ export default function ResultScreen() {
   const permGains = computePermGainDiff(permStatsBefore, permStatsAfter);
   const [xpProgress, setXpProgress] = useState<ReturnType<typeof getXPProgress> | null>(null);
   const [levelUpModal, setLevelUpModal] = useState<{ newLevel: number; title: string } | null>(null);
+  const [coachData, setCoachData] = useState<{
+    profile: UserProfile;
+    recentLogs: DailyLog[];
+    inbodyRecords: InBodyRecord[];
+    conditionInfo: RecentCondition;
+  } | null>(null);
 
   const rank = getRank(conditionScore);
   const feedback = getConditionFeedback(conditionScore);
@@ -45,6 +53,20 @@ export default function ResultScreen() {
   const rankScale = useRef(new Animated.Value(0.5)).current;
   const xpBarAnim = useRef(new Animated.Value(0)).current;
   const levelUpScale = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Promise.all([getUserProfile(), getAllDailyLogs(), getInBodyRecords()]).then(([p, logs, inbody]) => {
+      if (p) {
+        const recent = logs.slice(0, 14);
+        setCoachData({
+          profile: p,
+          recentLogs: recent,
+          inbodyRecords: inbody,
+          conditionInfo: calcRecentCondition(recent),
+        });
+      }
+    });
+  }, []);
 
   useEffect(() => {
     getUserXP().then(xp => {
@@ -185,7 +207,20 @@ export default function ResultScreen() {
           </View>
         )}
 
-        {/* ── AI 피드백 (별 아이콘) ── */}
+        {/* ── AI 코치 피드백 ── */}
+        {coachData && permStatsAfter && (
+          <AiCoachCard
+            log={log}
+            profile={coachData.profile}
+            recentLogs={coachData.recentLogs}
+            inbodyRecords={coachData.inbodyRecords}
+            permStats={permStatsAfter}
+            conditionInfo={coachData.conditionInfo}
+            onOpenChat={() => navigation.navigate('Coach')}
+          />
+        )}
+
+        {/* ── 정적 피드백 (별 아이콘) ── */}
         <View style={s.feedbackCard}>
           <View style={s.feedbackIcon}>
             <Ionicons name="star" size={20} color="#000" />

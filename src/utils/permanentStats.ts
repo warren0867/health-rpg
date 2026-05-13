@@ -170,6 +170,59 @@ export function recalcPermanentStats(opts: {
   };
 }
 
+// ─── 7) 최근 활동 기반 컨디션 점수 ──────────────────────────
+// 영구 스탯(totalGained)과 독립적. "지금 관리중인가?"를 0~100으로.
+// 며칠 안 기록하면 낮아지고, 꾸준히 잘 기록하면 높아짐.
+export interface RecentCondition {
+  score: number;                      // 0~100
+  trend: 'up' | 'down' | 'stable';
+  daysInactive: number;               // 마지막 기록 후 경과일
+  label: string;                      // '성장중' | '유지중' | '약화중'
+}
+
+export function calcRecentCondition(logs: DailyLog[]): RecentCondition {
+  if (logs.length === 0) {
+    return { score: 5, trend: 'down', daysInactive: 99, label: '약화중' };
+  }
+
+  const sorted = [...logs].sort((a, b) => b.date.localeCompare(a.date));
+  const latest = sorted[0];
+
+  const todayMs = (() => {
+    const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime();
+  })();
+  const lastMs = (() => {
+    const d = new Date(latest.date + 'T00:00:00'); return d.getTime();
+  })();
+  const daysInactive = Math.max(0, Math.round((todayMs - lastMs) / 86_400_000));
+
+  // 일관성: 7일 중 기록 일수 (최대 55점)
+  const consistencyScore = (logs.length / 7) * 55;
+  // 품질: 최근 로그 평균 conditionScore (최대 40점)
+  const avgScore = logs.reduce((s, l) => s + l.conditionScore, 0) / logs.length;
+  const qualityScore = (avgScore / 100) * 40;
+  // 미기록 패널티: 3일부터 감점, 최대 -50
+  const inactivityPenalty = daysInactive >= 3 ? Math.min(50, (daysInactive - 2) * 10) : 0;
+
+  const raw = Math.max(5, consistencyScore + qualityScore - inactivityPenalty);
+  const score = Math.min(100, Math.round(raw));
+
+  // 트렌드: 최근 3개 vs 이전 3개 conditionScore 평균 비교
+  const recent3 = sorted.slice(0, 3);
+  const older3 = sorted.slice(3, 6);
+  let trend: 'up' | 'down' | 'stable' = 'stable';
+  if (older3.length > 0) {
+    const rAvg = recent3.reduce((s, l) => s + l.conditionScore, 0) / recent3.length;
+    const oAvg = older3.reduce((s, l) => s + l.conditionScore, 0) / older3.length;
+    if (rAvg > oAvg + 5) trend = 'up';
+    else if (rAvg < oAvg - 5) trend = 'down';
+  }
+  if (daysInactive >= 3) trend = 'down';
+
+  const label = score >= 70 ? '성장중' : score >= 40 ? '유지중' : '약화중';
+  return { score, trend, daysInactive, label };
+}
+
 // ─── 6) 영구 스탯 → 표시용 레벨 (각 스탯별 등급) ──────────
 // 0~5 미숙, 5~15 숙련, 15~30 정예, 30~60 전문가, 60+ 마스터
 export function statTier(value: number): { tier: string; pct: number } {

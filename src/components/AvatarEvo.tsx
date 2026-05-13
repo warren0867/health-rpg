@@ -3,9 +3,6 @@ import { Image, ImageSourcePropType, Platform, StyleSheet, View, ViewStyle } fro
 import { COLORS, RADIUS } from '../constants/theme';
 import { PermanentStats } from '../types';
 
-// 영구 스탯 totalGained 기반 6단계 진화.
-// 스프라이트 출처: Kenney "Tiny Dungeon" (CC0). assets/avatars/LICENSE.txt 참고.
-// 모든 스프라이트는 16×16 픽셀아트 — 큰 사이즈로 키워도 픽셀 보존되도록 렌더.
 export type EvoStage = 0 | 1 | 2 | 3 | 4 | 5;
 
 interface Stage {
@@ -15,11 +12,10 @@ interface Stage {
   source: ImageSourcePropType;
   borderColor: string;
   bgColor: string;
-  textColor: string;    // 라벨/뱃지 컬러
-  glowColor?: string;   // 4단계 이상만
+  textColor: string;
+  glowColor?: string;
 }
 
-// require()는 런타임 X — 빌드 타임에 정적으로 번들됨. 그래서 객체 안에 그대로.
 export const EVO_STAGES: Stage[] = [
   { stage: 0, threshold: 0,
     label: '견습 모험가',
@@ -70,51 +66,102 @@ export function getNextEvoStage(totalGained: number): Stage | null {
   return next ?? null;
 }
 
+// conditionPct(0~100)로 아바타 상태 결정
+export type ConditionState = 'strong' | 'normal' | 'weak';
+
+export function getConditionState(pct: number): ConditionState {
+  if (pct >= 70) return 'strong';
+  if (pct >= 40) return 'normal';
+  return 'weak';
+}
+
+const CONDITION_DOT: Record<ConditionState, string> = {
+  strong: COLORS.good,
+  normal: COLORS.amber,
+  weak:   COLORS.bad,
+};
+
+// weak 상태일 때 테두리/배경 오버라이드
+const WEAK_BORDER = 'rgba(239,68,68,0.50)';
+const WEAK_BG     = 'rgba(239,68,68,0.10)';
+
 interface Props {
   stats: PermanentStats;
   size?: number;
+  conditionPct?: number;  // 0~100. undefined = 상태 표시 없음
 }
 
-export default function AvatarEvo({ stats, size = 60 }: Props) {
+export default function AvatarEvo({ stats, size = 60, conditionPct }: Props) {
   const stage = getEvoStage(stats.totalGained);
-  // 16×16 픽셀아트 → 큰 사이즈로 확대 시 픽셀 흐려지지 않게.
-  // 웹: imageRendering: 'pixelated' (CSS). 네이티브: Image의 resizeMethod=resize는
-  // 자동 안티엘리어싱을 적용해버리므로, scale을 정수배(예: 48 = 16*3)로 두면 자연스러움.
   const innerSize = Math.round(size * 0.78);
+
+  const condState: ConditionState | null =
+    conditionPct !== undefined ? getConditionState(conditionPct) : null;
+
+  const borderColor =
+    condState === 'weak' ? WEAK_BORDER :
+    condState === 'strong' ? COLORS.good + '88' :
+    stage.borderColor;
+
+  const bgColor =
+    condState === 'weak' ? WEAK_BG : stage.bgColor;
+
+  const imageOpacity = condState === 'weak' ? 0.50 : 1;
 
   const containerStyle: ViewStyle = {
     width: size, height: size,
     borderRadius: RADIUS.md + 2,
     borderWidth: 2,
     alignItems: 'center', justifyContent: 'center',
-    borderColor: stage.borderColor,
-    backgroundColor: stage.bgColor,
+    borderColor,
+    backgroundColor: bgColor,
     overflow: 'visible',
   };
 
+  const dotSize = Math.round(size * 0.22);
+
   return (
     <View style={containerStyle}>
-      {/* 4단계 이상 — 두 겹 글로우 */}
-      {stage.glowColor && (
+      {/* strong 상태 — 그린 글로우 */}
+      {condState === 'strong' && (
         <View
           pointerEvents="none"
+          style={[s.outerGlow, { backgroundColor: COLORS.good + '22', borderRadius: RADIUS.md + 8 }]}
+        />
+      )}
+      {/* EVO 4+ 원래 글로우 (strong이 아닐 때만) */}
+      {stage.glowColor && condState !== 'strong' && condState !== 'weak' && (
+        <View
+          pointerEvents="none"
+          style={[s.outerGlow, { backgroundColor: stage.glowColor + '22', borderRadius: RADIUS.md + 8 }]}
+        />
+      )}
+
+      <Image
+        source={stage.source}
+        style={{ width: innerSize, height: innerSize, opacity: imageOpacity, ...pixelated }}
+        resizeMode="contain"
+      />
+
+      {/* 컨디션 상태 도트 (우측 상단) */}
+      {condState !== null && (
+        <View
           style={[
-            s.outerGlow,
-            { backgroundColor: stage.glowColor + '22', borderRadius: RADIUS.md + 8 },
+            s.statusDot,
+            {
+              width: dotSize, height: dotSize,
+              borderRadius: dotSize / 2,
+              top: -(dotSize / 2 - 2),
+              right: -(dotSize / 2 - 2),
+              backgroundColor: CONDITION_DOT[condState],
+            },
           ]}
         />
       )}
-      <Image
-        source={stage.source}
-        style={{ width: innerSize, height: innerSize, ...pixelated }}
-        resizeMode="contain"
-        // RN web 한정 — CSS image-rendering 적용
-      />
     </View>
   );
 }
 
-// 픽셀아트 보존 — 웹에선 CSS, 네이티브엔 무영향
 const pixelated: any = Platform.select({
   web: { imageRendering: 'pixelated' },
   default: {},
@@ -124,5 +171,10 @@ const s = StyleSheet.create({
   outerGlow: {
     position: 'absolute', top: -8, left: -8, right: -8, bottom: -8,
     opacity: 0.55,
+  },
+  statusDot: {
+    position: 'absolute',
+    borderWidth: 2,
+    borderColor: '#070912',  // bg 색과 같게 — 테두리로 분리감
   },
 });

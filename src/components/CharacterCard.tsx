@@ -3,6 +3,7 @@ import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View, ViewStyle } from 'react-native';
 import { COLORS, FONTS, RADIUS, SPACING } from '../constants/theme';
 import { EMPTY_PERMANENT_STATS, PermanentStats } from '../types';
+import { RecentCondition } from '../utils/permanentStats';
 import AvatarEvo, { getEvoStage, getNextEvoStage } from './AvatarEvo';
 
 type Rank = { rank: string; label: string; color: string; glow: string };
@@ -17,17 +18,13 @@ interface Props {
   xpNeeded: number;
   todayXp: number | null;
   permStats?: PermanentStats;
+  conditionInfo?: RecentCondition;
   onEditName?: () => void;
 }
 
-/**
- * 홈 화면 최상단 캐릭터 카드.
- * 평소엔 절제된 카드지만 등급 컬러로 약한 글로우를 줘서 RPG 정체성 유지.
- * 풀 RPG 효과는 ResultScreen에서 발동.
- */
 export default function CharacterCard({
   name, score, rank, level, levelTitle,
-  xpCurrent, xpNeeded, todayXp, permStats, onEditName,
+  xpCurrent, xpNeeded, todayXp, permStats, conditionInfo, onEditName,
 }: Props) {
   const rankColor = rank?.color ?? COLORS.textMuted;
   const rankGlow = rank?.glow ?? COLORS.primaryGlow;
@@ -37,6 +34,21 @@ export default function CharacterCard({
   const nextEvo = getNextEvoStage(ps.totalGained);
   const toNext = nextEvo ? Math.max(0, nextEvo.threshold - ps.totalGained) : 0;
 
+  const cond = conditionInfo;
+  const condColor =
+    !cond ? COLORS.textMuted :
+    cond.score >= 70 ? COLORS.good :
+    cond.score >= 40 ? COLORS.amber :
+    COLORS.bad;
+
+  const trendIcon =
+    !cond ? 'remove-outline' :
+    cond.trend === 'up' ? 'trending-up-outline' :
+    cond.trend === 'down' ? 'trending-down-outline' :
+    'remove-outline';
+
+  const condBarPct = cond ? Math.round(cond.score) : 0;
+
   return (
     <View style={[styles.card, { borderColor: rankColor + '33' } as ViewStyle]}>
       {/* 등급 컬러 글로우 (배경) */}
@@ -44,19 +56,43 @@ export default function CharacterCard({
 
       <View style={styles.row}>
         <View style={styles.left}>
-          {/* 캐릭터 아바타 — 영구 스탯 기반 진화 */}
-          <AvatarEvo stats={ps} size={60} />
+          {/* 아바타 — conditionPct 연동 */}
+          <AvatarEvo stats={ps} size={60} conditionPct={cond?.score} />
 
           <View style={styles.charInfo}>
             <TouchableOpacity onPress={onEditName} style={styles.nameRow} activeOpacity={0.7}>
               <Text style={styles.name}>{name || '용사'}</Text>
               <Ionicons name="create-outline" size={14} color={COLORS.textDisabled} />
             </TouchableOpacity>
+
+            {/* EVO 등급 뱃지 */}
             <View style={[styles.rankPill, { backgroundColor: evo.bgColor, borderColor: evo.borderColor }]}>
               <Text style={[styles.evoStage, { color: evo.textColor }]}>EVO {evo.stage}</Text>
               <Text style={[styles.rankLabel, { color: evo.textColor }]}>{evo.label}</Text>
             </View>
-            {nextEvo && (
+
+            {/* 컨디션 상태 행 */}
+            {cond && (
+              <View style={styles.condRow}>
+                <Ionicons name={trendIcon as any} size={11} color={condColor} />
+                <Text style={[styles.condLabel, { color: condColor }]}>{cond.label}</Text>
+                {cond.daysInactive >= 3 && (
+                  <View style={[styles.inactiveBadge, { borderColor: COLORS.bad + '66' }]}>
+                    <Text style={styles.inactiveText}>{cond.daysInactive}d 미기록</Text>
+                  </View>
+                )}
+              </View>
+            )}
+
+            {/* 컨디션 바 */}
+            {cond && (
+              <View style={styles.condTrack}>
+                <View style={[styles.condFill, { width: `${condBarPct}%`, backgroundColor: condColor }]} />
+              </View>
+            )}
+
+            {/* 다음 진화 (컨디션 바가 있으면 숨김 — 공간 절약) */}
+            {!cond && nextEvo && (
               <Text style={styles.nextEvo}>다음 진화까지 {toNext.toFixed(1)}</Text>
             )}
           </View>
@@ -65,6 +101,10 @@ export default function CharacterCard({
         <View style={styles.right}>
           <Text style={[styles.score, { color: rankColor }]}>{score ?? '--'}</Text>
           <Text style={styles.scoreLabel}>SCORE</Text>
+          {/* 다음 진화 — 컨디션 바 있을 때 이쪽에 작게 */}
+          {cond && nextEvo && (
+            <Text style={styles.nextEvoSmall}>EVO{evo.stage + 1} ↑ {toNext.toFixed(0)}</Text>
+          )}
         </View>
       </View>
 
@@ -108,11 +148,6 @@ const styles = StyleSheet.create({
   },
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   left: { flexDirection: 'row', alignItems: 'center', gap: 14, flex: 1 },
-  avatar: {
-    width: 60, height: 60, borderRadius: RADIUS.md + 2,
-    borderWidth: 2,
-    alignItems: 'center', justifyContent: 'center',
-  },
   charInfo: { flex: 1 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
   name: { color: COLORS.text, fontSize: FONTS.lg, fontWeight: '800', letterSpacing: -0.3 },
@@ -120,10 +155,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingVertical: 4, paddingRight: 10, paddingLeft: 4,
     borderRadius: RADIUS.full, borderWidth: 1, alignSelf: 'flex-start',
-  },
-  rankBadge: {
-    fontSize: FONTS.xxs, fontWeight: '900',
-    paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4,
+    marginBottom: 5,
   },
   rankLabel: { fontSize: FONTS.xxs, fontWeight: '700' },
   evoStage: {
@@ -131,10 +163,35 @@ const styles = StyleSheet.create({
     fontSize: FONTS.xxs - 1, fontWeight: '900', letterSpacing: 0.8,
     paddingHorizontal: 5, paddingVertical: 1,
   },
+
+  // ─── 컨디션 인디케이터 ──────────────────────────
+  condRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    marginBottom: 4,
+  },
+  condLabel: {
+    fontSize: FONTS.xxs - 1, fontWeight: '700', fontFamily: 'monospace',
+  },
+  inactiveBadge: {
+    borderWidth: 1,
+    borderRadius: 4,
+    paddingHorizontal: 4, paddingVertical: 1,
+    marginLeft: 2,
+  },
+  inactiveText: {
+    fontSize: FONTS.xxs - 2, color: COLORS.bad, fontWeight: '700', fontFamily: 'monospace',
+  },
+  condTrack: {
+    height: 3, backgroundColor: 'rgba(255,255,255,0.07)',
+    borderRadius: RADIUS.full, overflow: 'hidden',
+    width: '100%',
+  },
+  condFill: { height: '100%', borderRadius: RADIUS.full },
+
   nextEvo: {
     color: COLORS.textMuted,
     fontSize: FONTS.xxs - 1,
-    marginTop: 4,
+    marginTop: 2,
     fontFamily: 'monospace',
   },
 
@@ -148,6 +205,13 @@ const styles = StyleSheet.create({
     fontSize: 10, color: COLORS.textDisabled,
     fontFamily: 'monospace',
     letterSpacing: 2.5, fontWeight: '600', marginTop: 2,
+  },
+  nextEvoSmall: {
+    fontSize: FONTS.xxs - 2,
+    color: COLORS.textDisabled,
+    fontFamily: 'monospace',
+    marginTop: 4,
+    letterSpacing: 0.5,
   },
 
   xpBlock: { marginTop: SPACING.md, paddingTop: SPACING.md, borderTopWidth: 1, borderTopColor: COLORS.border },

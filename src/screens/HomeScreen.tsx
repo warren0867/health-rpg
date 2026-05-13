@@ -26,6 +26,7 @@ import {
   getWaterLog, getWaterStreak, recalcAndSavePermanentStats, saveMorningBS,
   saveUserProfile, sumFoodEntries, unlockAchievement, updateChallengeProgress,
 } from '../utils/storage';
+import { RecentCondition, calcRecentCondition } from '../utils/permanentStats';
 
 /**
  * 홈 화면 — Vital Quest 디자인 v1
@@ -57,6 +58,7 @@ export default function HomeScreen() {
   const [immunity, setImmunity] = useState<number | null>(null);
   const [currentIllness, setCurrentIllness] = useState<IllnessEntry | null>(null);
   const [permStats, setPermStats] = useState<PermanentStats>(EMPTY_PERMANENT_STATS);
+  const [conditionInfo, setConditionInfo] = useState<RecentCondition | null>(null);
 
   // 모달
   const [showBSModal, setShowBSModal] = useState(false);
@@ -80,6 +82,7 @@ export default function HomeScreen() {
       getWaterLog(today), getUserXP(), getUnlockedAchievementIds(),
       calcImmunity(), getCurrentIllness(), getLatestWeight(),
     ]);
+    setConditionInfo(calcRecentCondition(recent));
     setProfile(p);
     setTodayLog(log);
     setScore(log?.conditionScore ?? null);
@@ -207,6 +210,7 @@ export default function HomeScreen() {
           xpNeeded={xpProgress?.needed ?? 100}
           todayXp={todayXP}
           permStats={permStats}
+          conditionInfo={conditionInfo ?? undefined}
           onEditName={() => {
             setEditName(profile?.name ?? '');
             setEditWeight(String(profile?.weightKg ?? ''));
@@ -287,6 +291,25 @@ export default function HomeScreen() {
             onPress={() => navigation.navigate('Input')}
           />
         </View>
+
+        {/* ── AI 코치 배너 ── */}
+        <TouchableOpacity
+          style={s.coachBanner}
+          onPress={() => navigation.navigate('Coach')}
+          activeOpacity={0.85}
+        >
+          <View style={s.coachBannerGlow} pointerEvents="none" />
+          <View style={s.coachBannerLeft}>
+            <View style={s.coachIconWrap}>
+              <Ionicons name="sparkles" size={18} color={COLORS.purple} />
+            </View>
+            <View>
+              <Text style={s.coachBannerTitle}>AI 건강 코치</Text>
+              <Text style={s.coachBannerSub}>운동·식단·인바디 분석 상담</Text>
+            </View>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={COLORS.purple} />
+        </TouchableOpacity>
 
         <View style={{ height: 40 }} />
       </ScrollView>
@@ -471,6 +494,50 @@ const s = StyleSheet.create({
     paddingHorizontal: SPACING.md,
     gap: 10,
     marginBottom: SPACING.md,
+  },
+  coachBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginHorizontal: SPACING.md,
+    marginBottom: SPACING.md,
+    backgroundColor: COLORS.bgCard,
+    borderRadius: RADIUS.md,
+    padding: SPACING.md,
+    borderWidth: 1,
+    borderColor: COLORS.purple + '44',
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  coachBannerGlow: {
+    position: 'absolute',
+    top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: COLORS.purpleGlow,
+  },
+  coachBannerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  coachIconWrap: {
+    width: 38, height: 38,
+    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.purple + '22',
+    borderWidth: 1,
+    borderColor: COLORS.purple + '44',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  coachBannerTitle: {
+    fontSize: FONTS.sm,
+    fontWeight: '700',
+    color: COLORS.purple,
+    marginBottom: 2,
+  },
+  coachBannerSub: {
+    fontSize: FONTS.xxs,
+    color: COLORS.textMuted,
+    fontFamily: 'monospace',
   },
   actionCard: {
     flex: 1,

@@ -16,6 +16,7 @@ import IllnessScreen from './src/screens/IllnessScreen';
 import InBodyScreen from './src/screens/InBodyScreen';
 import InputScreen from './src/screens/InputScreen';
 import OnboardingScreen from './src/screens/OnboardingScreen';
+import CoachScreen from './src/screens/CoachScreen';
 import ResultScreen from './src/screens/ResultScreen';
 import { MainTabParamList, RootStackParamList } from './src/types';
 import { getUserProfile } from './src/utils/storage';
@@ -98,6 +99,11 @@ export default function App() {
             <Stack.Screen
               name="Result"
               component={ResultScreen}
+              options={{ presentation: 'modal', gestureEnabled: true }}
+            />
+            <Stack.Screen
+              name="Coach"
+              component={CoachScreen}
               options={{ presentation: 'modal', gestureEnabled: true }}
             />
           </Stack.Navigator>
