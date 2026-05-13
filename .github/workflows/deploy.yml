@@ -28,6 +28,7 @@ jobs:
 
       - name: Deploy to GitHub Pages
         run: |
+          touch dist/.nojekyll
           cd dist
           git init
           git config user.name "GitHub Actions"
