@@ -1,12 +1,13 @@
 import { getEvoStage } from '../components/AvatarEvo';
 import { DailyLog, InBodyRecord, PermanentStats, UserProfile } from '../types';
 import { RecentCondition } from './permanentStats';
+import { ANTHROPIC_API_KEY } from './apiKeyConfig';
 
 const API_URL = 'https://api.anthropic.com/v1/messages';
 const MODEL = 'claude-opus-4-7';
 
 function getApiKey(): string {
-  return (process.env as any).EXPO_PUBLIC_ANTHROPIC_API_KEY ?? '';
+  return ANTHROPIC_API_KEY || (process.env as any).EXPO_PUBLIC_ANTHROPIC_API_KEY || '';
 }
 
 async function callClaude(system: string, userMessage: string, maxTokens = 400): Promise<string> {

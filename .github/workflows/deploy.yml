@@ -20,8 +20,11 @@ jobs:
       - name: Install dependencies
         run: npm install --legacy-peer-deps
 
-      - name: Create env file
-        run: echo "EXPO_PUBLIC_ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}" > .env
+      - name: Inject API key
+        run: |
+          printf "export const ANTHROPIC_API_KEY = '%s';\n" "$ANTHROPIC_API_KEY" > src/utils/apiKeyConfig.ts
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
 
       - name: Export web build
         run: npx expo export -p web --output-dir dist
