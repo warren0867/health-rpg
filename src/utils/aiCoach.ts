@@ -223,6 +223,60 @@ export async function parseMealInput(description: string): Promise<ParsedMealIte
   return JSON.parse(match[0]) as ParsedMealItem[];
 }
 
+// ─── 체크인 대화 ──────────────────────────────────────────────
+
+export interface CheckInData {
+  sleep: { hours: number } | null;
+  exercise: { types: string[]; minutes: number; intensity: string } | null;
+  alcohol: { consumed: boolean } | null;
+  mood: number | null;
+  bloodPressure: { systolic: number; diastolic: number } | null;
+  morningBS: number | null;
+}
+
+export const EMPTY_CHECKIN: CheckInData = {
+  sleep: null, exercise: null, alcohol: null,
+  mood: null, bloodPressure: null, morningBS: null,
+};
+
+export interface CheckInTurn {
+  reply: string;
+  data: CheckInData;
+  complete: boolean;
+}
+
+export async function conductCheckIn(
+  conversation: ChatMessage[],
+  currentData: CheckInData,
+): Promise<CheckInTurn> {
+  const systemPrompt = `건강 체크인 어시스턴트. 대화로 오늘의 건강 데이터를 수집한다.
+반드시 JSON만 반환. 다른 텍스트 절대 없이.
+
+지금까지 수집된 데이터: ${JSON.stringify(currentData)}
+
+수집 목표:
+- sleep: {hours:숫자} — 수면 시간 (필수)
+- exercise: {types:["walk"|"run"|"cycling"|"gym"|"swim"|"hiking"|"yoga"|"pilates"|"tennis"|"soccer"],minutes:숫자,intensity:"low"|"medium"|"high"} 또는 null
+- alcohol: {consumed:true/false} — 음주 여부 (필수)
+- mood: 1~5 정수 또는 null (선택, 굳이 물어보지 않아도 됨)
+- bloodPressure: {systolic:숫자,diastolic:숫자} 또는 null (선택)
+- morningBS: 공복혈당 숫자 또는 null (선택)
+
+규칙:
+- 이미 수집된 항목은 절대 다시 묻지 않는다
+- 모호하면 확인 질문 ("헬스는 따로 안 하셨나요?" "몇 시간 주무셨어요?")
+- 한 번에 1~2가지만 질문, 짧고 친근하게
+- sleep + alcohol 모두 수집되면 complete:true
+
+반환 형식 (반드시 이 형식만):
+{"reply":"...","data":{...},"complete":false}`;
+
+  const text = await callClaudeMessages(systemPrompt, conversation, 300);
+  const match = text.match(/\{[\s\S]*\}/);
+  if (!match) throw new Error('체크인 파싱 실패');
+  return JSON.parse(match[0]) as CheckInTurn;
+}
+
 // ─── 채팅 ─────────────────────────────────────────────────
 
 export interface ChatMessage {
