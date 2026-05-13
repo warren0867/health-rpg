@@ -23,11 +23,14 @@ async function callClaudeMessages(
   messages: Array<{ role: 'user' | 'assistant'; content: string }>,
   maxTokens = 600,
 ): Promise<string> {
+  const key = getApiKey();
+  if (!key) throw new Error('API 키 없음: GitHub 시크릿 ANTHROPIC_API_KEY를 확인하세요');
+
   const res = await fetch(API_URL, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'x-api-key': getApiKey(),
+      'x-api-key': key,
       'anthropic-version': '2023-06-01',
       'anthropic-dangerous-direct-browser-access': 'true',
     },
