@@ -20,6 +20,17 @@ jobs:
       - name: Install dependencies
         run: npm install --legacy-peer-deps
 
+      - name: Verify API key secret
+        run: |
+          if [ -z "$EXPO_PUBLIC_ANTHROPIC_API_KEY" ]; then
+            echo "ERROR: ANTHROPIC_API_KEY secret is not set in GitHub repository secrets!"
+            exit 1
+          else
+            echo "API key is set (${#EXPO_PUBLIC_ANTHROPIC_API_KEY} chars)"
+          fi
+        env:
+          EXPO_PUBLIC_ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
       - name: Export web build
         run: npx expo export -p web --output-dir dist
         env:

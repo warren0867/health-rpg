@@ -1,3 +1,4 @@
+import Constants from 'expo-constants';
 import { getEvoStage } from '../components/AvatarEvo';
 import { DailyLog, InBodyRecord, PermanentStats, UserProfile } from '../types';
 import { RecentCondition } from './permanentStats';
@@ -6,7 +7,11 @@ const API_URL = 'https://api.anthropic.com/v1/messages';
 const MODEL = 'claude-opus-4-7';
 
 function getApiKey(): string {
-  return (process.env as any).EXPO_PUBLIC_ANTHROPIC_API_KEY ?? '';
+  // expo-constants reads from app.config.js extra, which is baked in at build time
+  const fromConfig = Constants.expoConfig?.extra?.anthropicApiKey as string | undefined;
+  // fallback to process.env for local dev without app.config.js
+  const fromEnv = (process.env as any).EXPO_PUBLIC_ANTHROPIC_API_KEY as string | undefined;
+  return fromConfig || fromEnv || '';
 }
 
 async function callClaude(system: string, userMessage: string, maxTokens = 400): Promise<string> {
