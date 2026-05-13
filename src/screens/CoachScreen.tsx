@@ -337,6 +337,12 @@ export default function CoachScreen() {
             returnKeyType="send"
             blurOnSubmit={false}
             onSubmitEditing={send}
+            onKeyPress={(e: any) => {
+              if (e.nativeEvent.key === 'Enter' && !e.nativeEvent.shiftKey) {
+                e.preventDefault?.();
+                send();
+              }
+            }}
             editable={dataReady && !responding}
           />
           <TouchableOpacity
