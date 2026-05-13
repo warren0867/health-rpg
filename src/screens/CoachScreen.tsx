@@ -334,6 +334,9 @@ export default function CoachScreen() {
             placeholder={mode === 'meal' ? '오늘 뭐 드셨는지 얘기해줘...' : mode === 'checkin' ? '오늘 하루를 얘기해줘...' : '무엇이든 물어보세요...'}
             placeholderTextColor={COLORS.textDisabled}
             multiline maxLength={500}
+            returnKeyType="send"
+            blurOnSubmit={false}
+            onSubmitEditing={send}
             editable={dataReady && !responding}
           />
           <TouchableOpacity
