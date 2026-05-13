@@ -1,12 +1,49 @@
-import Anthropic from '@anthropic-ai/sdk';
 import { getEvoStage } from '../components/AvatarEvo';
 import { DailyLog, InBodyRecord, PermanentStats, UserProfile } from '../types';
 import { RecentCondition } from './permanentStats';
 
-const client = new Anthropic({
-  apiKey: process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY ?? '',
-  dangerouslyAllowBrowser: true,
-});
+const API_URL = 'https://api.anthropic.com/v1/messages';
+const MODEL = 'claude-opus-4-7';
+
+function getApiKey(): string {
+  return (process.env as any).EXPO_PUBLIC_ANTHROPIC_API_KEY ?? '';
+}
+
+async function callClaude(system: string, userMessage: string, maxTokens = 400): Promise<string> {
+  return callClaudeMessages(system, [{ role: 'user', content: userMessage }], maxTokens);
+}
+
+async function callClaudeMessages(
+  system: string,
+  messages: Array<{ role: 'user' | 'assistant'; content: string }>,
+  maxTokens = 600,
+): Promise<string> {
+  const res = await fetch(API_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': getApiKey(),
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: MODEL,
+      max_tokens: maxTokens,
+      system,
+      messages,
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Anthropic API error ${res.status}: ${err}`);
+  }
+
+  const data = await res.json();
+  const textBlock = data.content?.find((b: any) => b.type === 'text');
+  return textBlock?.text ?? '';
+}
+
+// ─── 컨텍스트 빌더 ────────────────────────────────────────
 
 const GOAL_LABEL: Record<string, string> = {
   lose: '체중 감량',
@@ -76,8 +113,7 @@ function buildUserContext(
 `;
     if (conditionInfo) {
       const trendKo = conditionInfo.trend === 'up' ? '상승 중' : conditionInfo.trend === 'down' ? '하강 중' : '유지 중';
-      ctx += `- 전체 컨디션: ${conditionInfo.label} (${conditionInfo.score}점, ${trendKo})
-`;
+      ctx += `- 전체 컨디션: ${conditionInfo.label} (${conditionInfo.score}점, ${trendKo})\n`;
     }
   }
 
@@ -111,6 +147,8 @@ export function buildSystemPrompt(
 ${buildUserContext(profile, permStats, recentLogs, inbodyRecords, conditionInfo)}`;
 }
 
+// ─── 체크인 피드백 ────────────────────────────────────────
+
 export async function getCheckInFeedback(params: {
   log: DailyLog;
   profile: UserProfile;
@@ -138,22 +176,16 @@ export async function getCheckInFeedback(params: {
     log.xpGained ? `- 획득 XP: +${log.xpGained}` : null,
   ].filter(Boolean).join('\n');
 
-  const response = await client.messages.create({
-    model: 'claude-opus-4-7',
-    max_tokens: 400,
-    thinking: { type: 'adaptive' },
-    system: systemPrompt,
-    messages: [
-      {
-        role: 'user',
-        content: `${todayCtx}\n\n오늘 체크인 기반으로 개인 피드백 부탁해. 잘한 것 구체적으로 칭찬하고, 아쉬운 부분은 왜 그런지 설명해줘. 목표와 연결해서 200자 내외로 간결하게.`,
-      },
-    ],
-  });
+  const text = await callClaude(
+    systemPrompt,
+    `${todayCtx}\n\n오늘 체크인 기반으로 개인 피드백 부탁해. 잘한 것 구체적으로 칭찬하고, 아쉬운 부분은 왜 그런지 설명해줘. 목표와 연결해서 200자 내외로 간결하게.`,
+    400,
+  );
 
-  const textBlock = response.content.find(b => b.type === 'text');
-  return textBlock?.text ?? '오늘도 체크인 수고했어요! 꾸준한 기록이 변화를 만들어요 💪';
+  return text || '오늘도 체크인 수고했어요! 꾸준한 기록이 변화를 만들어요 💪';
 }
+
+// ─── 채팅 ─────────────────────────────────────────────────
 
 export interface ChatMessage {
   role: 'user' | 'assistant';
@@ -172,14 +204,11 @@ export async function sendChatMessage(params: {
 
   const systemPrompt = buildSystemPrompt(profile, permStats, recentLogs, inbodyRecords, conditionInfo);
 
-  const response = await client.messages.create({
-    model: 'claude-opus-4-7',
-    max_tokens: 600,
-    thinking: { type: 'adaptive' },
-    system: systemPrompt,
-    messages: messages.map(m => ({ role: m.role, content: m.content })),
-  });
+  const text = await callClaudeMessages(
+    systemPrompt,
+    messages.map(m => ({ role: m.role, content: m.content })),
+    600,
+  );
 
-  const textBlock = response.content.find(b => b.type === 'text');
-  return textBlock?.text ?? '죄송해요, 잠깐 문제가 있었어요. 다시 물어봐 주세요.';
+  return text || '응답을 받지 못했어요. 다시 시도해주세요.';
 }
