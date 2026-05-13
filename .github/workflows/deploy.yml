@@ -24,11 +24,7 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
-          node -e "
-            const fs = require('fs');
-            const key = process.env.ANTHROPIC_API_KEY || '';
-            fs.writeFileSync('src/utils/apiKeyConfig.ts', 'export const ANTHROPIC_API_KEY = \'' + key + '\';\n');
-          "
+          node -e 'const fs=require("fs"),key=process.env.ANTHROPIC_API_KEY||"";fs.writeFileSync("src/utils/apiKeyConfig.ts","export const ANTHROPIC_API_KEY = \""+key+"\";\n");'
 
       - name: Export web build
         run: npx expo export -p web --output-dir dist
