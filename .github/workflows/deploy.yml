@@ -20,30 +20,17 @@ jobs:
       - name: Install dependencies
         run: npm install --legacy-peer-deps
 
-      - name: Inject API key
+      - name: Create env file
+        run: echo "EXPO_PUBLIC_ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY" > .env
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        run: |
-          python3 -c "
-          import os
-          key = os.environ.get('ANTHROPIC_API_KEY', '')
-          print('Key length:', len(key))
-          with open('src/utils/apiKeyConfig.ts', 'w') as f:
-              f.write('export const ANTHROPIC_API_KEY = \"' + key + '\";\n')
-          print('apiKeyConfig.ts written OK')
-          "
 
       - name: Export web build
         run: npx expo export -p web --output-dir dist
 
-      - name: Check dist
-        if: always()
-        run: |
-          echo "=== dist 폴더 내용 ==="
-          ls -la dist/ 2>&1 || echo "dist/ 없음"
-          echo "=== 파일 수: $(find dist/ -type f 2>/dev/null | wc -l) ==="
-
       - name: Deploy to GitHub Pages
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           touch dist/.nojekyll
           cd dist
@@ -52,4 +39,6 @@ jobs:
           git config user.email "actions@github.com"
           git add -A
           git commit -m "Deploy"
-          git push --force "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" HEAD:gh-pages
+          gh auth setup-git
+          git remote add origin https://github.com/${{ github.repository }}.git
+          git push --force origin HEAD:gh-pages
