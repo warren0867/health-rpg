@@ -10,7 +10,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS, FONTS, RADIUS, SPACING } from '../constants/theme';
 import { ActivityLevel, Gender, Goal, RootStackParamList, UserProfile } from '../types';
-import { calcBMI, calcTargetCalories } from '../utils/calorieCalculator';
+import { calcBMI, calcTargetCalories, getBMILabel } from '../utils/calorieCalculator';
 import { saveUserProfile } from '../utils/storage';
 
 type Nav = StackNavigationProp<RootStackParamList, 'Onboarding'>;
@@ -37,7 +37,10 @@ export default function OnboardingScreen() {
       ? calcTargetCalories(gender, parseInt(age), parseInt(height), parseFloat(weight), activity, goal)
       : 0;
 
-  const bmi = height && weight ? calcBMI(parseFloat(weight), parseInt(height)) : null;
+  const bmiRaw = height && weight ? calcBMI(parseFloat(weight), parseInt(height)) : null;
+  const bmi = bmiRaw !== null && isFinite(bmiRaw)
+    ? (() => { const b = getBMILabel(bmiRaw); return { value: bmiRaw, category: b.label, color: b.color }; })()
+    : null;
   const birthDate = birthYear && birthMonth && birthDay
     ? `${birthYear}-${birthMonth.padStart(2, '0')}-${birthDay.padStart(2, '0')}`
     : undefined;
