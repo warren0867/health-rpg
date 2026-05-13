@@ -141,8 +141,9 @@ export default function CoachScreen() {
     try {
       const items = await parseMealInput(text);
       pushMsg({ id: generateId(), kind: 'meal_confirm', items, saved: false });
-    } catch {
-      pushMsg({ id: generateId(), kind: 'chat', role: 'assistant', content: '식단 분석에 실패했어요. 좀 더 자세히 설명해줄 수 있어요? 😅' });
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err);
+      pushMsg({ id: generateId(), kind: 'chat', role: 'assistant', content: `식단 분석에 실패했어요 😅\n(${detail})` });
     } finally { setResponding(false); scrollToBottom(); }
   }, []);
 
@@ -167,8 +168,9 @@ export default function CoachScreen() {
       } else {
         pushMsg({ id: generateId(), kind: 'chat', role: 'assistant', content: result.reply });
       }
-    } catch {
-      pushMsg({ id: generateId(), kind: 'chat', role: 'assistant', content: '체크인 중 오류가 발생했어요 🙏' });
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err);
+      pushMsg({ id: generateId(), kind: 'chat', role: 'assistant', content: `체크인 중 오류가 발생했어요 🙏\n(${detail})` });
     } finally { setResponding(false); scrollToBottom(); }
   }, [checkInHistory, checkInData]);
 
