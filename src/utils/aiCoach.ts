@@ -2,7 +2,7 @@ import { getEvoStage } from '../components/AvatarEvo';
 import { DailyLog, InBodyRecord, PermanentStats, UserProfile } from '../types';
 import { RecentCondition } from './permanentStats';
 
-const GEMINI_MODEL = 'gemini-2.0-flash';
+const GEMINI_MODEL = 'gemini-1.5-flash';
 
 function getApiKey(): string {
   const xorRaw = 'REPLACE_WITH_XOR';
