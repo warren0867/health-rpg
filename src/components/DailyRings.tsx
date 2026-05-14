@@ -1,5 +1,6 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { COLORS, FONTS, RADIUS, SPACING } from '../constants/theme';
 
 interface Props {
@@ -8,112 +9,113 @@ interface Props {
   quest: { done: number; total: number };
 }
 
-/**
- * Apple Fitness 스타일 3개 링.
- * 칼로리(사이안) · 수분(파랑) · 퀘스트(앰버) — 한눈에 일일 요약.
- *
- * 주의: react-native-svg 의존성 없이 RN의 borderRadius+rotate 트릭으로 그리려면 복잡해서,
- * 여기서는 막대 형태로 단순화. 정식 링은 svg 의존성 추가 후 변경 가능.
- */
 export default function DailyRings({ calorie, water, quest }: Props) {
-  const calPct = Math.min(100, Math.round((calorie.current / calorie.goal) * 100));
+  const calPct  = Math.min(100, Math.round((calorie.current / calorie.goal) * 100));
   const waterPct = Math.min(100, Math.round((water.currentMl / water.goalMl) * 100));
   const questPct = Math.min(100, Math.round((quest.done / Math.max(1, quest.total)) * 100));
-
-  const waterL = (water.currentMl / 1000).toFixed(1);
-  const waterGoalL = (water.goalMl / 1000).toFixed(1);
+  const waterL   = (water.currentMl / 1000).toFixed(1);
 
   return (
-    <View style={styles.card}>
-      <Text style={styles.title}>오늘의 활동</Text>
-
-      <RingRow
+    <View style={s.row}>
+      <MetricTile
+        icon="flame-outline"
         color={COLORS.primary}
+        value={calorie.current > 0 ? calorie.current.toLocaleString() : '0'}
+        unit="kcal"
         label="칼로리"
-        value={`${calorie.current.toLocaleString()} / ${calorie.goal.toLocaleString()}`}
         pct={calPct}
+        sub={`목표 ${calorie.goal.toLocaleString()}`}
       />
-      <RingRow
+      <MetricTile
+        icon="water-outline"
         color={COLORS.info}
+        value={waterL}
+        unit="L"
         label="수분"
-        value={`${waterL} / ${waterGoalL}L`}
         pct={waterPct}
+        sub={`목표 ${(water.goalMl/1000).toFixed(1)}L`}
       />
-      <RingRow
+      <MetricTile
+        icon="checkmark-circle-outline"
         color={COLORS.amber}
+        value={String(quest.done)}
+        unit={`/${quest.total}`}
         label="퀘스트"
-        value={`${quest.done} / ${quest.total}`}
         pct={questPct}
+        sub={questPct >= 100 ? 'ALL CLEAR' : `${questPct}% 완료`}
       />
     </View>
   );
 }
 
-function RingRow({ color, label, value, pct }: { color: string; label: string; value: string; pct: number }) {
+function MetricTile({ icon, color, value, unit, label, pct, sub }: {
+  icon: any; color: string; value: string; unit: string;
+  label: string; pct: number; sub: string;
+}) {
+  const done = pct >= 100;
   return (
-    <View style={styles.row}>
-      <View style={styles.dotWrap}>
-        <View style={[styles.dot, { backgroundColor: color, shadowColor: color }]} />
-      </View>
-      <Text style={styles.label}>{label}</Text>
-      <View style={styles.trackWrap}>
-        <View style={styles.track}>
-          <View style={[styles.fill, { width: `${pct}%`, backgroundColor: color }]} />
+    <View style={[s.tile, { borderColor: color + (done ? '55' : '22') }]}>
+      <View style={[s.tileGlow, { backgroundColor: color + '0E' }]} pointerEvents="none" />
+      {/* 아이콘 + 라벨 */}
+      <View style={s.tileHeader}>
+        <View style={[s.iconBox, { backgroundColor: color + '1C' }]}>
+          <Ionicons name={icon} size={13} color={color} />
         </View>
+        <Text style={[s.tileLabel, { color: color + 'BB' }]}>{label}</Text>
       </View>
-      <Text style={styles.value}>{value}</Text>
+      {/* 큰 숫자 */}
+      <View style={s.tileValueRow}>
+        <Text style={[s.tileValue, { color: done ? color : COLORS.text }]} numberOfLines={1} adjustsFontSizeToFit>
+          {value}
+        </Text>
+        <Text style={[s.tileUnit, { color: COLORS.textMuted }]}>{unit}</Text>
+      </View>
+      {/* 진행 바 */}
+      <View style={s.tileBarTrack}>
+        <View style={[s.tileBarFill, {
+          width: `${pct}%` as any,
+          backgroundColor: done ? color : color + 'CC',
+        }]} />
+      </View>
+      {/* 서브 텍스트 */}
+      <Text style={[s.tileSub, { color: done ? color : COLORS.textDisabled }]} numberOfLines={1}>{sub}</Text>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  card: {
-    backgroundColor: COLORS.bgCard,
-    borderRadius: RADIUS.lg,
-    padding: SPACING.md,
-    marginHorizontal: SPACING.md,
-    marginBottom: SPACING.md,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  title: {
-    fontSize: FONTS.xxs,
-    color: COLORS.textMuted,
-    fontFamily: 'monospace',
-    letterSpacing: 1.5,
-    textTransform: 'uppercase',
-    fontWeight: '600',
-    marginBottom: 14,
-  },
+const s = StyleSheet.create({
   row: {
     flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 6,
+    paddingHorizontal: SPACING.md,
     gap: 10,
+    marginBottom: SPACING.md,
   },
-  dotWrap: { width: 16, alignItems: 'center' },
-  dot: {
-    width: 10, height: 10, borderRadius: 5,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.6,
-    shadowRadius: 6,
-    elevation: 3,
-  },
-  label: { color: COLORS.textSub, fontSize: FONTS.sm, width: 56 },
-  trackWrap: { flex: 1 },
-  track: {
-    height: 5,
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    borderRadius: RADIUS.full,
+  tile: {
+    flex: 1,
+    backgroundColor: COLORS.bgCard,
+    borderRadius: RADIUS.md + 2,
+    padding: 12,
+    borderWidth: 1,
     overflow: 'hidden',
+    position: 'relative',
+    gap: 6,
   },
-  fill: { height: '100%', borderRadius: RADIUS.full },
-  value: {
-    fontSize: FONTS.xs,
-    color: COLORS.text,
-    fontFamily: 'monospace',
-    fontWeight: '600',
-    minWidth: 90,
-    textAlign: 'right',
+  tileGlow: {
+    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
   },
+  tileHeader: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  iconBox: {
+    width: 22, height: 22, borderRadius: 6,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  tileLabel: { fontSize: 10, fontFamily: 'monospace', fontWeight: '700', letterSpacing: 0.3 },
+  tileValueRow: { flexDirection: 'row', alignItems: 'baseline', gap: 2 },
+  tileValue: { fontSize: FONTS.xl, fontWeight: '900', fontFamily: 'monospace', letterSpacing: -1 },
+  tileUnit: { fontSize: FONTS.xxs, fontFamily: 'monospace', fontWeight: '600', paddingBottom: 2 },
+  tileBarTrack: {
+    height: 5, backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: RADIUS.full, overflow: 'hidden',
+  },
+  tileBarFill: { height: '100%', borderRadius: RADIUS.full },
+  tileSub: { fontSize: 10, fontFamily: 'monospace', fontWeight: '700', letterSpacing: 0.3 },
 });

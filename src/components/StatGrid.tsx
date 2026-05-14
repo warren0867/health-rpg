@@ -4,47 +4,36 @@ import { StyleSheet, Text, View } from 'react-native';
 import { COLORS, FONTS, RADIUS, SPACING } from '../constants/theme';
 
 interface Stats {
-  hp: number;
-  stamina: number;        // STR
-  recovery: number;       // VIT
-  bloodSugarControl: number; // MP
-  condition?: number;     // 사용 안 하지만 호환용
+  hp: number; stamina: number; recovery: number; bloodSugarControl: number; condition?: number;
 }
+interface Props { stats: Stats; max?: number; }
 
-interface Props {
-  stats: Stats;
-  max?: number; // 기본 100
-}
-
-/**
- * 캐릭터 4스탯 2x2 그리드.
- * 각 스탯은 색깔로 구분 (이모지 X, Ionicons 사용).
- * 5번째 스탯 condition은 새 디자인에서 제거됨 (가독성 우선).
- */
 export default function StatGrid({ stats, max = 100 }: Props) {
   const items = [
-    { key: 'hp',  abbr: 'HP',  icon: 'heart' as const,         color: COLORS.hp,  value: stats.hp },
-    { key: 'str', abbr: 'STR', icon: 'flash' as const,         color: COLORS.str, value: stats.stamina },
-    { key: 'vit', abbr: 'VIT', icon: 'shield-checkmark' as const, color: COLORS.vit, value: stats.recovery },
-    { key: 'mp',  abbr: 'MP',  icon: 'water' as const,         color: COLORS.mp,  value: stats.bloodSugarControl },
+    { key: 'hp',  abbr: 'HP',  icon: 'heart'            as const, color: COLORS.hp,      value: stats.hp },
+    { key: 'str', abbr: 'STR', icon: 'flash'            as const, color: COLORS.str,     value: stats.stamina },
+    { key: 'vit', abbr: 'VIT', icon: 'shield-checkmark' as const, color: COLORS.vit,     value: stats.recovery },
+    { key: 'mp',  abbr: 'MP',  icon: 'water'            as const, color: COLORS.mp,      value: stats.bloodSugarControl },
   ];
-
   return (
-    <View style={styles.grid}>
+    <View style={s.grid}>
       {items.map(item => {
         const pct = Math.min(100, Math.round((item.value / max) * 100));
-        const tintBg = item.color + '1F'; // ~12% alpha
         return (
-          <View key={item.key} style={styles.cell}>
-            <View style={styles.top}>
-              <View style={[styles.iconBox, { backgroundColor: tintBg }]}>
-                <Ionicons name={item.icon} size={14} color={item.color} />
+          <View key={item.key} style={[s.cell, { borderColor: item.color + '30', backgroundColor: COLORS.bgCard }]}>
+            <View style={[s.cellGlow, { backgroundColor: item.color + '0C' }]} pointerEvents="none" />
+            <View style={s.top}>
+              <View style={[s.iconBox, { backgroundColor: item.color + '22', borderColor: item.color + '44', borderWidth: 1 }]}>
+                <Ionicons name={item.icon} size={15} color={item.color} />
               </View>
-              <Text style={styles.abbr}>{item.abbr}</Text>
+              <Text style={[s.abbr, { color: item.color + 'AA' }]}>{item.abbr}</Text>
             </View>
-            <Text style={[styles.value, { color: item.color }]}>{item.value}</Text>
-            <View style={styles.track}>
-              <View style={[styles.fill, { width: `${pct}%`, backgroundColor: item.color }]} />
+            <Text style={[s.value, { color: item.color }]}>{item.value}</Text>
+            <View style={s.barRow}>
+              <View style={s.track}>
+                <View style={[s.fill, { width: `${pct}%`, backgroundColor: item.color }]} />
+              </View>
+              <Text style={[s.pct, { color: item.color + '99' }]}>{pct}%</Text>
             </View>
           </View>
         );
@@ -53,47 +42,27 @@ export default function StatGrid({ stats, max = 100 }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const s = StyleSheet.create({
   grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    paddingHorizontal: SPACING.md,
-    marginBottom: SPACING.md,
-    gap: 10,
+    flexDirection: 'row', flexWrap: 'wrap',
+    paddingHorizontal: SPACING.md, marginBottom: SPACING.md, gap: 10,
   },
   cell: {
-    width: '48.5%',
-    backgroundColor: COLORS.bgCard,
-    borderRadius: RADIUS.md,
-    padding: SPACING.md - 2,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    width: '48.5%', borderRadius: RADIUS.md + 2,
+    padding: SPACING.md, borderWidth: 1,
+    position: 'relative', overflow: 'hidden', gap: 6,
   },
-  top: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
-  iconBox: {
-    width: 26, height: 26, borderRadius: 8,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  abbr: {
-    fontFamily: 'monospace',
-    fontSize: 10,
-    color: COLORS.textMuted,
-    letterSpacing: 1.5,
-    fontWeight: '700',
-  },
-  value: {
-    fontFamily: 'monospace',
-    fontSize: 26,
-    fontWeight: '700',
-    lineHeight: 28,
-    letterSpacing: -1,
-  },
+  cellGlow: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+  top: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  iconBox: { width: 30, height: 30, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
+  abbr: { fontSize: 10, fontFamily: 'monospace', fontWeight: '900', letterSpacing: 2 },
+  value: { fontFamily: 'monospace', fontSize: 38, fontWeight: '900', lineHeight: 40, letterSpacing: -2 },
+  barRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   track: {
-    height: 3,
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    borderRadius: RADIUS.full,
-    marginTop: 10,
-    overflow: 'hidden',
+    flex: 1, height: 5,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: RADIUS.full, overflow: 'hidden',
   },
   fill: { height: '100%', borderRadius: RADIUS.full },
+  pct: { fontSize: 10, fontFamily: 'monospace', fontWeight: '700', minWidth: 30, textAlign: 'right' },
 });
