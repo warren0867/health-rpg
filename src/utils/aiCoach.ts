@@ -207,6 +207,7 @@ export interface ParsedMealItem {
   fat: number;
   servings: number;
   mealTime: 'breakfast' | 'lunch' | 'dinner' | 'snack';
+  gi: 'low' | 'medium' | 'high';
 }
 
 export async function parseMealInput(description: string): Promise<ParsedMealItem[]> {
@@ -219,14 +220,15 @@ export async function parseMealInput(description: string): Promise<ParsedMealIte
   const systemPrompt = `식단 파서입니다. JSON 배열만 반환하세요. 다른 텍스트 절대 금지.
 
 형식(배열 한 줄 또는 여러 줄):
-[{"name":"음식명","calories":숫자,"carbs":숫자,"protein":숫자,"fat":숫자,"servings":숫자,"mealTime":"lunch"}]
+[{"name":"음식명","calories":숫자,"carbs":숫자,"protein":숫자,"fat":숫자,"servings":숫자,"mealTime":"lunch","gi":"medium"}]
 
 규칙:
 - 부분 섭취는 servings로 표현 (밥 20% = servings:0.2, 반 = servings:0.5)
 - 세트메뉴는 구성요소별로 분리
 - 한국 음식 일반 칼로리·영양소 기준으로 추정
 - mealTime: breakfast/lunch/dinner/snack (현재 ${timeHint} 시간대 참고)
-- servings는 기본 1인분 기준 (1인분=1.0)`;
+- servings는 기본 1인분 기준 (1인분=1.0)
+- gi: low(채소·콩류·단백질), medium(현미·과일·유제품), high(흰쌀·빵·면·설탕·과자)`;
 
   const text = await callGemini(systemPrompt, description, 600);
 

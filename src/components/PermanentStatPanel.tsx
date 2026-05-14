@@ -2,11 +2,12 @@ import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { COLORS, FONTS, RADIUS, SPACING } from '../constants/theme';
-import { EquipmentItem, EquipmentTier, PermanentStats, STAT_FULLNAME, STAT_LABEL, StatKey } from '../types';
+import { EquipmentItem, EquipmentTier, GACHA_RARITY_COLOR, GachaBonus, PermanentStats, STAT_FULLNAME, STAT_LABEL, StatKey } from '../types';
 import { TIER_LABEL, statTierProgress } from '../utils/permanentStats';
 
 interface Props {
   stats: PermanentStats;
+  activeBonuses?: GachaBonus[];
 }
 
 const STAT_META: Record<StatKey, { icon: keyof typeof Ionicons.glyphMap; color: string }> = {
@@ -69,7 +70,7 @@ function EquipmentSlotRow({ item, slotName }: { item: EquipmentItem | null; slot
   );
 }
 
-export default function PermanentStatPanel({ stats }: Props) {
+export default function PermanentStatPanel({ stats, activeBonuses = [] }: Props) {
   const eq = stats.equipment ?? { weapon: null, armor: null, ring: null, amulet: null };
   const hasInBody = stats.totalGained > 20;
 
@@ -86,7 +87,11 @@ export default function PermanentStatPanel({ stats }: Props) {
       {/* 스탯 바 */}
       <View style={s.list}>
         {STAT_ORDER.map(key => {
-          const value = stats[key];
+          const baseValue = stats[key];
+          const gachaBonus = activeBonuses
+            .filter(b => b.stat === key && b.expiresAt > new Date().toISOString())
+            .reduce((acc, b) => acc + b.bonus, 0);
+          const value = baseValue + gachaBonus;
           const meta = STAT_META[key];
           const tp = statTierProgress(value);
           return (
@@ -99,6 +104,9 @@ export default function PermanentStatPanel({ stats }: Props) {
                   <Text style={s.statName}>
                     <Text style={[s.statAbbr, { color: meta.color }]}>{STAT_LABEL[key]}</Text>
                     <Text style={s.statFull}>  {STAT_FULLNAME[key]}</Text>
+                    {gachaBonus > 0 && (
+                      <Text style={[s.gachaTag, { color: GACHA_RARITY_COLOR.epic }]}>  ✨+{gachaBonus}</Text>
+                    )}
                   </Text>
                   <Text style={s.tierLabel}>{tp.tierLabel}</Text>
                 </View>
@@ -148,6 +156,7 @@ const s = StyleSheet.create({
   statName: { fontSize: FONTS.xs },
   statAbbr: { fontWeight: '900', fontFamily: 'monospace', letterSpacing: 1 },
   statFull: { color: COLORS.textSub, fontWeight: '600' },
+  gachaTag: { fontSize: FONTS.xxs - 1, fontWeight: '900', fontFamily: 'monospace' },
   tierLabel: { color: COLORS.textMuted, fontSize: FONTS.xxs, fontFamily: 'monospace', letterSpacing: 0.5 },
   track: { height: 4, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: RADIUS.full, overflow: 'hidden' },
   fill: { height: '100%', borderRadius: RADIUS.full },

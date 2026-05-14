@@ -12,11 +12,12 @@ import {
   getDailyLog, getExerciseEntriesByDate, getFoodEntriesByDate,
   getMedications, getMedLog, getMorningBS, getPermanentStats,
   getRecentDailyLogs, getStreak, getTodayKey, getUserProfile,
-  getWeightHistory, recalcAndSavePermanentStats, saveDailyLog,
-  saveExerciseEntry, saveMedication, deleteMedication, sumFoodEntries,
-  toggleMedTaken,
+  getWeightHistory, recalcAndSavePermanentStats, replaceExerciseEntriesForDate,
+  saveDailyLog, saveExerciseEntry, saveMedication, deleteMedication,
+  sumFoodEntries, toggleMedTaken,
 } from '../utils/storage';
 import { calcXPGainWithTrends } from '../utils/levelSystem';
+import { addGold } from '../utils/gacha';
 import {
   ALCOHOL_CAL_PER_UNIT, ALCOHOL_EMOJI, ALCOHOL_LABELS, ALCOHOL_UNITS,
   EXERCISE_LABELS, EXERCISE_MET,
@@ -323,7 +324,12 @@ export default function InputScreen() {
 
     const permStatsBefore = await getPermanentStats();
     await saveDailyLog(log);
-    if (!existingLog) await addXP(xpGained); // 첫 저장 시만 XP 지급
+    // 운동 entries와 DailyLog 동기화 (UI에서 추가/삭제한 내용 반영)
+    await replaceExerciseEntriesForDate(selectedDate, exerciseEntries);
+    if (!existingLog) {
+      await addXP(xpGained); // 첫 저장 시만 XP 지급
+      await addGold(20);     // 체크인 완료 골드 보상
+    }
     const permStatsAfter = await recalcAndSavePermanentStats();
 
     setSaving(false);

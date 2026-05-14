@@ -9,6 +9,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import CharacterCard from '../components/CharacterCard';
 import DailyRings from '../components/DailyRings';
+import GachaModal from '../components/GachaModal';
 import PermanentStatPanel from '../components/PermanentStatPanel';
 import QuestList, { Quest } from '../components/QuestList';
 import StatGrid from '../components/StatGrid';
@@ -30,6 +31,8 @@ import {
 import { RecentCondition, calcRecentCondition } from '../utils/permanentStats';
 import { StatusEffect, calcStatusEffects } from '../utils/statusEffects';
 import { WeeklyBossState, claimBossReward, updateWeeklyBoss } from '../utils/weeklyBoss';
+import { GachaBonus, GachaInventory } from '../types';
+import { addGold, getGachaInventory } from '../utils/gacha';
 
 /**
  * 홈 화면 — Vital Quest 디자인 v1
@@ -64,6 +67,8 @@ export default function HomeScreen() {
   const [conditionInfo, setConditionInfo] = useState<RecentCondition | null>(null);
   const [statusEffects, setStatusEffects] = useState<StatusEffect[]>([]);
   const [bossState, setBossState] = useState<WeeklyBossState | null>(null);
+  const [gachaInv, setGachaInv] = useState<GachaInventory | null>(null);
+  const [showGacha, setShowGacha] = useState(false);
 
   // 모달
   const [showBSModal, setShowBSModal] = useState(false);
@@ -114,6 +119,8 @@ export default function HomeScreen() {
     await updateChallengeProgress(allLogs, waterGoal);
     const boss = await updateWeeklyBoss(allLogs);
     setBossState(boss);
+    const gacha = await getGachaInventory();
+    setGachaInv(gacha);
 
     setLoading(false);
   }, [today]);
@@ -148,9 +155,9 @@ export default function HomeScreen() {
   };
 
   const handleClaimBossReward = async () => {
-    const xp = await claimBossReward(addXP);
+    const { xp, gold } = await claimBossReward(addXP, addGold);
     if (xp > 0) {
-      Alert.alert('보스 처치!', `+${xp} XP 획득!`);
+      Alert.alert('보스 처치!', `보상 획득!\n⚔️ +${xp} XP\n🪙 +${gold} 골드\n\n골드로 마법 뽑기를 해보세요!`);
       load();
     }
   };
@@ -175,15 +182,15 @@ export default function HomeScreen() {
   // 퀘스트 — 이모지 없는 깔끔한 라벨
   const quests: Quest[] = [
     { label: '일일 체크인 완료', sub: '수면·운동·음주 기록', done: !!todayLog,
-      action: () => navigation.navigate('Input'), xp: 50 },
+      action: () => navigation.navigate('Input'), xp: 50, gold: 20 },
     { label: '식단 기록', sub: '오늘 먹은 것 기록', done: foodSummary.calories > 0,
-      action: () => navigation.navigate('Calorie'), xp: 20 },
+      action: () => navigation.navigate('Calorie'), xp: 20, gold: 10 },
     { label: '공복 혈당 측정', sub: '기상 후 공복혈당', done: !!morningBS,
-      action: () => setShowBSModal(true), xp: 10 },
+      action: () => setShowBSModal(true), xp: 10, gold: 5 },
     { label: '운동 기록', sub: '오늘의 운동', done: todayHasExercise,
-      action: () => navigation.navigate('Input'), xp: 25 },
+      action: () => navigation.navigate('Input'), xp: 25, gold: 10 },
     { label: `물 ${(WATER_GOAL/1000).toFixed(1)}L 마시기`, sub: `${waterMl} / ${WATER_GOAL} ml`,
-      done: waterMl >= WATER_GOAL, action: handleAddWater, xp: 15 },
+      done: waterMl >= WATER_GOAL, action: handleAddWater, xp: 15, gold: 5 },
   ];
 
   const greeting = (() => {
@@ -274,7 +281,7 @@ export default function HomeScreen() {
 
         {/* ── 영구 능력치 (누적 성장) ── */}
         <SectionLabel>영구 능력치</SectionLabel>
-        <PermanentStatPanel stats={permStats} />
+        <PermanentStatPanel stats={permStats} activeBonuses={gachaInv?.activeBonuses ?? []} />
 
         {/* ── 오늘의 컨디션 (일일 변동) ── */}
         {stats ? (
@@ -320,6 +327,25 @@ export default function HomeScreen() {
           />
         </View>
 
+        {/* ── 마법 뽑기 배너 ── */}
+        <TouchableOpacity
+          style={s.gachaBanner}
+          onPress={() => setShowGacha(true)}
+          activeOpacity={0.85}
+        >
+          <View style={[s.gachaBannerGlow, { backgroundColor: 'rgba(167,139,250,0.12)' }]} pointerEvents="none" />
+          <View style={s.coachBannerLeft}>
+            <View style={[s.coachIconWrap, { backgroundColor: 'rgba(167,139,250,0.18)', borderColor: 'rgba(167,139,250,0.40)' }]}>
+              <Text style={{ fontSize: 18 }}>⚗️</Text>
+            </View>
+            <View>
+              <Text style={[s.coachBannerTitle, { color: '#A78BFA' }]}>마법 뽑기</Text>
+              <Text style={s.coachBannerSub}>🪙 {gachaInv?.gold ?? 0}G 보유  ·  주문서로 스탯 강화</Text>
+            </View>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color="#A78BFA" />
+        </TouchableOpacity>
+
         {/* ── AI 코치 배너 ── */}
         <TouchableOpacity
           style={s.coachBanner}
@@ -341,6 +367,14 @@ export default function HomeScreen() {
 
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      {/* ── 가챠 모달 ── */}
+      <GachaModal
+        visible={showGacha}
+        onClose={() => setShowGacha(false)}
+        addXpFn={addXP}
+        onInventoryChanged={() => { getGachaInventory().then(setGachaInv); }}
+      />
 
       {/* ── 공복 혈당 입력 모달 ── */}
       <Modal visible={showBSModal} animationType="fade" transparent onRequestClose={() => setShowBSModal(false)}>
@@ -522,6 +556,24 @@ const s = StyleSheet.create({
     paddingHorizontal: SPACING.md,
     gap: 10,
     marginBottom: SPACING.md,
+  },
+  gachaBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginHorizontal: SPACING.md,
+    marginBottom: SPACING.md,
+    backgroundColor: COLORS.bgCard,
+    borderRadius: RADIUS.md,
+    padding: SPACING.md,
+    borderWidth: 1,
+    borderColor: 'rgba(167,139,250,0.40)',
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  gachaBannerGlow: {
+    position: 'absolute',
+    top: 0, left: 0, right: 0, bottom: 0,
   },
   coachBanner: {
     flexDirection: 'row',

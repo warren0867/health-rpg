@@ -147,14 +147,20 @@ export async function updateWeeklyBoss(allLogs: DailyLog[]): Promise<WeeklyBossS
   return updated;
 }
 
-export async function claimBossReward(addXpFn: (xp: number) => Promise<any>): Promise<number> {
+export const BOSS_REWARD_XP   = 200;
+export const BOSS_REWARD_GOLD = 100;
+
+export async function claimBossReward(
+  addXpFn: (xp: number) => Promise<any>,
+  addGoldFn: (gold: number) => Promise<any>,
+): Promise<{ xp: number; gold: number }> {
   const raw = await AsyncStorage.getItem(BOSS_KEY);
-  if (!raw) return 0;
+  if (!raw) return { xp: 0, gold: 0 };
   const state: WeeklyBossState = JSON.parse(raw);
-  if (state.result !== 'victory' || state.rewardClaimed) return 0;
-  const xp = 200;
-  await addXpFn(xp);
+  if (state.result !== 'victory' || state.rewardClaimed) return { xp: 0, gold: 0 };
+  await addXpFn(BOSS_REWARD_XP);
+  await addGoldFn(BOSS_REWARD_GOLD);
   const updated: WeeklyBossState = { ...state, rewardClaimed: true };
   await AsyncStorage.setItem(BOSS_KEY, JSON.stringify(updated));
-  return xp;
+  return { xp: BOSS_REWARD_XP, gold: BOSS_REWARD_GOLD };
 }

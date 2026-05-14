@@ -212,6 +212,7 @@ export interface FoodEntry {
   protein: number;
   fat: number;
   mealTime: 'breakfast' | 'lunch' | 'dinner' | 'snack';
+  gi?: GlycemicIndex;
 }
 
 // ─────────────────────────────────────────────
@@ -610,6 +611,63 @@ export const CHALLENGE_DEFS: Record<ChallengeId, ChallengeDef> = {
   steps_7k_3:    { id: 'steps_7k_3',    name: '만보의 전사',     desc: '이번 주 3일 이상 7,000보 달성',   emoji: '🚶', target: 3, xpReward: 70  },
   record_7:      { id: 'record_7',      name: '개근왕',          desc: '이번 주 7일 모두 기록하기',        emoji: '📝', target: 7, xpReward: 120 },
   score_70_5:    { id: 'score_70_5',    name: '고득점 연속',     desc: '이번 주 5일 이상 70점+ 달성',     emoji: '⚔️', target: 5, xpReward: 90  },
+};
+
+// ─────────────────────────────────────────────
+//  가챠 / 강화 시스템
+// ─────────────────────────────────────────────
+
+export type GachaRarity = 'common' | 'rare' | 'epic' | 'legendary';
+
+export interface GachaScroll {
+  id: string;
+  name: string;
+  emoji: string;
+  rarity: GachaRarity;
+  stat: StatKey;
+  bonus: number;
+  durationDays: number;
+}
+
+export interface GachaBonus {
+  id: string;
+  name: string;
+  emoji: string;
+  rarity: GachaRarity;
+  stat: StatKey;
+  bonus: number;
+  expiresAt: string; // ISO
+}
+
+export type GachaPullResult =
+  | { type: 'scroll'; scroll: GachaScroll }
+  | { type: 'xp_potion'; amount: number }
+  | { type: 'gold'; amount: number };
+
+export interface GachaInventory {
+  gold: number;
+  scrolls: GachaScroll[];
+  activeBonuses: GachaBonus[];
+}
+
+export const EMPTY_GACHA_INVENTORY: GachaInventory = {
+  gold: 0,
+  scrolls: [],
+  activeBonuses: [],
+};
+
+export const GACHA_RARITY_COLOR: Record<GachaRarity, string> = {
+  common:    '#94A3B8',
+  rare:      '#22D3EE',
+  epic:      '#A78BFA',
+  legendary: '#F59E0B',
+};
+
+export const GACHA_RARITY_LABEL: Record<GachaRarity, string> = {
+  common:    '일반',
+  rare:      '희귀',
+  epic:      '영웅',
+  legendary: '전설',
 };
 
 export interface WeeklyChallenge {

@@ -200,6 +200,7 @@ export default function CoachScreen() {
         protein: Math.round(item.protein * item.servings * 10) / 10,
         fat: Math.round(item.fat * item.servings * 10) / 10,
         mealTime: item.mealTime,
+        gi: item.gi ?? 'medium',
       };
       await saveFoodEntry(entry);
     }

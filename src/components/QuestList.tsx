@@ -8,6 +8,7 @@ export interface Quest {
   sub: string;
   done: boolean;
   xp: number;
+  gold?: number;
   action?: () => void;
 }
 
@@ -59,8 +60,15 @@ export default function QuestList({ quests }: Props) {
             <Text style={[styles.label, q.done && styles.labelDone]}>{q.label}</Text>
             <Text style={styles.sub}>{q.done ? 'CLEARED' : q.sub}</Text>
           </View>
-          <View style={[styles.xpPill, q.done && styles.xpPillDone]}>
-            <Text style={[styles.xpText, q.done && styles.xpTextDone]}>+{q.xp} XP</Text>
+          <View style={styles.rewardGroup}>
+            <View style={[styles.xpPill, q.done && styles.xpPillDone]}>
+              <Text style={[styles.xpText, q.done && styles.xpTextDone]}>+{q.xp} XP</Text>
+            </View>
+            {(q.gold ?? 0) > 0 && (
+              <View style={[styles.goldPill, q.done && styles.xpPillDone]}>
+                <Text style={[styles.goldText, q.done && styles.xpTextDone]}>🪙 {q.gold}</Text>
+              </View>
+            )}
           </View>
         </TouchableOpacity>
       ))}
@@ -121,6 +129,7 @@ const styles = StyleSheet.create({
   label: { fontSize: FONTS.sm, fontWeight: '600', color: COLORS.text },
   labelDone: { color: COLORS.textMuted, textDecorationLine: 'line-through' },
   sub: { fontSize: FONTS.xxs, color: COLORS.textMuted, fontFamily: 'monospace', marginTop: 2 },
+  rewardGroup: { flexDirection: 'row', gap: 4, alignItems: 'center' },
   xpPill: {
     paddingVertical: 4, paddingHorizontal: 8,
     borderRadius: RADIUS.full,
@@ -130,4 +139,11 @@ const styles = StyleSheet.create({
   xpPillDone: { backgroundColor: COLORS.bgInput, borderColor: COLORS.border },
   xpText: { fontFamily: 'monospace', fontSize: FONTS.xxs, fontWeight: '700', color: COLORS.amber },
   xpTextDone: { color: COLORS.textMuted },
+  goldPill: {
+    paddingVertical: 4, paddingHorizontal: 8,
+    borderRadius: RADIUS.full,
+    backgroundColor: 'rgba(245,158,11,0.18)',
+    borderWidth: 1, borderColor: 'rgba(245,158,11,0.35)',
+  },
+  goldText: { fontFamily: 'monospace', fontSize: FONTS.xxs, fontWeight: '700', color: '#F59E0B' },
 });

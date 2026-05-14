@@ -70,7 +70,7 @@ export default function WeeklyBossCard({ bossState, onClaimReward }: Props) {
           onPress={onClaimReward}
           activeOpacity={0.8}
         >
-          <Text style={s.rewardBtnTxt}>보상 수령  +200 XP</Text>
+          <Text style={s.rewardBtnTxt}>보상 수령  +200 XP  🪙 +100G</Text>
         </TouchableOpacity>
       )}
       {isVictory && bossState.rewardClaimed && (
