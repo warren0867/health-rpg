@@ -2,7 +2,8 @@ import { getEvoStage } from '../components/AvatarEvo';
 import { DailyLog, InBodyRecord, PermanentStats, UserProfile } from '../types';
 import { RecentCondition } from './permanentStats';
 
-const GEMINI_MODEL = 'gemini-2.0-flash-lite';
+const OR_MODEL = 'meta-llama/llama-3.3-70b-instruct:free';
+const OR_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
 function getApiKey(): string {
   const xorRaw = 'REPLACE_WITH_XOR';
@@ -11,11 +12,7 @@ function getApiKey(): string {
       return xorRaw.split(',').map(s => String.fromCharCode(Number(s) ^ 83)).join('');
     } catch { return ''; }
   }
-  return (process.env as any).EXPO_PUBLIC_GEMINI_API_KEY ?? '';
-}
-
-function geminiUrl(): string {
-  return `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${getApiKey()}`;
+  return (process.env as any).EXPO_PUBLIC_OPENROUTER_API_KEY ?? '';
 }
 
 async function callGemini(system: string, userMessage: string, maxTokens = 400): Promise<string> {
@@ -27,28 +24,27 @@ async function callGeminiMessages(
   messages: Array<{ role: 'user' | 'assistant'; content: string }>,
   maxTokens = 600,
 ): Promise<string> {
-  const contents = messages.map(m => ({
-    role: m.role === 'assistant' ? 'model' : 'user',
-    parts: [{ text: m.content }],
-  }));
-
-  const res = await fetch(geminiUrl(), {
+  const res = await fetch(OR_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${getApiKey()}`,
+      'HTTP-Referer': 'https://warren0867.github.io/health-rpg/',
+    },
     body: JSON.stringify({
-      system_instruction: { parts: [{ text: system }] },
-      contents,
-      generationConfig: { maxOutputTokens: maxTokens },
+      model: OR_MODEL,
+      messages: [{ role: 'system', content: system }, ...messages],
+      max_tokens: maxTokens,
     }),
   });
 
   if (!res.ok) {
     const err = await res.text();
-    throw new Error(`Gemini API error ${res.status}: ${err}`);
+    throw new Error(`OpenRouter API error ${res.status}: ${err}`);
   }
 
   const data = await res.json();
-  return data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+  return data.choices?.[0]?.message?.content ?? '';
 }
 
 // ─── 컨텍스트 빌더 ────────────────────────────────────────
