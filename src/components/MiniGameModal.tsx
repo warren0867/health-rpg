@@ -3,6 +3,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   Animated,
   Dimensions,
+  LayoutChangeEvent,
   Modal,
   StyleSheet,
   Text,
@@ -12,48 +13,42 @@ import {
 } from 'react-native';
 import { COLORS, FONTS, RADIUS, SPACING } from '../constants/theme';
 import { addGold } from '../utils/gacha';
+import { addXP } from '../utils/storage';
 import { BOSS_DEFS, WeeklyBossState } from '../utils/weeklyBoss';
 
-const { width: SW, height: SH } = Dimensions.get('window');
+const { width: SW } = Dimensions.get('window');
 
-// ─── 게임 상수 ───────────────────────────────────────────────
-const GAME_SEC     = 30;
-const BOSS_MAX_HP  = 600;
-const MAX_SHIELDS  = 3;
-const SPAWN_MIN_MS = 750;
-const SPAWN_MAX_MS = 1400;
+// ─── 상수 ────────────────────────────────────────────────────
+const GAME_SEC    = 30;
+const BOSS_MAX_HP = 600;
+const MAX_SHIELDS = 3;
 
 type OrbType   = 'normal' | 'rare' | 'legendary';
 type GamePhase = 'ready' | 'playing' | 'result';
 
-// 오브 영역: 전체 화면 기준 절대 좌표
-const AREA_TOP    = SH * 0.30;
-const AREA_BOTTOM = SH * 0.76;
-
 const ORB_CFG: Record<OrbType, {
-  color: string; glowColor: string; size: number;
-  damage: number; weight: number; lifetimeMs: number; label: string;
+  color: string; inner: string; size: number;
+  damage: number; weight: number; lifetimeMs: number;
 }> = {
-  normal:    { color: COLORS.primary, glowColor: 'rgba(34,211,238,0.35)',  size: 52, damage: 12, weight: 62, lifetimeMs: 3600, label: 'NORMAL' },
-  rare:      { color: '#A78BFA',      glowColor: 'rgba(167,139,250,0.35)', size: 62, damage: 25, weight: 27, lifetimeMs: 3000, label: 'RARE' },
-  legendary: { color: COLORS.amber,   glowColor: 'rgba(245,158,11,0.40)',  size: 75, damage: 50, weight: 11, lifetimeMs: 2400, label: 'LEGENDARY' },
+  normal:    { color: COLORS.primary, inner: 'rgba(34,211,238,0.4)',  size: 54, damage: 12, weight: 62, lifetimeMs: 3800 },
+  rare:      { color: '#A78BFA',      inner: 'rgba(167,139,250,0.4)', size: 64, damage: 28, weight: 27, lifetimeMs: 3100 },
+  legendary: { color: COLORS.amber,   inner: 'rgba(245,158,11,0.45)', size: 76, damage: 52, weight: 11, lifetimeMs: 2500 },
 };
 
-// ─── 오브 타입 ───────────────────────────────────────────────
 interface OrbData {
   id: string;
-  x: number; y: number;
+  x: number;
+  y: number;
   type: OrbType;
   damage: number;
   size: number;
   color: string;
-  glowColor: string;
+  inner: string;
   scale:   Animated.Value;
   opacity: Animated.Value;
   pulse:   Animated.Value;
 }
 
-// ─── Props ───────────────────────────────────────────────────
 interface Props {
   visible: boolean;
   onClose: () => void;
@@ -62,74 +57,94 @@ interface Props {
   onGoldEarned?: (gold: number) => void;
 }
 
-// ─── 유틸 ────────────────────────────────────────────────────
-function pickOrbType(): OrbType {
-  const r = Math.random() * 100;
-  if (r < ORB_CFG.legendary.weight) return 'legendary';
-  if (r < ORB_CFG.legendary.weight + ORB_CFG.rare.weight) return 'rare';
-  return 'normal';
-}
-
-function createOrb(): OrbData {
-  const type = pickOrbType();
-  const cfg  = ORB_CFG[type];
-  const margin = cfg.size / 2 + 10;
-  const x = margin + Math.random() * (SW - margin * 2);
-  const y = AREA_TOP + margin + Math.random() * (AREA_BOTTOM - AREA_TOP - margin * 2);
+// ─── 오브 생성 (게임영역 크기 기준) ─────────────────────────
+function makeOrb(areaW: number, areaH: number): OrbData {
+  const weights = Object.entries(ORB_CFG) as [OrbType, typeof ORB_CFG.normal][];
+  const total = weights.reduce((s, [, c]) => s + c.weight, 0);
+  let roll = Math.random() * total;
+  let type: OrbType = 'normal';
+  for (const [t, c] of weights) { roll -= c.weight; if (roll <= 0) { type = t; break; } }
+  const cfg    = ORB_CFG[type];
+  const margin = cfg.size / 2 + 8;
   return {
-    id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-    x, y, type,
-    damage: cfg.damage,
-    size: cfg.size,
-    color: cfg.color,
-    glowColor: cfg.glowColor,
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    x:  margin + Math.random() * (areaW - margin * 2),
+    y:  margin + Math.random() * (areaH - margin * 2),
+    type, damage: cfg.damage, size: cfg.size, color: cfg.color, inner: cfg.inner,
     scale:   new Animated.Value(0),
     opacity: new Animated.Value(1),
     pulse:   new Animated.Value(1),
   };
 }
 
-// ─── 컴포넌트 ─────────────────────────────────────────────────
+// ─── 메인 컴포넌트 ────────────────────────────────────────────
 export default function MiniGameModal({ visible, onClose, bossState, addXpFn, onGoldEarned }: Props) {
   const boss = bossState ? (BOSS_DEFS[bossState.bossId] ?? BOSS_DEFS[0]) : BOSS_DEFS[0];
 
+  // 게임 영역 크기 (onLayout 측정)
+  const areaSizeRef = useRef({ w: SW, h: 320 });
+
   // ── 렌더 상태 ──
-  const [phase,       setPhase]       = useState<GamePhase>('ready');
-  const [timeLeft,    setTimeLeft]    = useState(GAME_SEC);
-  const [orbs,        setOrbs]        = useState<OrbData[]>([]);
-  const [dmgDealt,    setDmgDealt]    = useState(0);
-  const [combo,       setCombo]       = useState(0);
-  const [maxCombo,    setMaxCombo]    = useState(0);
-  const [shields,     setShields]     = useState(MAX_SHIELDS);
-  const [bossHp,      setBossHp]      = useState(BOSS_MAX_HP);
-  const [earnedGold,  setEarnedGold]  = useState(0);
-  const [lastDmgText, setLastDmgText] = useState<{ val: number; key: number } | null>(null);
+  const [phase,      setPhase]      = useState<GamePhase>('ready');
+  const [timeLeft,   setTimeLeft]   = useState(GAME_SEC);
+  const [orbs,       setOrbs]       = useState<OrbData[]>([]);
+  const [dmgDealt,   setDmgDealt]   = useState(0);
+  const [combo,      setCombo]      = useState(0);
+  const [maxCombo,   setMaxCombo]   = useState(0);
+  const [shields,    setShields]    = useState(MAX_SHIELDS);
+  const [bossHp,     setBossHp]     = useState(BOSS_MAX_HP);
+  const [earnedGold, setEarnedGold] = useState(0);
+  const [earnedXp,   setEarnedXp]   = useState(0);
+  const [flashKey,   setFlashKey]   = useState(0);
+  const [dmgPops,    setDmgPops]    = useState<{ id: number; val: number; x: number; y: number }[]>([]);
 
-  // ── 변환 애니 ──
-  const bossShakeAnim = useRef(new Animated.Value(0)).current;
-  const comboScaleAnim = useRef(new Animated.Value(1)).current;
+  // ── 애니메이션 ──
+  const containerAnim  = useRef(new Animated.Value(0)).current;
+  const bossShake      = useRef(new Animated.Value(0)).current;
+  const comboScale     = useRef(new Animated.Value(1)).current;
+  const screenFlash    = useRef(new Animated.Value(0)).current;
   const timerBarAnim   = useRef(new Animated.Value(1)).current;
-  const introAnim      = useRef(new Animated.Value(0)).current;
   const resultAnim     = useRef(new Animated.Value(0)).current;
+  const bossRageAnim   = useRef(new Animated.Value(0)).current;
 
-  // ── 뮤터블 refs (stale closure 방지) ──
+  // ── ref 기반 게임 상태 (stale closure 방지) ──
   const phaseRef   = useRef<GamePhase>('ready');
   const dmgRef     = useRef(0);
   const comboRef   = useRef(0);
   const shieldRef  = useRef(MAX_SHIELDS);
   const bossHpRef  = useRef(BOSS_MAX_HP);
+  const endingRef  = useRef(false);
   const timerRef   = useRef<ReturnType<typeof setInterval>>();
   const spawnRef   = useRef<ReturnType<typeof setTimeout>>();
-  const expiryMap  = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const expiryMap  = useRef(new Map<string, ReturnType<typeof setTimeout>>());
 
-  // ── 초기화 ──
+  // ── 보스 rage 루프 (HP 30% 이하) ──
   useEffect(() => {
-    if (!visible) { stopAll(); resetAll(); }
-    else {
-      Animated.spring(introAnim, { toValue: 1, useNativeDriver: true, tension: 70, friction: 8 }).start();
+    const pct = bossHp / BOSS_MAX_HP;
+    if (pct < 0.3 && phase === 'playing') {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(bossRageAnim, { toValue: 1, duration: 400, useNativeDriver: true }),
+          Animated.timing(bossRageAnim, { toValue: 0, duration: 400, useNativeDriver: true }),
+        ])
+      ).start();
+    } else {
+      bossRageAnim.stopAnimation();
+      bossRageAnim.setValue(0);
+    }
+  }, [bossHp, phase]);
+
+  useEffect(() => {
+    if (visible) {
+      resetAll();
+      Animated.spring(containerAnim, { toValue: 1, useNativeDriver: true, tension: 65, friction: 9 }).start();
+    } else {
+      stopAll();
+      containerAnim.setValue(0);
     }
   }, [visible]);
 
+  // ── 게임 로직 ────────────────────────────────────────────
   function stopAll() {
     clearInterval(timerRef.current);
     clearTimeout(spawnRef.current);
@@ -138,11 +153,13 @@ export default function MiniGameModal({ visible, onClose, bossState, addXpFn, on
   }
 
   function resetAll() {
+    stopAll();
     phaseRef.current  = 'ready';
     dmgRef.current    = 0;
     comboRef.current  = 0;
     shieldRef.current = MAX_SHIELDS;
     bossHpRef.current = BOSS_MAX_HP;
+    endingRef.current = false;
     setPhase('ready');
     setTimeLeft(GAME_SEC);
     setOrbs([]);
@@ -152,73 +169,61 @@ export default function MiniGameModal({ visible, onClose, bossState, addXpFn, on
     setShields(MAX_SHIELDS);
     setBossHp(BOSS_MAX_HP);
     setEarnedGold(0);
-    setLastDmgText(null);
+    setEarnedXp(0);
+    setDmgPops([]);
     timerBarAnim.setValue(1);
-    bossShakeAnim.setValue(0);
-    comboScaleAnim.setValue(1);
+    bossShake.setValue(0);
+    comboScale.setValue(1);
+    screenFlash.setValue(0);
     resultAnim.setValue(0);
   }
 
-  // ── 게임 시작 ──
   function startGame() {
     phaseRef.current = 'playing';
     setPhase('playing');
 
-    // 타이머
-    let t = GAME_SEC;
     Animated.timing(timerBarAnim, {
       toValue: 0, duration: GAME_SEC * 1000, useNativeDriver: false,
     }).start();
 
+    let t = GAME_SEC;
     timerRef.current = setInterval(() => {
       t--;
       setTimeLeft(t);
-      if (t <= 0) {
-        clearInterval(timerRef.current);
-        clearTimeout(spawnRef.current);
-        endGame();
-      }
+      if (t <= 0) { clearInterval(timerRef.current); triggerEnd(); }
     }, 1000);
 
-    // 스폰 루프
-    scheduleSpawn();
+    // 즉시 첫 오브 스폰
+    doSpawn();
+    scheduleNext();
   }
 
-  function scheduleSpawn() {
+  function scheduleNext() {
     if (phaseRef.current !== 'playing') return;
-    const delay = SPAWN_MIN_MS + Math.random() * (SPAWN_MAX_MS - SPAWN_MIN_MS);
+    const delay = 800 + Math.random() * 700;
     spawnRef.current = setTimeout(() => {
       if (phaseRef.current !== 'playing') return;
       doSpawn();
-      scheduleSpawn();
+      scheduleNext();
     }, delay);
   }
 
   function doSpawn() {
-    const orb = createOrb();
+    const { w, h } = areaSizeRef.current;
+    const orb = makeOrb(w, h);
     const cfg  = ORB_CFG[orb.type];
 
-    // 등장 애니
-    Animated.spring(orb.scale, {
-      toValue: 1, useNativeDriver: true, tension: 140, friction: 5,
-    }).start();
-
-    // 만료 페이드
-    Animated.timing(orb.opacity, {
-      toValue: 0.15, duration: cfg.lifetimeMs, useNativeDriver: true,
-    }).start();
-
-    // 펄스 루프
+    Animated.spring(orb.scale, { toValue: 1, useNativeDriver: true, tension: 150, friction: 5 }).start();
+    Animated.timing(orb.opacity, { toValue: 0.12, duration: cfg.lifetimeMs, useNativeDriver: true }).start();
     Animated.loop(
       Animated.sequence([
-        Animated.timing(orb.pulse, { toValue: 1.15, duration: 550, useNativeDriver: true }),
-        Animated.timing(orb.pulse, { toValue: 0.88, duration: 550, useNativeDriver: true }),
+        Animated.timing(orb.pulse, { toValue: 1.14, duration: 520, useNativeDriver: true }),
+        Animated.timing(orb.pulse, { toValue: 0.87, duration: 520, useNativeDriver: true }),
       ])
     ).start();
 
     setOrbs(prev => [...prev, orb]);
 
-    // 만료 → 실드 감소
     const expiry = setTimeout(() => {
       expiryMap.current.delete(orb.id);
       if (phaseRef.current !== 'playing') return;
@@ -226,239 +231,276 @@ export default function MiniGameModal({ visible, onClose, bossState, addXpFn, on
       setShields(shieldRef.current);
       comboRef.current = 0;
       setCombo(0);
-      removeOrb(orb.id);
+      // 화면 붉은 플래시 (실드 소모)
+      Animated.sequence([
+        Animated.timing(screenFlash, { toValue: 0.4, duration: 80, useNativeDriver: true }),
+        Animated.timing(screenFlash, { toValue: 0,   duration: 250, useNativeDriver: true }),
+      ]).start();
+      setOrbs(prev => prev.filter(o => o.id !== orb.id));
     }, cfg.lifetimeMs);
+
     expiryMap.current.set(orb.id, expiry);
   }
 
-  function removeOrb(id: string) {
-    setOrbs(prev => prev.filter(o => o.id !== id));
-  }
-
-  // ── 오브 탭 ──
   function tapOrb(orb: OrbData) {
     if (phaseRef.current !== 'playing') return;
 
-    // 만료 타이머 취소
-    const t = expiryMap.current.get(orb.id);
-    if (t) { clearTimeout(t); expiryMap.current.delete(orb.id); }
+    const timer = expiryMap.current.get(orb.id);
+    if (timer) { clearTimeout(timer); expiryMap.current.delete(orb.id); }
 
-    // 콤보
     comboRef.current++;
-    setCombo(comboRef.current);
-    setMaxCombo(prev => Math.max(prev, comboRef.current));
+    const c = comboRef.current;
+    setCombo(c);
+    setMaxCombo(prev => Math.max(prev, c));
 
-    // 배율 계산
-    const mult = comboRef.current >= 10 ? 2.0 : comboRef.current >= 5 ? 1.5 : comboRef.current >= 3 ? 1.25 : 1;
+    const mult = c >= 10 ? 2.0 : c >= 5 ? 1.5 : c >= 3 ? 1.25 : 1;
     const dmg  = Math.round(orb.damage * mult);
 
-    // 누적 데미지
-    dmgRef.current += dmg;
-    bossHpRef.current = Math.max(0, bossHpRef.current - dmg);
+    dmgRef.current    += dmg;
+    bossHpRef.current  = Math.max(0, bossHpRef.current - dmg);
     setDmgDealt(dmgRef.current);
     setBossHp(bossHpRef.current);
 
-    // 떠오르는 데미지 텍스트
-    setLastDmgText({ val: dmg, key: Date.now() });
+    // 데미지 팝업 (오브 위치 기준)
+    const popId = Date.now() + Math.random();
+    setDmgPops(prev => [...prev, { id: popId, val: dmg, x: orb.x, y: orb.y }]);
+    setTimeout(() => setDmgPops(prev => prev.filter(p => p.id !== popId)), 900);
 
     // 보스 흔들기
     Animated.sequence([
-      Animated.timing(bossShakeAnim, { toValue: 8,  duration: 40, useNativeDriver: true }),
-      Animated.timing(bossShakeAnim, { toValue: -8, duration: 40, useNativeDriver: true }),
-      Animated.timing(bossShakeAnim, { toValue: 4,  duration: 30, useNativeDriver: true }),
-      Animated.timing(bossShakeAnim, { toValue: 0,  duration: 30, useNativeDriver: true }),
+      Animated.timing(bossShake, { toValue: 10,  duration: 35, useNativeDriver: true }),
+      Animated.timing(bossShake, { toValue: -10, duration: 35, useNativeDriver: true }),
+      Animated.timing(bossShake, { toValue: 5,   duration: 25, useNativeDriver: true }),
+      Animated.timing(bossShake, { toValue: 0,   duration: 25, useNativeDriver: true }),
     ]).start();
 
     // 콤보 팝
-    if (comboRef.current >= 3) {
+    if (c >= 3) {
       Animated.sequence([
-        Animated.spring(comboScaleAnim, { toValue: 1.35, useNativeDriver: true, tension: 400 }),
-        Animated.timing(comboScaleAnim, { toValue: 1, duration: 180, useNativeDriver: true }),
+        Animated.spring(comboScale, { toValue: 1.4, useNativeDriver: true, tension: 500 }),
+        Animated.timing(comboScale,  { toValue: 1,   duration: 200, useNativeDriver: true }),
       ]).start();
     }
 
-    // 오브 터지는 애니
-    Animated.parallel([
-      Animated.spring(orb.scale, { toValue: 1.5, useNativeDriver: true, tension: 500, friction: 4 }),
-      Animated.timing(orb.opacity, { toValue: 0, duration: 160, useNativeDriver: true }),
-    ]).start(() => removeOrb(orb.id));
+    // 화면 플래시 (타격)
+    const flashColor = orb.type === 'legendary' ? 0.25 : orb.type === 'rare' ? 0.12 : 0.06;
+    setFlashKey(k => k + 1);
+    Animated.sequence([
+      Animated.timing(screenFlash, { toValue: flashColor, duration: 50, useNativeDriver: true }),
+      Animated.timing(screenFlash, { toValue: 0,          duration: 180, useNativeDriver: true }),
+    ]).start();
 
-    // 보스 HP 0 = 즉시 종료
-    if (bossHpRef.current <= 0) {
-      clearInterval(timerRef.current);
-      clearTimeout(spawnRef.current);
-      phaseRef.current = 'result';
-      endGame(true);
-    }
+    // 오브 제거 애니
+    Animated.parallel([
+      Animated.spring(orb.scale, { toValue: 1.6, useNativeDriver: true, tension: 600, friction: 4 }),
+      Animated.timing(orb.opacity, { toValue: 0, duration: 140, useNativeDriver: true }),
+    ]).start(() => setOrbs(prev => prev.filter(o => o.id !== orb.id)));
+
+    if (bossHpRef.current <= 0) triggerEnd(true);
   }
 
-  // ── 게임 종료 ──
-  async function endGame(bossKilled = false) {
-    if (phaseRef.current === 'result') return;
+  function triggerEnd(bossKilled = false) {
+    if (endingRef.current) return;
+    endingRef.current = true;
     phaseRef.current = 'result';
     stopAll();
     setOrbs([]);
     setPhase('result');
 
-    const perfectShield = shieldRef.current === MAX_SHIELDS;
-    const gold = Math.floor(dmgRef.current / 7)
-      + (bossKilled  ? 80 : 0)
-      + (perfectShield ? 30 : 0);
+    const perfect = shieldRef.current === MAX_SHIELDS;
+    const gold = Math.floor(dmgRef.current / 6) + (bossKilled ? 100 : 0) + (perfect ? 40 : 0);
+    const xp   = Math.floor(dmgRef.current / 4) + (bossKilled ? 150 : 30);
+
     setEarnedGold(gold);
-    await addGold(gold);
+    setEarnedXp(xp);
+    addGold(gold);
+    (addXpFn ?? addXP)(xp);
     onGoldEarned?.(gold);
 
-    Animated.spring(resultAnim, {
-      toValue: 1, useNativeDriver: true, tension: 60, friction: 8,
-    }).start();
+    Animated.spring(resultAnim, { toValue: 1, useNativeDriver: true, tension: 55, friction: 8 }).start();
   }
 
-  // ── 닫기 ──
-  function handleClose() {
-    stopAll();
-    resetAll();
-    onClose();
+  function handleClose() { stopAll(); resetAll(); onClose(); }
+
+  function onGameAreaLayout(e: LayoutChangeEvent) {
+    const { width, height } = e.nativeEvent.layout;
+    areaSizeRef.current = { w: width, h: height };
   }
 
-  // ─── 렌더 ────────────────────────────────────────────────────
-
-  const bossHpPct  = (bossHp / BOSS_MAX_HP) * 100;
-  const timerColor = timeLeft <= 10 ? COLORS.bad : timeLeft <= 20 ? COLORS.warn : COLORS.primary;
+  // ─── 파생값 ─────────────────────────────────────────────
+  const hpPct       = bossHp / BOSS_MAX_HP;
+  const hpColor     = hpPct > 0.5 ? COLORS.good : hpPct > 0.25 ? COLORS.warn : COLORS.bad;
+  const timerColor  = timeLeft <= 10 ? COLORS.bad : timeLeft <= 20 ? COLORS.warn : COLORS.primary;
+  const isRage      = hpPct < 0.3 && phase === 'playing';
 
   return (
     <Modal visible={visible} animationType="none" transparent statusBarTranslucent onRequestClose={handleClose}>
       <View style={s.overlay}>
-        {/* 배경 탭 = 닫기 (ready 상태에서만) */}
-        {phase === 'ready' && (
-          <TouchableWithoutFeedback onPress={handleClose}>
-            <View style={StyleSheet.absoluteFill} />
-          </TouchableWithoutFeedback>
-        )}
-
         <Animated.View style={[s.container, {
-          transform: [{ scale: introAnim.interpolate({ inputRange: [0, 1], outputRange: [0.92, 1] }) }],
-          opacity: introAnim,
+          transform: [{ translateY: containerAnim.interpolate({ inputRange: [0, 1], outputRange: [80, 0] }) }],
+          opacity: containerAnim,
         }]}>
-          {/* ── 상단 바: 보스 이름 + 타이머 ── */}
-          <View style={s.topBar}>
-            <TouchableOpacity onPress={handleClose} style={s.closeBtn} hitSlop={{ top: 12, left: 12, bottom: 12, right: 12 }}>
-              <Ionicons name="close" size={20} color={COLORS.textMuted} />
+
+          {/* ── 헤더 ── */}
+          <View style={s.header}>
+            <TouchableOpacity onPress={handleClose} style={s.closeBtn} hitSlop={{ top: 16, left: 16, bottom: 16, right: 16 }}>
+              <Ionicons name="close" size={22} color={COLORS.textMuted} />
             </TouchableOpacity>
-            <Text style={s.gameTitle}>⚔️  보스 격파</Text>
-            {phase === 'playing' ? (
-              <View style={s.timerBox}>
-                <Text style={[s.timerNum, { color: timerColor }]}>{timeLeft}</Text>
-                <Text style={s.timerSec}>초</Text>
-              </View>
-            ) : (
-              <View style={{ width: 48 }} />
-            )}
+            <View style={s.headerCenter}>
+              <Text style={s.headerTitle}>⚔️  보스 격파</Text>
+              {phase === 'playing' && (
+                <View style={[s.timerPill, { borderColor: timerColor + '60', backgroundColor: timerColor + '14' }]}>
+                  <Text style={[s.timerNum, { color: timerColor }]}>{timeLeft}</Text>
+                  <Text style={[s.timerSec, { color: timerColor }]}>초</Text>
+                </View>
+              )}
+            </View>
+            <View style={{ width: 36 }} />
           </View>
 
-          {/* 타이머 바 */}
-          {phase === 'playing' && (
-            <Animated.View style={[s.timerBar, {
+          {/* 타이머 진행 바 */}
+          <View style={s.timerTrack}>
+            <Animated.View style={[s.timerFill, {
               width: timerBarAnim.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }),
               backgroundColor: timerColor,
             }]} />
-          )}
+          </View>
 
-          {/* ── 보스 섹션 ── */}
-          <Animated.View style={[s.bossSection, { transform: [{ translateX: bossShakeAnim }] }]}>
+          {/* ── 보스 패널 ── */}
+          <Animated.View style={[s.bossPanel, {
+            transform: [{ translateX: bossShake }],
+            backgroundColor: isRage
+              ? bossRageAnim.interpolate({ inputRange: [0, 1], outputRange: [COLORS.bgCard, boss.color + '18'] })
+              : COLORS.bgCard,
+          }]}>
+            <View style={[s.bossPanelBg, { backgroundColor: boss.color + '08' }]} />
             <View style={s.bossRow}>
-              <Text style={s.bossEmoji}>{boss.emoji}</Text>
+              {/* 보스 이모지 */}
+              <Animated.Text style={[s.bossEmoji, isRage && {
+                transform: [{ scale: bossRageAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 1.08] }) }],
+              }]}>{boss.emoji}</Animated.Text>
+
               <View style={{ flex: 1 }}>
-                <Text style={[s.bossName, { color: boss.color }]}>{boss.name}</Text>
-                <View style={s.bossHpRow}>
-                  <View style={s.bossHpTrack}>
-                    <View style={[s.bossHpFill, {
-                      width: `${bossHpPct}%`,
-                      backgroundColor: bossHpPct > 50 ? COLORS.good : bossHpPct > 25 ? COLORS.warn : COLORS.bad,
-                    }]} />
+                <View style={s.bossNameRow}>
+                  <Text style={[s.bossName, { color: boss.color }]}>{boss.name}</Text>
+                  {isRage && <View style={s.ragePill}><Text style={s.rageTxt}>분노!</Text></View>}
+                </View>
+                <View style={s.hpBarRow}>
+                  <View style={s.hpTrack}>
+                    <Animated.View style={[s.hpFill, { width: `${hpPct * 100}%`, backgroundColor: hpColor }]} />
                   </View>
-                  <Text style={s.bossHpNum}>{bossHp}</Text>
+                  <Text style={[s.hpNum, { color: hpColor }]}>{bossHp}</Text>
                 </View>
               </View>
-              {/* 내 실드 */}
-              <View style={s.shieldGroup}>
-                {Array.from({ length: MAX_SHIELDS }).map((_, i) => (
-                  <Text key={i} style={{ fontSize: 16, opacity: i < shields ? 1 : 0.2 }}>🛡️</Text>
-                ))}
+
+              {/* 실드 */}
+              <View style={s.shieldCol}>
+                <Text style={s.shieldLabel}>SHIELD</Text>
+                <View style={s.shieldRow}>
+                  {Array.from({ length: MAX_SHIELDS }).map((_, i) => (
+                    <View key={i} style={[s.shieldDot, { opacity: i < shields ? 1 : 0.2, backgroundColor: i < shields ? COLORS.primary : COLORS.textDisabled }]} />
+                  ))}
+                </View>
               </View>
             </View>
 
             {/* 데미지 + 콤보 */}
-            <View style={s.statsRow}>
-              <View>
-                <Text style={s.statsLabel}>누적 데미지</Text>
-                <Text style={[s.statsVal, { color: COLORS.amber }]}>{dmgDealt}</Text>
+            <View style={s.statRow}>
+              <View style={s.dmgBox}>
+                <Text style={s.statLabel}>DAMAGE</Text>
+                <Text style={[s.dmgVal, { color: COLORS.amber }]}>{dmgDealt.toLocaleString()}</Text>
               </View>
               <Animated.View style={[s.comboBox, {
-                transform: [{ scale: comboScaleAnim }],
-                opacity: combo >= 2 ? 1 : 0.3,
+                transform: [{ scale: comboScale }],
+                opacity: combo >= 2 ? 1 : 0.25,
+                borderColor: combo >= 10 ? COLORS.amber + '80' : combo >= 5 ? '#A78BFA80' : COLORS.primary + '50',
+                backgroundColor: combo >= 10 ? COLORS.amberGlow : combo >= 5 ? 'rgba(167,139,250,0.10)' : COLORS.primaryGlow,
               }]}>
-                <Text style={s.comboLabel}>COMBO</Text>
-                <Text style={[s.comboVal, {
+                <Text style={[s.comboXNum, {
                   color: combo >= 10 ? COLORS.amber : combo >= 5 ? '#A78BFA' : COLORS.primary,
-                }]}>{combo}x</Text>
+                }]}>{combo}<Text style={s.comboX}>×</Text></Text>
+                <Text style={s.comboLabel}>COMBO</Text>
               </Animated.View>
             </View>
           </Animated.View>
 
-          {/* ── 게임 영역 (오브 레이어) ── */}
-          <View style={s.gameArea} pointerEvents={phase === 'playing' ? 'box-none' : 'none'}>
+          {/* ── 게임 영역 ── */}
+          <View style={s.gameArea} onLayout={onGameAreaLayout}>
+
+            {/* ready 오버레이 */}
             {phase === 'ready' && (
               <View style={s.readyOverlay}>
-                <Text style={s.readyEmoji}>{boss.emoji}</Text>
-                <Text style={s.readyTitle}>보스를 격파하라!</Text>
-                <Text style={s.readySub}>
-                  오브를 탭해서 데미지를 입혀요{'\n'}
-                  콤보로 배율 ×1.25 / ×1.5 / ×2.0{'\n'}
-                  실드 {MAX_SHIELDS}개 소진 전에 격파하면 보너스!
-                </Text>
-                <TouchableOpacity style={s.startBtn} onPress={startGame} activeOpacity={0.85}>
-                  <Text style={s.startBtnTxt}>전투 시작!</Text>
+                <Text style={s.readyBossEmoji}>{boss.emoji}</Text>
+                <Text style={[s.readyTitle, { color: boss.color }]}>도전!</Text>
+                <Text style={s.readyBossName}>{boss.name}</Text>
+                <View style={s.readyRules}>
+                  <RuleRow icon="radio-button-on" color={COLORS.primary}  text="오브를 탭해 데미지 입히기" />
+                  <RuleRow icon="trending-up"     color={COLORS.amber}    text="콤보 연결로 배율 최대 ×2.0" />
+                  <RuleRow icon="shield"          color={COLORS.good}     text="실드 소진 전 격파 = 보너스" />
+                  <RuleRow icon="star"            color="#A78BFA"         text="전설 오브 = 52 데미지!" />
+                </View>
+                <TouchableOpacity style={[s.startBtn, { backgroundColor: boss.color }]} onPress={startGame} activeOpacity={0.85}>
+                  <Text style={s.startBtnTxt}>전투 시작</Text>
+                  <Ionicons name="flash" size={18} color="#000" />
                 </TouchableOpacity>
               </View>
             )}
 
-            {/* 오브들 */}
+            {/* 오브 */}
             {orbs.map(orb => (
               <OrbView key={orb.id} orb={orb} onTap={() => tapOrb(orb)} />
             ))}
 
-            {/* 떠오르는 데미지 텍스트 */}
-            {lastDmgText && (
-              <FloatDmgText key={lastDmgText.key} value={lastDmgText.val} />
-            )}
+            {/* 데미지 팝업 */}
+            {dmgPops.map(p => (
+              <DmgPop key={p.id} value={p.val} x={p.x} y={p.y} />
+            ))}
+
+            {/* 화면 플래시 */}
+            <Animated.View
+              key={flashKey}
+              style={[StyleSheet.absoluteFill, s.screenFlash, { opacity: screenFlash }]}
+              pointerEvents="none"
+            />
           </View>
 
-          {/* ── 결과 화면 ── */}
+          {/* ── 결과 오버레이 ── */}
           {phase === 'result' && (
             <Animated.View style={[s.resultOverlay, {
-              transform: [{ scale: resultAnim.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1] }) }],
               opacity: resultAnim,
+              transform: [{ scale: resultAnim.interpolate({ inputRange: [0, 1], outputRange: [0.92, 1] }) }],
             }]}>
-              <Text style={s.resultEmoji}>
-                {bossHp <= 0 ? '🎉' : shields > 0 ? '⚔️' : '💀'}
-              </Text>
-              <Text style={[s.resultTitle, {
-                color: bossHp <= 0 ? COLORS.amber : shields > 0 ? COLORS.primary : COLORS.bad,
-              }]}>
-                {bossHp <= 0 ? '보스 격파!' : shields > 0 ? '시간 종료' : '전투 패배'}
-              </Text>
+              <View style={s.resultContent}>
+                <Text style={s.resultEmoji}>{bossHp <= 0 ? '🏆' : shields > 0 ? '⚔️' : '💀'}</Text>
+                <Text style={[s.resultTitle, { color: bossHp <= 0 ? COLORS.amber : shields > 0 ? COLORS.primary : COLORS.bad }]}>
+                  {bossHp <= 0 ? '보스 격파 성공!' : shields > 0 ? '시간 종료' : '전투 패배'}
+                </Text>
 
-              <View style={s.resultStats}>
-                <ResultRow icon="flash"   label="총 데미지"  val={`${dmgDealt}`}  color={COLORS.amber} />
-                <ResultRow icon="repeat"  label="최대 콤보"  val={`${maxCombo}x`} color={COLORS.primary} />
-                <ResultRow icon="shield"  label="남은 실드"  val={`${shields} / ${MAX_SHIELDS}`} color={COLORS.good} />
-                <View style={s.resultDivider} />
-                <ResultRow icon="logo-bitcoin" label="획득 골드" val={`🪙 ${earnedGold} G`} color={COLORS.amber} big />
+                <View style={s.resultCards}>
+                  <ResultCard label="총 데미지"  val={dmgDealt.toLocaleString()} color={COLORS.amber}   icon="flash-outline" />
+                  <ResultCard label="최대 콤보"  val={`${maxCombo}×`}            color={COLORS.primary}  icon="repeat-outline" />
+                  <ResultCard label="남은 실드"  val={`${shields} / ${MAX_SHIELDS}`} color={COLORS.good} icon="shield-outline" />
+                </View>
+
+                <View style={s.rewardPanel}>
+                  <Text style={s.rewardTitle}>획득 보상</Text>
+                  <View style={s.rewardRow}>
+                    <View style={s.rewardItem}>
+                      <Text style={s.rewardEmoji}>🪙</Text>
+                      <Text style={s.rewardVal}>{earnedGold} G</Text>
+                    </View>
+                    <View style={s.rewardDivider} />
+                    <View style={s.rewardItem}>
+                      <Text style={s.rewardEmoji}>✨</Text>
+                      <Text style={s.rewardVal}>{earnedXp} XP</Text>
+                    </View>
+                  </View>
+                </View>
+
+                <TouchableOpacity style={s.closeResultBtn} onPress={handleClose} activeOpacity={0.85}>
+                  <Text style={s.closeResultTxt}>확인</Text>
+                </TouchableOpacity>
               </View>
-
-              <TouchableOpacity style={s.resultCloseBtn} onPress={handleClose} activeOpacity={0.8}>
-                <Text style={s.resultCloseTxt}>확인</Text>
-              </TouchableOpacity>
             </Animated.View>
           )}
         </Animated.View>
@@ -467,52 +509,33 @@ export default function MiniGameModal({ visible, onClose, bossState, addXpFn, on
   );
 }
 
-// ─── 오브 서브컴포넌트 ────────────────────────────────────────
+// ─── 오브 ─────────────────────────────────────────────────────
 function OrbView({ orb, onTap }: { orb: OrbData; onTap: () => void }) {
-  const cfg = ORB_CFG[orb.type];
   return (
-    <Animated.View
-      style={[
-        s.orbWrap,
-        {
-          left: orb.x - orb.size / 2,
-          top: orb.y - AREA_TOP - orb.size / 2,
-          width: orb.size,
-          height: orb.size,
-          transform: [
-            { scale: Animated.multiply(orb.scale, orb.pulse) },
-          ],
-          opacity: orb.opacity,
-        },
-      ]}
-    >
+    <Animated.View style={[s.orb, {
+      left: orb.x - orb.size / 2,
+      top:  orb.y - orb.size / 2,
+      width:  orb.size,
+      height: orb.size,
+      borderRadius: orb.size / 2,
+      transform: [{ scale: Animated.multiply(orb.scale, orb.pulse) }],
+      opacity: orb.opacity,
+      borderColor: orb.color,
+      backgroundColor: orb.inner,
+      shadowColor: orb.color,
+    }]}>
       <TouchableWithoutFeedback onPress={onTap}>
-        <View style={[s.orbBody, {
-          width: orb.size,
-          height: orb.size,
-          borderRadius: orb.size / 2,
-          backgroundColor: orb.color + '22',
-          borderColor: orb.color,
-          shadowColor: orb.color,
-        }]}>
-          {/* 내부 광원 */}
-          <View style={[s.orbInner, {
-            width: orb.size * 0.55,
-            height: orb.size * 0.55,
-            borderRadius: orb.size * 0.275,
-            backgroundColor: orb.color + '55',
-          }]} />
+        <View style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center', borderRadius: orb.size / 2 }]}>
           {/* 반짝이 */}
-          <View style={[s.orbShine, {
-            width: orb.size * 0.22,
-            height: orb.size * 0.22,
-            borderRadius: orb.size * 0.11,
-            top: orb.size * 0.14,
-            left: orb.size * 0.18,
+          <View style={[s.orbShine, { width: orb.size * 0.22, height: orb.size * 0.22, borderRadius: orb.size * 0.11 }]} />
+          {/* 중앙 코어 */}
+          <View style={[s.orbCore, {
+            width: orb.size * 0.38, height: orb.size * 0.38, borderRadius: orb.size * 0.19,
+            backgroundColor: orb.color + '70',
           }]} />
           {orb.type !== 'normal' && (
-            <Text style={[s.orbLabel, { color: orb.color, fontSize: orb.type === 'legendary' ? 9 : 8 }]}>
-              {cfg.label}
+            <Text style={[s.orbTypeLabel, { color: orb.color, bottom: orb.size * 0.1 }]}>
+              {orb.type === 'legendary' ? '전설' : '희귀'}
             </Text>
           )}
         </View>
@@ -521,40 +544,44 @@ function OrbView({ orb, onTap }: { orb: OrbData; onTap: () => void }) {
   );
 }
 
-// ─── 떠오르는 데미지 텍스트 ───────────────────────────────────
-function FloatDmgText({ value }: { value: number }) {
-  const yAnim = useRef(new Animated.Value(0)).current;
+// ─── 데미지 팝업 ─────────────────────────────────────────────
+function DmgPop({ value, x, y }: { value: number; x: number; y: number }) {
+  const upAnim = useRef(new Animated.Value(0)).current;
   const opAnim = useRef(new Animated.Value(1)).current;
-  const color = value >= 50 ? COLORS.amber : value >= 25 ? '#A78BFA' : COLORS.primary;
-
   useEffect(() => {
     Animated.parallel([
-      Animated.timing(yAnim,  { toValue: -60, duration: 800, useNativeDriver: true }),
+      Animated.timing(upAnim, { toValue: -55, duration: 800, useNativeDriver: true }),
       Animated.sequence([
-        Animated.delay(400),
-        Animated.timing(opAnim, { toValue: 0, duration: 400, useNativeDriver: true }),
+        Animated.delay(450),
+        Animated.timing(opAnim, { toValue: 0, duration: 350, useNativeDriver: true }),
       ]),
     ]).start();
   }, []);
-
+  const color = value >= 50 ? COLORS.amber : value >= 25 ? '#A78BFA' : COLORS.primary;
   return (
-    <Animated.Text style={[s.floatDmg, {
-      color, transform: [{ translateY: yAnim }], opacity: opAnim,
-    }]}>
+    <Animated.Text style={[s.dmgPop, { left: x - 30, top: y - 30, color, transform: [{ translateY: upAnim }], opacity: opAnim }]}>
       -{value}
     </Animated.Text>
   );
 }
 
-// ─── 결과 행 ─────────────────────────────────────────────────
-function ResultRow({ icon, label, val, color, big }: {
-  icon: string; label: string; val: string; color: string; big?: boolean;
-}) {
+// ─── 결과 카드 ────────────────────────────────────────────────
+function ResultCard({ label, val, color, icon }: { label: string; val: string; color: string; icon: string }) {
   return (
-    <View style={s.resultRow}>
-      <Ionicons name={icon as any} size={big ? 16 : 14} color={color} />
-      <Text style={[s.resultLabel, big && { fontSize: FONTS.sm, color: COLORS.text }]}>{label}</Text>
-      <Text style={[s.resultVal, { color }, big && { fontSize: FONTS.lg, fontWeight: '900' }]}>{val}</Text>
+    <View style={[s.resultCard, { borderColor: color + '30', backgroundColor: color + '0D' }]}>
+      <Ionicons name={icon as any} size={18} color={color} />
+      <Text style={s.resultCardLabel}>{label}</Text>
+      <Text style={[s.resultCardVal, { color }]}>{val}</Text>
+    </View>
+  );
+}
+
+// ─── 룰 행 ───────────────────────────────────────────────────
+function RuleRow({ icon, color, text }: { icon: string; color: string; text: string }) {
+  return (
+    <View style={s.ruleRow}>
+      <Ionicons name={icon as any} size={14} color={color} />
+      <Text style={s.ruleTxt}>{text}</Text>
     </View>
   );
 }
@@ -563,163 +590,204 @@ function ResultRow({ icon, label, val, color, big }: {
 const s = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(2,3,8,0.92)',
+    backgroundColor: 'rgba(2,3,8,0.88)',
     justifyContent: 'flex-end',
   },
   container: {
-    height: SH * 0.94,
-    backgroundColor: COLORS.bgCard,
+    height: '93%',
+    backgroundColor: COLORS.bg,
     borderTopLeftRadius: RADIUS.xl,
     borderTopRightRadius: RADIUS.xl,
     overflow: 'hidden',
     borderWidth: 1,
+    borderBottomWidth: 0,
     borderColor: COLORS.border,
   },
-  topBar: {
+
+  // 헤더
+  header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm + 4,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  closeBtn: { padding: 4 },
-  gameTitle: { fontSize: FONTS.sm, fontWeight: '800', color: COLORS.text, letterSpacing: 0.5 },
-  timerBox: { flexDirection: 'row', alignItems: 'baseline', minWidth: 48, justifyContent: 'flex-end' },
-  timerNum: { fontSize: FONTS.lg, fontWeight: '900', fontFamily: 'monospace' },
-  timerSec: { fontSize: FONTS.xxs, color: COLORS.textMuted, marginLeft: 2 },
-  timerBar: {
-    height: 3,
-    backgroundColor: COLORS.primary,
-    alignSelf: 'flex-start',
-  },
-
-  bossSection: {
-    paddingHorizontal: SPACING.md,
-    paddingTop: SPACING.sm,
+    paddingTop: SPACING.md,
     paddingBottom: SPACING.sm,
+  },
+  closeBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
+  headerCenter: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  headerTitle: { fontSize: FONTS.sm, fontWeight: '800', color: COLORS.text, letterSpacing: 0.5 },
+  timerPill: {
+    flexDirection: 'row', alignItems: 'baseline', gap: 2,
+    paddingHorizontal: 10, paddingVertical: 3,
+    borderRadius: RADIUS.full, borderWidth: 1,
+  },
+  timerNum: { fontSize: FONTS.md, fontWeight: '900', fontFamily: 'monospace' },
+  timerSec: { fontSize: FONTS.xxs, fontWeight: '700' },
+
+  timerTrack: { height: 2, backgroundColor: 'rgba(255,255,255,0.04)' },
+  timerFill:  { height: '100%' },
+
+  // 보스 패널
+  bossPanel: {
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm + 2,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
+    position: 'relative',
+    overflow: 'hidden',
   },
+  bossPanelBg: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
   bossRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8 },
-  bossEmoji: { fontSize: 36 },
-  bossName: { fontSize: FONTS.md, fontWeight: '800', marginBottom: 4 },
-  bossHpRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  bossHpTrack: {
-    flex: 1, height: 8,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderRadius: RADIUS.full, overflow: 'hidden',
+  bossEmoji: { fontSize: 40 },
+  bossNameRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 5 },
+  bossName: { fontSize: FONTS.md, fontWeight: '900' },
+  ragePill: {
+    backgroundColor: COLORS.bad + '28', borderRadius: RADIUS.full,
+    paddingHorizontal: 7, paddingVertical: 2, borderWidth: 1, borderColor: COLORS.bad + '55',
   },
-  bossHpFill: { height: '100%', borderRadius: RADIUS.full },
-  bossHpNum: { fontSize: FONTS.xs, fontFamily: 'monospace', fontWeight: '700', color: COLORS.textSub, minWidth: 36, textAlign: 'right' },
-  shieldGroup: { flexDirection: 'row', gap: 2 },
+  rageTxt: { fontSize: 9, color: COLORS.bad, fontWeight: '900', fontFamily: 'monospace', letterSpacing: 0.5 },
+  hpBarRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  hpTrack: { flex: 1, height: 7, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: RADIUS.full, overflow: 'hidden' },
+  hpFill:  { height: '100%', borderRadius: RADIUS.full },
+  hpNum: { fontSize: FONTS.xxs, fontFamily: 'monospace', fontWeight: '800', minWidth: 32, textAlign: 'right' },
+  shieldCol: { alignItems: 'center', gap: 4 },
+  shieldLabel: { fontSize: 8, color: COLORS.textDisabled, fontFamily: 'monospace', letterSpacing: 1 },
+  shieldRow: { flexDirection: 'row', gap: 5 },
+  shieldDot: { width: 10, height: 10, borderRadius: 5 },
+  statRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  dmgBox: {},
+  statLabel: { fontSize: 9, color: COLORS.textDisabled, fontFamily: 'monospace', letterSpacing: 1.5 },
+  dmgVal: { fontSize: FONTS.lg, fontWeight: '900', fontFamily: 'monospace' },
+  comboBox: {
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: RADIUS.md,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+  },
+  comboXNum: { fontSize: FONTS.xl, fontWeight: '900', fontFamily: 'monospace', lineHeight: 28 },
+  comboX: { fontSize: FONTS.sm },
+  comboLabel: { fontSize: 8, color: COLORS.textDisabled, fontFamily: 'monospace', letterSpacing: 2 },
 
-  statsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  statsLabel: { fontSize: FONTS.xxs, color: COLORS.textMuted, fontFamily: 'monospace' },
-  statsVal: { fontSize: FONTS.md, fontWeight: '900', fontFamily: 'monospace' },
-  comboBox: { alignItems: 'flex-end' },
-  comboLabel: { fontSize: 9, letterSpacing: 1.5, color: COLORS.textDisabled, fontFamily: 'monospace' },
-  comboVal: { fontSize: FONTS.xl, fontWeight: '900', fontFamily: 'monospace' },
-
+  // 게임 영역
   gameArea: {
     flex: 1,
+    backgroundColor: '#040610',
     position: 'relative',
-    backgroundColor: 'rgba(7,9,18,0.95)',
+    overflow: 'hidden',
+  },
+  screenFlash: {
+    backgroundColor: COLORS.bad,
+    pointerEvents: 'none' as any,
   },
 
+  // 오브
+  orb: {
+    position: 'absolute',
+    borderWidth: 2.5,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.9,
+    shadowRadius: 14,
+    elevation: 10,
+  },
+  orbShine: {
+    position: 'absolute',
+    top: '14%', left: '18%',
+    backgroundColor: 'rgba(255,255,255,0.50)',
+  },
+  orbCore: { position: 'absolute' },
+  orbTypeLabel: {
+    position: 'absolute',
+    fontSize: 9, fontWeight: '900', fontFamily: 'monospace', letterSpacing: 0.3,
+  },
+
+  // 데미지 팝
+  dmgPop: {
+    position: 'absolute',
+    fontSize: FONTS.xl,
+    fontWeight: '900',
+    fontFamily: 'monospace',
+    textShadowColor: 'rgba(0,0,0,0.6)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
+  },
+
+  // Ready 오버레이
   readyOverlay: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: SPACING.xl,
-    gap: SPACING.sm,
+    gap: 8,
   },
-  readyEmoji: { fontSize: 60, marginBottom: SPACING.xs },
-  readyTitle: { fontSize: FONTS.xl, fontWeight: '900', color: COLORS.text, textAlign: 'center' },
-  readySub: {
-    fontSize: FONTS.xs, color: COLORS.textMuted, textAlign: 'center',
-    lineHeight: 20, marginTop: 4, marginBottom: SPACING.md,
+  readyBossEmoji: { fontSize: 72, marginBottom: 4 },
+  readyTitle: { fontSize: FONTS.xxl, fontWeight: '900', letterSpacing: -1 },
+  readyBossName: { fontSize: FONTS.sm, color: COLORS.textMuted, marginTop: -4, marginBottom: 12 },
+  readyRules: {
+    width: '100%',
+    backgroundColor: COLORS.bgCard,
+    borderRadius: RADIUS.md,
+    padding: SPACING.md,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    marginBottom: 8,
   },
+  ruleRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  ruleTxt: { fontSize: FONTS.xs, color: COLORS.textSub },
   startBtn: {
-    backgroundColor: COLORS.primary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
     borderRadius: RADIUS.lg,
-    paddingVertical: 14,
-    paddingHorizontal: 40,
-    marginTop: SPACING.sm,
+    paddingVertical: 15,
+    paddingHorizontal: 44,
   },
   startBtnTxt: { fontSize: FONTS.md, fontWeight: '900', color: '#000' },
 
-  orbWrap: {
-    position: 'absolute',
-  },
-  orbBody: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  orbInner: { position: 'absolute' },
-  orbShine: {
-    position: 'absolute',
-    backgroundColor: 'rgba(255,255,255,0.45)',
-  },
-  orbLabel: {
-    fontFamily: 'monospace',
-    fontWeight: '900',
-    letterSpacing: 0.5,
-    position: 'absolute',
-    bottom: 7,
-  },
-
-  floatDmg: {
-    position: 'absolute',
-    top: '40%',
-    alignSelf: 'center',
-    fontSize: FONTS.xxl,
-    fontWeight: '900',
-    fontFamily: 'monospace',
-    textShadowColor: 'rgba(0,0,0,0.5)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
-  },
-
+  // 결과
   resultOverlay: {
     position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    top: 0,
-    backgroundColor: 'rgba(7,9,18,0.97)',
+    top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: 'rgba(4,6,16,0.97)',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: SPACING.xl,
-    gap: SPACING.sm,
   },
-  resultEmoji: { fontSize: 56 },
-  resultTitle: { fontSize: FONTS.xxl, fontWeight: '900', marginBottom: SPACING.sm },
-  resultStats: {
+  resultContent: {
     width: '100%',
-    backgroundColor: COLORS.bg,
+    paddingHorizontal: SPACING.xl,
+    alignItems: 'center',
+    gap: SPACING.md,
+  },
+  resultEmoji: { fontSize: 64 },
+  resultTitle: { fontSize: FONTS.xxl, fontWeight: '900', letterSpacing: -0.5 },
+  resultCards: { flexDirection: 'row', gap: 8, width: '100%' },
+  resultCard: {
+    flex: 1, alignItems: 'center', gap: 4,
+    borderRadius: RADIUS.md, borderWidth: 1,
+    paddingVertical: 12, paddingHorizontal: 6,
+  },
+  resultCardLabel: { fontSize: FONTS.xxs, color: COLORS.textMuted },
+  resultCardVal: { fontSize: FONTS.sm, fontWeight: '900', fontFamily: 'monospace' },
+  rewardPanel: {
+    width: '100%',
+    backgroundColor: COLORS.bgCard,
     borderRadius: RADIUS.lg,
     padding: SPACING.md,
-    gap: 10,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: COLORS.amberLine,
   },
-  resultRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  resultLabel: { flex: 1, fontSize: FONTS.xs, color: COLORS.textSub },
-  resultVal: { fontSize: FONTS.sm, fontWeight: '800', fontFamily: 'monospace' },
-  resultDivider: { height: 1, backgroundColor: COLORS.border, marginVertical: 4 },
-  resultCloseBtn: {
-    marginTop: SPACING.md,
+  rewardTitle: { fontSize: FONTS.xxs, color: COLORS.textMuted, fontFamily: 'monospace', letterSpacing: 1, marginBottom: 10, textAlign: 'center' },
+  rewardRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
+  rewardItem: { flex: 1, alignItems: 'center', gap: 4 },
+  rewardEmoji: { fontSize: 28 },
+  rewardVal: { fontSize: FONTS.lg, fontWeight: '900', color: COLORS.amber, fontFamily: 'monospace' },
+  rewardDivider: { width: 1, height: 44, backgroundColor: COLORS.border },
+  closeResultBtn: {
     backgroundColor: COLORS.primary,
     borderRadius: RADIUS.lg,
-    paddingVertical: 14,
-    paddingHorizontal: 48,
+    paddingVertical: 15,
+    paddingHorizontal: 52,
   },
-  resultCloseTxt: { fontSize: FONTS.md, fontWeight: '900', color: '#000' },
+  closeResultTxt: { fontSize: FONTS.md, fontWeight: '900', color: '#000' },
 });

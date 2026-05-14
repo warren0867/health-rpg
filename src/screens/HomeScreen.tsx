@@ -354,14 +354,14 @@ export default function HomeScreen() {
           onPress={() => setShowGacha(true)}
           activeOpacity={0.85}
         >
-          <View style={[s.gachaBannerGlow, { backgroundColor: 'rgba(167,139,250,0.12)' }]} pointerEvents="none" />
+          <View style={[s.gachaBannerGlow, { backgroundColor: 'rgba(167,139,250,0.09)' }]} pointerEvents="none" />
           <View style={s.coachBannerLeft}>
-            <View style={[s.coachIconWrap, { backgroundColor: 'rgba(167,139,250,0.18)', borderColor: 'rgba(167,139,250,0.40)' }]}>
-              <Text style={{ fontSize: 18 }}>⚗️</Text>
+            <View style={[s.coachIconWrap, { backgroundColor: 'rgba(167,139,250,0.20)', borderColor: 'rgba(167,139,250,0.45)' }]}>
+              <Text style={{ fontSize: 20 }}>⚗️</Text>
             </View>
             <View>
               <Text style={[s.coachBannerTitle, { color: '#A78BFA' }]}>마법 뽑기</Text>
-              <Text style={s.coachBannerSub}>🪙 {gachaInv?.gold ?? 0}G 보유  ·  주문서로 스탯 강화</Text>
+              <Text style={s.coachBannerSub}>보유 골드  <Text style={{ color: COLORS.amber, fontWeight: '800' }}>🪙 {gachaInv?.gold ?? 0}G</Text>  ·  주문서로 스탯 강화</Text>
             </View>
           </View>
           <Ionicons name="chevron-forward" size={18} color="#A78BFA" />
@@ -472,6 +472,7 @@ export default function HomeScreen() {
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
     <View style={s.sectionLabelWrap}>
+      <View style={s.sectionLabelLine} />
       <Text style={s.sectionLabel}>{children}</Text>
     </View>
   );
@@ -481,12 +482,13 @@ function ActionCard({ label, sub, icon, color, tintBg, onPress }: {
   label: string; sub: string; icon: any; color: string; tintBg: string; onPress: () => void;
 }) {
   return (
-    <TouchableOpacity style={s.actionCard} onPress={onPress} activeOpacity={0.7}>
-      <View style={[s.actionIcon, { backgroundColor: tintBg }]}>
-        <Ionicons name={icon} size={18} color={color} />
+    <TouchableOpacity style={[s.actionCard, { borderColor: color + '28' }]} onPress={onPress} activeOpacity={0.7}>
+      <View style={[s.actionCardGlow, { backgroundColor: color + '08' }]} pointerEvents="none" />
+      <View style={[s.actionIcon, { backgroundColor: color + '1C', borderColor: color + '40', borderWidth: 1 }]}>
+        <Ionicons name={icon} size={20} color={color} />
       </View>
       <Text style={s.actionLabel}>{label}</Text>
-      <Text style={s.actionSub}>{sub}</Text>
+      <Text style={[s.actionSub, { color: color + 'AA' }]}>{sub}</Text>
     </TouchableOpacity>
   );
 }
@@ -543,16 +545,25 @@ const s = StyleSheet.create({
 
   sectionLabelWrap: {
     paddingHorizontal: SPACING.md + 4,
-    paddingTop: SPACING.sm,
-    paddingBottom: SPACING.xs + 2,
+    paddingTop: SPACING.md,
+    paddingBottom: SPACING.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  sectionLabelLine: {
+    width: 3,
+    height: 12,
+    borderRadius: 2,
+    backgroundColor: COLORS.primary,
   },
   sectionLabel: {
     fontSize: FONTS.xxs,
-    color: COLORS.textMuted,
+    color: COLORS.textSub,
     fontFamily: 'monospace',
-    letterSpacing: 1.5,
+    letterSpacing: 2,
     textTransform: 'uppercase',
-    fontWeight: '600',
+    fontWeight: '800',
   },
 
   emptyCard: {
@@ -666,17 +677,23 @@ const s = StyleSheet.create({
   actionCard: {
     flex: 1,
     backgroundColor: COLORS.bgCard,
-    borderRadius: RADIUS.md,
+    borderRadius: RADIUS.lg,
     padding: SPACING.md,
-    borderWidth: 1, borderColor: COLORS.border,
-    gap: 8,
+    paddingVertical: SPACING.md + 4,
+    borderWidth: 1,
+    gap: 10,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  actionCardGlow: {
+    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
   },
   actionIcon: {
-    width: 32, height: 32, borderRadius: 10,
+    width: 40, height: 40, borderRadius: 12,
     alignItems: 'center', justifyContent: 'center',
   },
-  actionLabel: { fontSize: FONTS.sm, fontWeight: '700', color: COLORS.text },
-  actionSub: { fontSize: FONTS.xxs, color: COLORS.textMuted, fontFamily: 'monospace', letterSpacing: 0.5 },
+  actionLabel: { fontSize: FONTS.sm, fontWeight: '800', color: COLORS.text },
+  actionSub: { fontSize: FONTS.xxs, fontFamily: 'monospace', letterSpacing: 0.5, fontWeight: '700' },
 
   // Modal
   modalOverlay: {
