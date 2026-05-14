@@ -1,10 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
-import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View, ViewStyle } from 'react-native';
+import React, { useState } from 'react';
+import { Image, Modal, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View, ViewStyle } from 'react-native';
 import { COLORS, FONTS, RADIUS, SPACING } from '../constants/theme';
 import { EMPTY_PERMANENT_STATS, PermanentStats } from '../types';
 import { RecentCondition } from '../utils/permanentStats';
-import AvatarEvo, { getEvoStage, getNextEvoStage } from './AvatarEvo';
+import AvatarEvo, { EVO_STAGES, getEvoStage, getNextEvoStage } from './AvatarEvo';
 
 type Rank = { rank: string; label: string; color: string; glow: string };
 
@@ -22,10 +22,72 @@ interface Props {
   onEditName?: () => void;
 }
 
+const pixelated: any = Platform.select({ web: { imageRendering: 'pixelated' }, default: {} });
+
+function EvoModal({ visible, totalGained, onClose }: { visible: boolean; totalGained: number; onClose: () => void }) {
+  const cur = getEvoStage(totalGained);
+  const next = getNextEvoStage(totalGained);
+  const toNext = next ? Math.max(0, next.threshold - totalGained) : 0;
+  const pct = next
+    ? Math.min(100, ((totalGained - cur.threshold) / (next.threshold - cur.threshold)) * 100)
+    : 100;
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <TouchableOpacity style={em.backdrop} activeOpacity={1} onPress={onClose}>
+        <TouchableOpacity activeOpacity={1} style={em.sheet}>
+          <Text style={em.title}>EVO 진화 단계</Text>
+          <Text style={em.sub}>누적 성장 포인트: <Text style={{ color: COLORS.primary }}>{totalGained.toFixed(1)}p</Text></Text>
+
+          <ScrollView style={{ maxHeight: 420 }} showsVerticalScrollIndicator={false}>
+            {EVO_STAGES.map((s, i) => {
+              const isCurrent = s.stage === cur.stage;
+              const isUnlocked = totalGained >= s.threshold;
+              const next_ = EVO_STAGES[i + 1];
+              const stagePct = isCurrent && next_
+                ? Math.min(100, ((totalGained - s.threshold) / (next_.threshold - s.threshold)) * 100)
+                : isUnlocked ? 100 : 0;
+
+              return (
+                <View key={s.stage} style={[em.row, isCurrent && { backgroundColor: s.bgColor, borderColor: s.borderColor, borderWidth: 1 }]}>
+                  <View style={[em.imgBox, { borderColor: isUnlocked ? s.borderColor : COLORS.border, backgroundColor: isUnlocked ? s.bgColor : 'transparent', opacity: isUnlocked ? 1 : 0.35 }]}>
+                    <Image source={s.source} style={{ width: 36, height: 36, ...pixelated }} resizeMode="contain" />
+                  </View>
+                  <View style={em.info}>
+                    <View style={em.labelRow}>
+                      <Text style={[em.stage, { color: isUnlocked ? s.textColor : COLORS.textDisabled }]}>EVO {s.stage}</Text>
+                      <Text style={[em.label, { color: isUnlocked ? COLORS.text : COLORS.textDisabled }]}>{s.label}</Text>
+                      {isCurrent && <View style={[em.curBadge, { backgroundColor: s.borderColor }]}><Text style={em.curText}>현재</Text></View>}
+                    </View>
+                    <Text style={[em.threshold, { color: COLORS.textMuted }]}>{s.threshold}p 이상</Text>
+                    {(isCurrent || isUnlocked) && next_ && (
+                      <View style={em.barTrack}>
+                        <View style={[em.barFill, { width: `${stagePct}%`, backgroundColor: s.textColor }]} />
+                      </View>
+                    )}
+                    {isCurrent && next_ && (
+                      <Text style={[em.toNext, { color: COLORS.textMuted }]}>다음까지 {toNext.toFixed(1)}p</Text>
+                    )}
+                  </View>
+                </View>
+              );
+            })}
+          </ScrollView>
+
+          <TouchableOpacity onPress={onClose} style={em.closeBtn}>
+            <Text style={em.closeTxt}>닫기</Text>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </TouchableOpacity>
+    </Modal>
+  );
+}
+
 export default function CharacterCard({
   name, score, rank, level, levelTitle,
   xpCurrent, xpNeeded, todayXp, permStats, conditionInfo, onEditName,
 }: Props) {
+  const [evoModalVisible, setEvoModalVisible] = useState(false);
   const rankColor = rank?.color ?? COLORS.textMuted;
   const rankGlow = rank?.glow ?? COLORS.primaryGlow;
   const xpPct = Math.min(100, Math.round((xpCurrent / xpNeeded) * 100));
@@ -51,6 +113,7 @@ export default function CharacterCard({
 
   return (
     <View style={[styles.card, { borderColor: rankColor + '33' } as ViewStyle]}>
+      <EvoModal visible={evoModalVisible} totalGained={ps.totalGained} onClose={() => setEvoModalVisible(false)} />
       {/* 등급 컬러 글로우 (배경) */}
       <View style={[styles.glow, { backgroundColor: rankGlow }]} pointerEvents="none" />
 
@@ -65,11 +128,16 @@ export default function CharacterCard({
               <Ionicons name="create-outline" size={14} color={COLORS.textDisabled} />
             </TouchableOpacity>
 
-            {/* EVO 등급 뱃지 */}
-            <View style={[styles.rankPill, { backgroundColor: evo.bgColor, borderColor: evo.borderColor }]}>
+            {/* EVO 등급 뱃지 — 탭으로 진화 단계 모달 */}
+            <TouchableOpacity
+              onPress={() => setEvoModalVisible(true)}
+              style={[styles.rankPill, { backgroundColor: evo.bgColor, borderColor: evo.borderColor }]}
+              activeOpacity={0.7}
+            >
               <Text style={[styles.evoStage, { color: evo.textColor }]}>EVO {evo.stage}</Text>
               <Text style={[styles.rankLabel, { color: evo.textColor }]}>{evo.label}</Text>
-            </View>
+              <Ionicons name="chevron-forward" size={10} color={evo.textColor} style={{ opacity: 0.7 }} />
+            </TouchableOpacity>
 
             {/* 컨디션 상태 행 */}
             {cond && (
@@ -223,4 +291,36 @@ const styles = StyleSheet.create({
   xpDim: { color: COLORS.textMuted },
   xpTrack: { height: 6, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: RADIUS.full, overflow: 'hidden' },
   xpFill: { height: '100%', borderRadius: RADIUS.full },
+});
+
+const em = StyleSheet.create({
+  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center' },
+  sheet: {
+    backgroundColor: COLORS.bgCard, borderRadius: RADIUS.lg, padding: SPACING.lg,
+    width: '88%', maxWidth: 360,
+    borderWidth: 1, borderColor: COLORS.border,
+  },
+  title: { color: COLORS.text, fontSize: FONTS.lg, fontWeight: '800', marginBottom: 4 },
+  sub: { color: COLORS.textMuted, fontSize: FONTS.xs, marginBottom: SPACING.md, fontFamily: 'monospace' },
+  row: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    paddingVertical: 10, paddingHorizontal: 8,
+    borderRadius: RADIUS.md, marginBottom: 6,
+  },
+  imgBox: { width: 48, height: 48, borderRadius: RADIUS.md, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
+  info: { flex: 1 },
+  labelRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 },
+  stage: { fontSize: FONTS.xxs, fontWeight: '900', fontFamily: 'monospace' },
+  label: { fontSize: FONTS.xs, fontWeight: '700' },
+  curBadge: { paddingHorizontal: 5, paddingVertical: 1, borderRadius: RADIUS.full },
+  curText: { color: '#000', fontSize: 9, fontWeight: '900' },
+  threshold: { fontSize: FONTS.xxs - 1, fontFamily: 'monospace', marginBottom: 4 },
+  barTrack: { height: 3, backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: RADIUS.full, overflow: 'hidden', marginBottom: 2 },
+  barFill: { height: '100%', borderRadius: RADIUS.full },
+  toNext: { fontSize: FONTS.xxs - 1, fontFamily: 'monospace' },
+  closeBtn: {
+    marginTop: SPACING.md, backgroundColor: COLORS.bgInput,
+    borderRadius: RADIUS.md, paddingVertical: 10, alignItems: 'center',
+  },
+  closeTxt: { color: COLORS.text, fontWeight: '700', fontSize: FONTS.sm },
 });
