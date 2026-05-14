@@ -2,8 +2,8 @@ import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { COLORS, FONTS, RADIUS, SPACING } from '../constants/theme';
-import { PermanentStats, STAT_FULLNAME, STAT_LABEL, StatKey } from '../types';
-import { statTierProgress } from '../utils/permanentStats';
+import { EquipmentItem, EquipmentTier, PermanentStats, STAT_FULLNAME, STAT_LABEL, StatKey } from '../types';
+import { TIER_LABEL, statTierProgress } from '../utils/permanentStats';
 
 interface Props {
   stats: PermanentStats;
@@ -19,19 +19,58 @@ const STAT_META: Record<StatKey, { icon: keyof typeof Ionicons.glyphMap; color: 
 
 const STAT_ORDER: StatKey[] = ['str', 'end', 'vit', 'agi', 'wis'];
 
-/**
- * 영구 누적 스탯 표시 — 운동/수면/혈압/streak/체중 추세에서 결정적으로 도출.
- * "오늘 컨디션"이 아니라 "내가 얼마나 강해졌나"를 보여주는 게 목적.
- */
+const TIER_COLOR: Record<EquipmentTier, string> = {
+  none:      COLORS.textDisabled,
+  common:    COLORS.textMuted,
+  rare:      COLORS.primary,
+  epic:      COLORS.vit,
+  legendary: COLORS.amber,
+};
+
+function EquipmentSlotRow({ item, slotName }: { item: EquipmentItem | null; slotName: string }) {
+  const empty = !item || item.tier === 'none';
+  const tierColor = item ? TIER_COLOR[item.tier] : COLORS.textDisabled;
+  const bonusStr = item
+    ? Object.entries(item.bonus).map(([k, v]) => `+${v} ${k.toUpperCase()}`).join(' ')
+    : '';
+
+  return (
+    <View style={s.eqRow}>
+      <Text style={s.eqEmoji}>{empty ? '▫️' : item!.emoji}</Text>
+      <View style={s.eqInfo}>
+        <Text style={[s.eqName, { color: empty ? COLORS.textDisabled : COLORS.text }]}>
+          {empty ? `${slotName} 없음` : item!.name}
+        </Text>
+        {!empty && (
+          <Text style={[s.eqTier, { color: tierColor }]}>
+            {TIER_LABEL[item!.tier]} · {item!.days}일 · {bonusStr}
+          </Text>
+        )}
+      </View>
+      {!empty && (
+        <View style={[s.tierPill, { backgroundColor: tierColor + '22', borderColor: tierColor + '55' }]}>
+          <Text style={[s.tierPillTxt, { color: tierColor }]}>{TIER_LABEL[item!.tier]}</Text>
+        </View>
+      )}
+    </View>
+  );
+}
+
 export default function PermanentStatPanel({ stats }: Props) {
+  const eq = stats.equipment ?? { weapon: null, armor: null, ring: null, amulet: null };
+  const hasInBody = stats.totalGained > 20;
+
   return (
     <View style={s.card}>
       <View style={s.header}>
-        <Text style={s.title}>영구 능력치</Text>
-        <Text style={s.totalVal}>총 {stats.totalGained.toFixed(1)}</Text>
+        <Text style={s.title}>캐릭터 능력치</Text>
+        <Text style={s.totalVal}>총 {stats.totalGained.toFixed(0)}p</Text>
       </View>
-      <Text style={s.sub}>운동·수면·혈압 안정·체중 변화로 영구 누적</Text>
+      <Text style={s.sub}>
+        {hasInBody ? '인바디 기반 스탯 + 퀘스트 장비 보너스' : '인바디를 기록하면 스탯이 업데이트돼요'}
+      </Text>
 
+      {/* 스탯 바 */}
       <View style={s.list}>
         {STAT_ORDER.map(key => {
           const value = stats[key];
@@ -58,6 +97,15 @@ export default function PermanentStatPanel({ stats }: Props) {
             </View>
           );
         })}
+      </View>
+
+      {/* 장비 슬롯 */}
+      <View style={s.eqSection}>
+        <Text style={s.eqTitle}>장비 슬롯 <Text style={s.eqTitleSub}>(최근 7일 퀘스트)</Text></Text>
+        <EquipmentSlotRow item={eq.weapon} slotName="무기" />
+        <EquipmentSlotRow item={eq.armor}  slotName="방어구" />
+        <EquipmentSlotRow item={eq.ring}   slotName="반지" />
+        <EquipmentSlotRow item={eq.amulet} slotName="부적" />
       </View>
     </View>
   );
@@ -94,4 +142,14 @@ const s = StyleSheet.create({
     fontFamily: 'monospace', fontSize: FONTS.md, fontWeight: '800',
     minWidth: 44, textAlign: 'right',
   },
+  eqSection: { marginTop: SPACING.md, paddingTop: SPACING.md, borderTopWidth: 1, borderTopColor: COLORS.border, gap: 8 },
+  eqTitle: { color: COLORS.textSub, fontSize: FONTS.xs, fontWeight: '700', marginBottom: 4 },
+  eqTitleSub: { color: COLORS.textDisabled, fontWeight: '400' },
+  eqRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  eqEmoji: { fontSize: 22, width: 30, textAlign: 'center' },
+  eqInfo: { flex: 1 },
+  eqName: { fontSize: FONTS.xs, fontWeight: '700' },
+  eqTier: { fontSize: FONTS.xxs, fontFamily: 'monospace', marginTop: 1 },
+  tierPill: { borderWidth: 1, borderRadius: RADIUS.full, paddingHorizontal: 7, paddingVertical: 2 },
+  tierPillTxt: { fontSize: 10, fontWeight: '800', fontFamily: 'monospace' },
 });

@@ -292,19 +292,44 @@ export interface ExerciseEntry {
 //  영구히 누적되는 캐릭터 능력치.
 // ─────────────────────────────────────────────
 
+// ─── 장비 시스템 ────────────────────────────────────────────
+export type EquipmentTier = 'none' | 'common' | 'rare' | 'epic' | 'legendary';
+export type EquipmentSlot = 'weapon' | 'armor' | 'ring' | 'amulet';
+
+export interface EquipmentItem {
+  slot: EquipmentSlot;
+  name: string;
+  emoji: string;
+  tier: EquipmentTier;
+  days: number;                          // 최근 7일 중 달성 일수
+  bonus: Partial<Record<StatKey, number>>;
+}
+
+export interface EquipmentSlots {
+  weapon: EquipmentItem | null;   // 운동 → 무기
+  armor:  EquipmentItem | null;   // 수면 7h+ → 방어구
+  ring:   EquipmentItem | null;   // 금주 → 반지
+  amulet: EquipmentItem | null;   // 연속 기록 → 부적
+}
+
+export const EMPTY_EQUIPMENT: EquipmentSlots = {
+  weapon: null, armor: null, ring: null, amulet: null,
+};
+
 export interface PermanentStats {
-  str: number;             // 근력 (헬스, 등산 등)
-  end: number;             // 지구력 (달리기, 수영, 자전거)
-  vit: number;             // 체력/면역 (수면, 혈압 안정, 식단)
-  agi: number;             // 민첩 (요가, 필라테스, 테니스)
-  wis: number;             // 생활관리 (streak, 약 복용, 챌린지)
-  totalGained: number;     // 누적 총합 (오버롤 지표)
-  lastRecalc: string;      // 마지막 재계산 시각 (ISO)
+  str: number;             // InBody 골격근 기반 + 장비 보너스
+  end: number;             // InBody 근량·점수 기반 + 장비 보너스
+  vit: number;             // InBody 점수 기반 + 장비 보너스
+  agi: number;             // InBody 체지방률 역수 기반 + 장비 보너스
+  wis: number;             // 연속 기록·절제 기반
+  totalGained: number;     // InBody 기반 스탯 합산 (EVO 판정용)
+  equipment: EquipmentSlots;
+  lastRecalc: string;
 }
 
 export const EMPTY_PERMANENT_STATS: PermanentStats = {
   str: 0, end: 0, vit: 0, agi: 0, wis: 0,
-  totalGained: 0, lastRecalc: '',
+  totalGained: 0, equipment: EMPTY_EQUIPMENT, lastRecalc: '',
 };
 
 export type StatKey = 'str' | 'end' | 'vit' | 'agi' | 'wis';
