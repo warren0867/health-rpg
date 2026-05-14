@@ -2,8 +2,7 @@ import { getEvoStage } from '../components/AvatarEvo';
 import { DailyLog, InBodyRecord, PermanentStats, UserProfile } from '../types';
 import { RecentCondition } from './permanentStats';
 
-const API_URL = 'https://api.anthropic.com/v1/messages';
-const MODEL = 'claude-opus-4-7';
+const GEMINI_MODEL = 'gemini-2.0-flash';
 
 function getApiKey(): string {
   const xorRaw = 'REPLACE_WITH_XOR';
@@ -12,42 +11,44 @@ function getApiKey(): string {
       return xorRaw.split(',').map(s => String.fromCharCode(Number(s) ^ 83)).join('');
     } catch { return ''; }
   }
-  return (process.env as any).EXPO_PUBLIC_ANTHROPIC_API_KEY ?? '';
+  return (process.env as any).EXPO_PUBLIC_GEMINI_API_KEY ?? '';
 }
 
-async function callClaude(system: string, userMessage: string, maxTokens = 400): Promise<string> {
-  return callClaudeMessages(system, [{ role: 'user', content: userMessage }], maxTokens);
+function geminiUrl(): string {
+  return `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${getApiKey()}`;
 }
 
-async function callClaudeMessages(
+async function callGemini(system: string, userMessage: string, maxTokens = 400): Promise<string> {
+  return callGeminiMessages(system, [{ role: 'user', content: userMessage }], maxTokens);
+}
+
+async function callGeminiMessages(
   system: string,
   messages: Array<{ role: 'user' | 'assistant'; content: string }>,
   maxTokens = 600,
 ): Promise<string> {
-  const res = await fetch(API_URL, {
+  const contents = messages.map(m => ({
+    role: m.role === 'assistant' ? 'model' : 'user',
+    parts: [{ text: m.content }],
+  }));
+
+  const res = await fetch(geminiUrl(), {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': getApiKey(),
-      'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-direct-browser-access': 'true',
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: MODEL,
-      max_tokens: maxTokens,
-      system,
-      messages,
+      system_instruction: { parts: [{ text: system }] },
+      contents,
+      generationConfig: { maxOutputTokens: maxTokens },
     }),
   });
 
   if (!res.ok) {
     const err = await res.text();
-    throw new Error(`Anthropic API error ${res.status}: ${err}`);
+    throw new Error(`Gemini API error ${res.status}: ${err}`);
   }
 
   const data = await res.json();
-  const textBlock = data.content?.find((b: any) => b.type === 'text');
-  return textBlock?.text ?? '';
+  return data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
 }
 
 // ─── 컨텍스트 빌더 ────────────────────────────────────────
@@ -183,7 +184,7 @@ export async function getCheckInFeedback(params: {
     log.xpGained ? `- 획득 XP: +${log.xpGained}` : null,
   ].filter(Boolean).join('\n');
 
-  const text = await callClaude(
+  const text = await callGemini(
     systemPrompt,
     `${todayCtx}\n\n오늘 체크인 기반으로 개인 피드백 부탁해. 잘한 것 구체적으로 칭찬하고, 아쉬운 부분은 왜 그런지 설명해줘. 목표와 연결해서 200자 내외로 간결하게.`,
     400,
@@ -223,7 +224,7 @@ export async function parseMealInput(description: string): Promise<ParsedMealIte
 - mealTime: breakfast/lunch/dinner/snack (현재 ${timeHint} 시간대 참고)
 - servings는 기본 1인분 기준 (1인분=1.0)`;
 
-  const text = await callClaude(systemPrompt, description, 600);
+  const text = await callGemini(systemPrompt, description, 600);
 
   const match = text.match(/\[[\s\S]*\]/);
   if (!match) throw new Error('파싱 실패');
@@ -278,7 +279,7 @@ export async function conductCheckIn(
 반환 형식 (반드시 이 형식만):
 {"reply":"...","data":{...},"complete":false}`;
 
-  const text = await callClaudeMessages(systemPrompt, conversation, 300);
+  const text = await callGeminiMessages(systemPrompt, conversation, 300);
   const match = text.match(/\{[\s\S]*\}/);
   if (!match) throw new Error('체크인 파싱 실패');
   return JSON.parse(match[0]) as CheckInTurn;
@@ -303,7 +304,7 @@ export async function sendChatMessage(params: {
 
   const systemPrompt = buildSystemPrompt(profile, permStats, recentLogs, inbodyRecords, conditionInfo);
 
-  const text = await callClaudeMessages(
+  const text = await callGeminiMessages(
     systemPrompt,
     messages.map(m => ({ role: m.role, content: m.content })),
     600,

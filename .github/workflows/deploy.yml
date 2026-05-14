@@ -22,11 +22,11 @@ jobs:
 
       - name: Inject API key
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           python3 << 'PYEOF'
           import os
-          key = os.environ.get('ANTHROPIC_API_KEY', '')
+          key = os.environ.get('GEMINI_API_KEY', '')
           xor_str = ','.join(str(ord(c) ^ 83) for c in key)
           with open('src/utils/aiCoach.ts', 'r') as f:
               src = f.read()
