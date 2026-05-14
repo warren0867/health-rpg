@@ -2,7 +2,11 @@ import { getEvoStage } from '../components/AvatarEvo';
 import { DailyLog, InBodyRecord, PermanentStats, UserProfile } from '../types';
 import { RecentCondition } from './permanentStats';
 
-const OR_MODEL = 'meta-llama/llama-3.3-70b-instruct:free';
+const OR_MODELS = [
+  'meta-llama/llama-3.3-70b-instruct:free',
+  'google/gemma-3-27b-it:free',
+  'mistralai/mistral-7b-instruct:free',
+];
 const OR_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
 function getApiKey(): string {
@@ -24,27 +28,31 @@ async function callGeminiMessages(
   messages: Array<{ role: 'user' | 'assistant'; content: string }>,
   maxTokens = 600,
 ): Promise<string> {
-  const res = await fetch(OR_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${getApiKey()}`,
-      'HTTP-Referer': 'https://warren0867.github.io/health-rpg/',
-    },
-    body: JSON.stringify({
-      model: OR_MODEL,
-      messages: [{ role: 'system', content: system }, ...messages],
-      max_tokens: maxTokens,
-    }),
+  const body = JSON.stringify({
+    messages: [{ role: 'system', content: system }, ...messages],
+    max_tokens: maxTokens,
   });
+  const headers = {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${getApiKey()}`,
+    'HTTP-Referer': 'https://warren0867.github.io/health-rpg/',
+  };
 
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`OpenRouter API error ${res.status}: ${err}`);
+  for (const model of OR_MODELS) {
+    const res = await fetch(OR_URL, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ ...JSON.parse(body), model }),
+    });
+    if (res.status === 429) continue;
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`OpenRouter API error ${res.status}: ${err}`);
+    }
+    const data = await res.json();
+    return data.choices?.[0]?.message?.content ?? '';
   }
-
-  const data = await res.json();
-  return data.choices?.[0]?.message?.content ?? '';
+  throw new Error('모든 모델이 일시적으로 혼잡해요. 잠시 후 다시 시도해주세요.');
 }
 
 // ─── 컨텍스트 빌더 ────────────────────────────────────────
