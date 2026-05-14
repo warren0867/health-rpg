@@ -4,8 +4,8 @@ import { RecentCondition } from './permanentStats';
 
 const OR_MODELS = [
   'meta-llama/llama-3.3-70b-instruct:free',
-  'google/gemma-3-27b-it:free',
-  'mistralai/mistral-7b-instruct:free',
+  'nousresearch/hermes-3-llama-3.1-405b:free',
+  'deepseek/deepseek-v4-flash:free',
 ];
 const OR_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
