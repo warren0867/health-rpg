@@ -6,8 +6,10 @@ const API_URL = 'https://api.anthropic.com/v1/messages';
 const MODEL = 'claude-opus-4-7';
 
 function getApiKey(): string {
-  const inlined = 'REPLACE_WITH_KEY';
-  if (inlined && !inlined.startsWith('REPLACE_')) return inlined;
+  const encoded = 'REPLACE_WITH_KEY';
+  if (encoded && !encoded.startsWith('REPLACE_')) {
+    try { return atob(encoded); } catch { return ''; }
+  }
   return (process.env as any).EXPO_PUBLIC_ANTHROPIC_API_KEY ?? '';
 }
 
