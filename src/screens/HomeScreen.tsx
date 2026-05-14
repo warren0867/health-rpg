@@ -10,6 +10,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import CharacterCard from '../components/CharacterCard';
 import DailyRings from '../components/DailyRings';
 import GachaModal from '../components/GachaModal';
+import BrickBreakerModal from '../components/BrickBreakerModal';
 import MiniGameModal from '../components/MiniGameModal';
 import PermanentStatPanel from '../components/PermanentStatPanel';
 import QuestList, { Quest } from '../components/QuestList';
@@ -71,6 +72,7 @@ export default function HomeScreen() {
   const [gachaInv, setGachaInv] = useState<GachaInventory | null>(null);
   const [showGacha, setShowGacha] = useState(false);
   const [showMiniGame, setShowMiniGame] = useState(false);
+  const [showBrickBreaker, setShowBrickBreaker] = useState(false);
 
   // 모달
   const [showBSModal, setShowBSModal] = useState(false);
@@ -348,6 +350,25 @@ export default function HomeScreen() {
           <Ionicons name="chevron-forward" size={18} color={COLORS.bad} />
         </TouchableOpacity>
 
+        {/* ── 벽돌깨기 배너 ── */}
+        <TouchableOpacity
+          style={s.brickBanner}
+          onPress={() => setShowBrickBreaker(true)}
+          activeOpacity={0.85}
+        >
+          <View style={[s.gachaBannerGlow, { backgroundColor: 'rgba(34,211,238,0.08)' }]} pointerEvents="none" />
+          <View style={s.coachBannerLeft}>
+            <View style={[s.coachIconWrap, { backgroundColor: 'rgba(34,211,238,0.15)', borderColor: 'rgba(34,211,238,0.38)' }]}>
+              <Text style={{ fontSize: 18 }}>🧱</Text>
+            </View>
+            <View>
+              <Text style={[s.coachBannerTitle, { color: COLORS.primary }]}>벽돌깨기 미니게임</Text>
+              <Text style={s.coachBannerSub}>패들로 공을 튕겨 모든 벽돌 파괴  ·  골드 보상</Text>
+            </View>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={COLORS.primary} />
+        </TouchableOpacity>
+
         {/* ── 마법 뽑기 배너 ── */}
         <TouchableOpacity
           style={s.gachaBanner}
@@ -395,6 +416,14 @@ export default function HomeScreen() {
         onClose={() => setShowGacha(false)}
         addXpFn={addXP}
         onInventoryChanged={() => { getGachaInventory().then(setGachaInv); }}
+      />
+
+      {/* ── 벽돌깨기 모달 ── */}
+      <BrickBreakerModal
+        visible={showBrickBreaker}
+        onClose={() => setShowBrickBreaker(false)}
+        addXpFn={addXP}
+        onGoldEarned={() => { getGachaInventory().then(setGachaInv); }}
       />
 
       {/* ── 미니게임 모달 ── */}
@@ -609,6 +638,20 @@ const s = StyleSheet.create({
     padding: SPACING.md,
     borderWidth: 1,
     borderColor: 'rgba(167,139,250,0.40)',
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  brickBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginHorizontal: SPACING.md,
+    marginBottom: SPACING.md,
+    backgroundColor: COLORS.bgCard,
+    borderRadius: RADIUS.md,
+    padding: SPACING.md,
+    borderWidth: 1,
+    borderColor: 'rgba(34,211,238,0.38)',
     overflow: 'hidden',
     position: 'relative',
   },
