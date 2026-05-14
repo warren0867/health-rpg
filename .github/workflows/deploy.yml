@@ -21,7 +21,19 @@ jobs:
         run: npm install --legacy-peer-deps
 
       - name: Inject API key
-        run: sed -i "s|REPLACE_WITH_KEY|${{ secrets.ANTHROPIC_API_KEY }}|g" src/utils/aiCoach.ts
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          python3 << 'PYEOF'
+          import os
+          key = os.environ.get('ANTHROPIC_API_KEY', '')
+          with open('src/utils/aiCoach.ts', 'r') as f:
+              src = f.read()
+          src = src.replace("'REPLACE_WITH_KEY'", "'" + key + "'")
+          with open('src/utils/aiCoach.ts', 'w') as f:
+              f.write(src)
+          print('Injected, key length:', len(key))
+          PYEOF
 
       - name: Export web build
         run: npx expo export -p web --output-dir dist
