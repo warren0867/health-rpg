@@ -4,6 +4,7 @@ import { Image, Modal, Platform, ScrollView, StyleSheet, Text, TouchableOpacity,
 import { COLORS, FONTS, RADIUS, SPACING } from '../constants/theme';
 import { EMPTY_PERMANENT_STATS, PermanentStats } from '../types';
 import { RecentCondition } from '../utils/permanentStats';
+import { StatusEffect } from '../utils/statusEffects';
 import AvatarEvo, { EVO_STAGES, getEvoStage, getNextEvoStage } from './AvatarEvo';
 
 type Rank = { rank: string; label: string; color: string; glow: string };
@@ -19,6 +20,7 @@ interface Props {
   todayXp: number | null;
   permStats?: PermanentStats;
   conditionInfo?: RecentCondition;
+  statusEffects?: StatusEffect[];
   onEditName?: () => void;
 }
 
@@ -85,7 +87,7 @@ function EvoModal({ visible, totalGained, onClose }: { visible: boolean; totalGa
 
 export default function CharacterCard({
   name, score, rank, level, levelTitle,
-  xpCurrent, xpNeeded, todayXp, permStats, conditionInfo, onEditName,
+  xpCurrent, xpNeeded, todayXp, permStats, conditionInfo, statusEffects, onEditName,
 }: Props) {
   const [evoModalVisible, setEvoModalVisible] = useState(false);
   const rankColor = rank?.color ?? COLORS.textMuted;
@@ -138,6 +140,21 @@ export default function CharacterCard({
               <Text style={[styles.rankLabel, { color: evo.textColor }]}>{evo.label}</Text>
               <Ionicons name="chevron-forward" size={10} color={evo.textColor} style={{ opacity: 0.7 }} />
             </TouchableOpacity>
+
+            {/* 상태이상 뱃지 */}
+            {statusEffects && statusEffects.length > 0 && (
+              <View style={styles.effectRow}>
+                {statusEffects.map(ef => (
+                  <View
+                    key={ef.id}
+                    style={[styles.effectBadge, { backgroundColor: ef.color + '22', borderColor: ef.color + '55' }]}
+                  >
+                    <Text style={styles.effectEmoji}>{ef.emoji}</Text>
+                    <Text style={[styles.effectName, { color: ef.color }]}>{ef.name}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
 
             {/* 컨디션 상태 행 */}
             {cond && (
@@ -231,6 +248,25 @@ const styles = StyleSheet.create({
     fontSize: FONTS.xxs - 1, fontWeight: '900', letterSpacing: 0.8,
     paddingHorizontal: 5, paddingVertical: 1,
   },
+
+  // ─── 상태이상 ───────────────────────────────────
+  effectRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 5,
+    marginBottom: 5,
+  },
+  effectBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    borderWidth: 1,
+    borderRadius: RADIUS.full,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+  },
+  effectEmoji: { fontSize: 10 },
+  effectName: { fontSize: 9, fontWeight: '700', fontFamily: 'monospace' },
 
   // ─── 컨디션 인디케이터 ──────────────────────────
   condRow: {

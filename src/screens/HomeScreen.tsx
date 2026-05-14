@@ -12,6 +12,7 @@ import DailyRings from '../components/DailyRings';
 import PermanentStatPanel from '../components/PermanentStatPanel';
 import QuestList, { Quest } from '../components/QuestList';
 import StatGrid from '../components/StatGrid';
+import WeeklyBossCard from '../components/WeeklyBossCard';
 import { COLORS, FONTS, RADIUS, SPACING, getRank } from '../constants/theme';
 import { useRefresh } from '../context/RefreshContext';
 import { EMPTY_PERMANENT_STATS, IllnessEntry, ILLNESS_LABELS, PermanentStats, UserProfile } from '../types';
@@ -19,7 +20,7 @@ import { calcMacroGoal } from '../utils/calorieCalculator';
 import { checkAchievements, getLevelTitle, getXPProgress } from '../utils/levelSystem';
 import { calcExerciseCalories } from '../utils/scoreCalculator';
 import {
-  addWater, calcImmunity, generateId, getAllDailyLogs, getCurrentIllness,
+  addWater, addXP, calcImmunity, generateId, getAllDailyLogs, getCurrentIllness,
   getDailyLog, getFoodEntriesByDate, getLatestWeight, getMorningBS,
   getPermanentStats, getRecentDailyLogs, getRecentMorningBS, getStreak,
   getTodayKey, getUnlockedAchievementIds, getUserProfile, getUserXP,
@@ -27,6 +28,8 @@ import {
   saveUserProfile, sumFoodEntries, unlockAchievement, updateChallengeProgress,
 } from '../utils/storage';
 import { RecentCondition, calcRecentCondition } from '../utils/permanentStats';
+import { StatusEffect, calcStatusEffects } from '../utils/statusEffects';
+import { WeeklyBossState, claimBossReward, updateWeeklyBoss } from '../utils/weeklyBoss';
 
 /**
  * 홈 화면 — Vital Quest 디자인 v1
@@ -59,6 +62,8 @@ export default function HomeScreen() {
   const [currentIllness, setCurrentIllness] = useState<IllnessEntry | null>(null);
   const [permStats, setPermStats] = useState<PermanentStats>(EMPTY_PERMANENT_STATS);
   const [conditionInfo, setConditionInfo] = useState<RecentCondition | null>(null);
+  const [statusEffects, setStatusEffects] = useState<StatusEffect[]>([]);
+  const [bossState, setBossState] = useState<WeeklyBossState | null>(null);
 
   // 모달
   const [showBSModal, setShowBSModal] = useState(false);
@@ -83,6 +88,7 @@ export default function HomeScreen() {
       calcImmunity(), getCurrentIllness(), getLatestWeight(),
     ]);
     setConditionInfo(calcRecentCondition(recent));
+    setStatusEffects(calcStatusEffects(recent));
     setProfile(p);
     setTodayLog(log);
     setScore(log?.conditionScore ?? null);
@@ -106,6 +112,8 @@ export default function HomeScreen() {
     }
     const allLogs = await getAllDailyLogs();
     await updateChallengeProgress(allLogs, waterGoal);
+    const boss = await updateWeeklyBoss(allLogs);
+    setBossState(boss);
 
     setLoading(false);
   }, [today]);
@@ -137,6 +145,14 @@ export default function HomeScreen() {
     }
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setShowProfileModal(false);
+  };
+
+  const handleClaimBossReward = async () => {
+    const xp = await claimBossReward(addXP);
+    if (xp > 0) {
+      Alert.alert('보스 처치!', `+${xp} XP 획득!`);
+      load();
+    }
   };
 
   const handleAddWater = async () => {
@@ -211,6 +227,7 @@ export default function HomeScreen() {
           todayXp={todayXP}
           permStats={permStats}
           conditionInfo={conditionInfo ?? undefined}
+          statusEffects={statusEffects}
           onEditName={() => {
             setEditName(profile?.name ?? '');
             setEditWeight(String(profile?.weightKg ?? ''));
@@ -235,6 +252,17 @@ export default function HomeScreen() {
             </View>
             <Ionicons name="chevron-forward" size={18} color={COLORS.bad} />
           </TouchableOpacity>
+        )}
+
+        {/* ── 주간 보스전 ── */}
+        {bossState && (
+          <>
+            <SectionLabel>주간 보스전</SectionLabel>
+            <WeeklyBossCard
+              bossState={bossState}
+              onClaimReward={handleClaimBossReward}
+            />
+          </>
         )}
 
         {/* ── 데일리 링 ── */}

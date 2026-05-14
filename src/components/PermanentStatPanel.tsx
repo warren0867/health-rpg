@@ -27,24 +27,37 @@ const TIER_COLOR: Record<EquipmentTier, string> = {
   legendary: COLORS.amber,
 };
 
+const DECAY_THRESHOLD: EquipmentTier[] = ['none', 'common']; // 부식 경고 대상
+
 function EquipmentSlotRow({ item, slotName }: { item: EquipmentItem | null; slotName: string }) {
-  const empty = !item || item.tier === 'none';
-  const tierColor = item ? TIER_COLOR[item.tier] : COLORS.textDisabled;
+  const tier = item?.tier ?? 'none';
+  const empty = tier === 'none';
+  const isDecayed = DECAY_THRESHOLD.includes(tier);
+  const tierColor = TIER_COLOR[tier];
   const bonusStr = item
     ? Object.entries(item.bonus).map(([k, v]) => `+${v} ${k.toUpperCase()}`).join(' ')
     : '';
 
   return (
-    <View style={s.eqRow}>
-      <Text style={s.eqEmoji}>{empty ? '▫️' : item!.emoji}</Text>
+    <View style={[s.eqRow, isDecayed && s.eqRowDecay]}>
+      <View style={s.eqEmojiWrap}>
+        <Text style={[s.eqEmoji, isDecayed && { opacity: 0.4 }]}>{empty ? '▫️' : item!.emoji}</Text>
+        {isDecayed && !empty && (
+          <Text style={s.decayIcon}>🔧</Text>
+        )}
+      </View>
       <View style={s.eqInfo}>
-        <Text style={[s.eqName, { color: empty ? COLORS.textDisabled : COLORS.text }]}>
+        <Text style={[s.eqName, { color: empty ? COLORS.textDisabled : isDecayed ? COLORS.warn : COLORS.text }]}>
           {empty ? `${slotName} 없음` : item!.name}
+          {isDecayed && !empty && <Text style={s.decayTag}>  부식중</Text>}
         </Text>
         {!empty && (
           <Text style={[s.eqTier, { color: tierColor }]}>
             {TIER_LABEL[item!.tier]} · {item!.days}일 · {bonusStr}
           </Text>
+        )}
+        {empty && (
+          <Text style={s.eqTierMissing}>7일 내 기록 없음</Text>
         )}
       </View>
       {!empty && (
@@ -146,10 +159,15 @@ const s = StyleSheet.create({
   eqTitle: { color: COLORS.textSub, fontSize: FONTS.xs, fontWeight: '700', marginBottom: 4 },
   eqTitleSub: { color: COLORS.textDisabled, fontWeight: '400' },
   eqRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  eqEmoji: { fontSize: 22, width: 30, textAlign: 'center' },
+  eqRowDecay: { opacity: 0.85 },
+  eqEmojiWrap: { width: 30, alignItems: 'center', position: 'relative' },
+  eqEmoji: { fontSize: 22, textAlign: 'center' },
+  decayIcon: { fontSize: 10, position: 'absolute', bottom: -2, right: -2 },
   eqInfo: { flex: 1 },
   eqName: { fontSize: FONTS.xs, fontWeight: '700' },
+  decayTag: { fontSize: FONTS.xxs - 1, color: COLORS.warn, fontWeight: '600' },
   eqTier: { fontSize: FONTS.xxs, fontFamily: 'monospace', marginTop: 1 },
+  eqTierMissing: { fontSize: FONTS.xxs, color: COLORS.textDisabled, fontFamily: 'monospace', marginTop: 1 },
   tierPill: { borderWidth: 1, borderRadius: RADIUS.full, paddingHorizontal: 7, paddingVertical: 2 },
   tierPillTxt: { fontSize: 10, fontWeight: '800', fontFamily: 'monospace' },
 });
