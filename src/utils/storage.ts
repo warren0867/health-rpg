@@ -27,6 +27,16 @@ const KEYS = {
 } as const;
 
 // ─────────────────────────────────────────────
+//  JSON 파싱 안전 헬퍼
+// ─────────────────────────────────────────────
+
+function safeParse<T>(raw: string | null | undefined, fallback: T): T {
+  if (!raw) return fallback;
+  try { return JSON.parse(raw) as T; }
+  catch { return fallback; }
+}
+
+// ─────────────────────────────────────────────
 //  날짜 유틸
 // ─────────────────────────────────────────────
 
@@ -62,7 +72,7 @@ export async function saveUserProfile(profile: UserProfile): Promise<void> {
 
 export async function getUserProfile(): Promise<UserProfile | null> {
   const raw = await AsyncStorage.getItem(KEYS.USER_PROFILE);
-  return raw ? JSON.parse(raw) : null;
+  return safeParse<UserProfile | null>(raw, null);
 }
 
 // ─────────────────────────────────────────────
@@ -71,7 +81,7 @@ export async function getUserProfile(): Promise<UserProfile | null> {
 
 export async function saveDailyLog(log: DailyLog): Promise<void> {
   const raw = await AsyncStorage.getItem(KEYS.DAILY_LOGS);
-  const logs: Record<string, DailyLog> = raw ? JSON.parse(raw) : {};
+  const logs: Record<string, DailyLog> = safeParse(raw, {} as Record<string, DailyLog>);
   logs[log.date] = log;
   await AsyncStorage.setItem(KEYS.DAILY_LOGS, JSON.stringify(logs));
 }
@@ -79,13 +89,13 @@ export async function saveDailyLog(log: DailyLog): Promise<void> {
 export async function getDailyLog(date: string): Promise<DailyLog | null> {
   const raw = await AsyncStorage.getItem(KEYS.DAILY_LOGS);
   if (!raw) return null;
-  return JSON.parse(raw)[date] ?? null;
+  return safeParse<Record<string, DailyLog>>(raw, {})[date] ?? null;
 }
 
 export async function getAllDailyLogs(): Promise<DailyLog[]> {
   const raw = await AsyncStorage.getItem(KEYS.DAILY_LOGS);
   if (!raw) return [];
-  return Object.values(JSON.parse(raw)).sort((a: any, b: any) => b.date.localeCompare(a.date)) as DailyLog[];
+  return Object.values(safeParse<Record<string, DailyLog>>(raw, {})).sort((a: any, b: any) => b.date.localeCompare(a.date)) as DailyLog[];
 }
 
 export async function getStreak(): Promise<number> {
@@ -118,7 +128,7 @@ export async function getRecentDailyLogs(days: number): Promise<DailyLog[]> {
 
 export async function saveFoodEntry(entry: FoodEntry): Promise<void> {
   const raw = await AsyncStorage.getItem(KEYS.FOOD_ENTRIES);
-  const entries: FoodEntry[] = raw ? JSON.parse(raw) : [];
+  const entries: FoodEntry[] = safeParse(raw, [] as FoodEntry[]);
   entries.push(entry);
   await AsyncStorage.setItem(KEYS.FOOD_ENTRIES, JSON.stringify(entries));
 }
@@ -126,7 +136,7 @@ export async function saveFoodEntry(entry: FoodEntry): Promise<void> {
 export async function getFoodEntriesByDate(date: string): Promise<FoodEntry[]> {
   const raw = await AsyncStorage.getItem(KEYS.FOOD_ENTRIES);
   if (!raw) return [];
-  return (JSON.parse(raw) as FoodEntry[])
+  return safeParse<FoodEntry[]>(raw, [])
     .filter(e => e.date === date)
     .sort((a, b) => a.timestamp.localeCompare(b.timestamp));
 }
@@ -134,7 +144,7 @@ export async function getFoodEntriesByDate(date: string): Promise<FoodEntry[]> {
 export async function deleteFoodEntry(id: string): Promise<void> {
   const raw = await AsyncStorage.getItem(KEYS.FOOD_ENTRIES);
   if (!raw) return;
-  const filtered = (JSON.parse(raw) as FoodEntry[]).filter(e => e.id !== id);
+  const filtered = safeParse<FoodEntry[]>(raw, []).filter(e => e.id !== id);
   await AsyncStorage.setItem(KEYS.FOOD_ENTRIES, JSON.stringify(filtered));
 }
 
@@ -198,7 +208,7 @@ export async function syncDailyLogCalories(date: string): Promise<void> {
 // 어제 식단 복사
 export async function copyYesterdayMeals(today: string, yesterday: string): Promise<number> {
   const raw = await AsyncStorage.getItem(KEYS.FOOD_ENTRIES);
-  const all: FoodEntry[] = raw ? JSON.parse(raw) : [];
+  const all: FoodEntry[] = safeParse(raw, [] as FoodEntry[]);
   const yesterdayEntries = all.filter(e => e.date === yesterday);
   if (yesterdayEntries.length === 0) return 0;
   const copied = yesterdayEntries.map(e => ({
@@ -217,7 +227,7 @@ export async function copyYesterdayMeals(today: string, yesterday: string): Prom
 
 export async function trackRecentFood(foodId: string, foodName: string): Promise<void> {
   const raw = await AsyncStorage.getItem(KEYS.RECENT_FOODS);
-  const recents: RecentFoodEntry[] = raw ? JSON.parse(raw) : [];
+  const recents: RecentFoodEntry[] = safeParse(raw, [] as RecentFoodEntry[]);
   const idx = recents.findIndex(r => r.foodId === foodId);
   if (idx >= 0) {
     recents[idx].lastUsed = new Date().toISOString();
@@ -233,7 +243,7 @@ export async function trackRecentFood(foodId: string, foodName: string): Promise
 export async function getRecentFoods(): Promise<RecentFoodEntry[]> {
   const raw = await AsyncStorage.getItem(KEYS.RECENT_FOODS);
   if (!raw) return [];
-  return (JSON.parse(raw) as RecentFoodEntry[])
+  return safeParse<RecentFoodEntry[]>(raw, [])
     .sort((a, b) => b.lastUsed.localeCompare(a.lastUsed))
     .slice(0, 10);
 }
@@ -244,7 +254,7 @@ export async function getRecentFoods(): Promise<RecentFoodEntry[]> {
 
 export async function getFavoriteFoodIds(): Promise<string[]> {
   const raw = await AsyncStorage.getItem(KEYS.FAVORITE_FOODS);
-  return raw ? JSON.parse(raw) : [];
+  return safeParse<string[]>(raw, []);
 }
 
 export async function toggleFavoriteFood(foodId: string): Promise<boolean> {
@@ -261,7 +271,7 @@ export async function toggleFavoriteFood(foodId: string): Promise<boolean> {
 
 export async function saveCustomFood(food: FoodItem): Promise<void> {
   const raw = await AsyncStorage.getItem(KEYS.CUSTOM_FOODS);
-  const customs: FoodItem[] = raw ? JSON.parse(raw) : [];
+  const customs: FoodItem[] = safeParse(raw, [] as FoodItem[]);
   const idx = customs.findIndex(f => f.id === food.id);
   if (idx >= 0) customs[idx] = food;
   else customs.push(food);
@@ -270,13 +280,13 @@ export async function saveCustomFood(food: FoodItem): Promise<void> {
 
 export async function getCustomFoods(): Promise<FoodItem[]> {
   const raw = await AsyncStorage.getItem(KEYS.CUSTOM_FOODS);
-  return raw ? JSON.parse(raw) : [];
+  return safeParse<FoodItem[]>(raw, []);
 }
 
 export async function deleteCustomFood(id: string): Promise<void> {
   const raw = await AsyncStorage.getItem(KEYS.CUSTOM_FOODS);
   if (!raw) return;
-  const filtered = (JSON.parse(raw) as FoodItem[]).filter(f => f.id !== id);
+  const filtered = safeParse<FoodItem[]>(raw, []).filter(f => f.id !== id);
   await AsyncStorage.setItem(KEYS.CUSTOM_FOODS, JSON.stringify(filtered));
 }
 
@@ -286,7 +296,7 @@ export async function deleteCustomFood(id: string): Promise<void> {
 
 export async function saveMorningBS(entry: MorningBloodSugar): Promise<void> {
   const raw = await AsyncStorage.getItem(KEYS.MORNING_BS);
-  const entries: Record<string, MorningBloodSugar> = raw ? JSON.parse(raw) : {};
+  const entries: Record<string, MorningBloodSugar> = safeParse(raw, {} as Record<string, MorningBloodSugar>);
   entries[entry.date] = entry; // 하루 1개만 저장 (덮어쓰기)
   await AsyncStorage.setItem(KEYS.MORNING_BS, JSON.stringify(entries));
 }
@@ -294,20 +304,20 @@ export async function saveMorningBS(entry: MorningBloodSugar): Promise<void> {
 export async function getMorningBS(date: string): Promise<MorningBloodSugar | null> {
   const raw = await AsyncStorage.getItem(KEYS.MORNING_BS);
   if (!raw) return null;
-  return JSON.parse(raw)[date] ?? null;
+  return safeParse<Record<string, MorningBloodSugar>>(raw, {})[date] ?? null;
 }
 
 export async function getRecentMorningBS(days: number): Promise<MorningBloodSugar[]> {
   const raw = await AsyncStorage.getItem(KEYS.MORNING_BS);
   if (!raw) return [];
-  const all = Object.values(JSON.parse(raw)) as MorningBloodSugar[];
+  const all = Object.values(safeParse<Record<string, MorningBloodSugar>>(raw, {})) as MorningBloodSugar[];
   return all.sort((a, b) => b.date.localeCompare(a.date)).slice(0, days);
 }
 
 export async function getAllMorningBS(): Promise<MorningBloodSugar[]> {
   const raw = await AsyncStorage.getItem(KEYS.MORNING_BS);
   if (!raw) return [];
-  return (Object.values(JSON.parse(raw)) as MorningBloodSugar[])
+  return (Object.values(safeParse<Record<string, MorningBloodSugar>>(raw, {})) as MorningBloodSugar[])
     .sort((a, b) => b.date.localeCompare(a.date));
 }
 
@@ -331,7 +341,7 @@ export function getBSTrend(entries: MorningBloodSugar[]): 'up' | 'down' | 'stabl
 
 export async function saveBloodSugarEntry(entry: BloodSugarEntry): Promise<void> {
   const raw = await AsyncStorage.getItem(KEYS.BLOOD_SUGAR);
-  const entries: BloodSugarEntry[] = raw ? JSON.parse(raw) : [];
+  const entries: BloodSugarEntry[] = safeParse(raw, [] as BloodSugarEntry[]);
   entries.push(entry);
   await AsyncStorage.setItem(KEYS.BLOOD_SUGAR, JSON.stringify(entries));
 }
@@ -339,7 +349,7 @@ export async function saveBloodSugarEntry(entry: BloodSugarEntry): Promise<void>
 export async function getBloodSugarByDate(date: string): Promise<BloodSugarEntry[]> {
   const raw = await AsyncStorage.getItem(KEYS.BLOOD_SUGAR);
   if (!raw) return [];
-  return (JSON.parse(raw) as BloodSugarEntry[])
+  return safeParse<BloodSugarEntry[]>(raw, [])
     .filter(e => e.date === date)
     .sort((a, b) => a.timestamp.localeCompare(b.timestamp));
 }
@@ -347,7 +357,7 @@ export async function getBloodSugarByDate(date: string): Promise<BloodSugarEntry
 export async function getBloodSugarWeekly(): Promise<BloodSugarEntry[]> {
   const raw = await AsyncStorage.getItem(KEYS.BLOOD_SUGAR);
   if (!raw) return [];
-  const all = JSON.parse(raw) as BloodSugarEntry[];
+  const all = safeParse<BloodSugarEntry[]>(raw, []);
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - 7);
   const cutoffStr = cutoff.toISOString().slice(0, 10);
@@ -357,14 +367,14 @@ export async function getBloodSugarWeekly(): Promise<BloodSugarEntry[]> {
 export async function getAllBloodSugar(): Promise<BloodSugarEntry[]> {
   const raw = await AsyncStorage.getItem(KEYS.BLOOD_SUGAR);
   if (!raw) return [];
-  return (JSON.parse(raw) as BloodSugarEntry[])
+  return safeParse<BloodSugarEntry[]>(raw, [])
     .sort((a, b) => b.timestamp.localeCompare(a.timestamp));
 }
 
 export async function deleteBloodSugarEntry(id: string): Promise<void> {
   const raw = await AsyncStorage.getItem(KEYS.BLOOD_SUGAR);
   if (!raw) return;
-  const filtered = (JSON.parse(raw) as BloodSugarEntry[]).filter(e => e.id !== id);
+  const filtered = safeParse<BloodSugarEntry[]>(raw, []).filter(e => e.id !== id);
   await AsyncStorage.setItem(KEYS.BLOOD_SUGAR, JSON.stringify(filtered));
 }
 
@@ -381,12 +391,12 @@ export function calcWeeklyAvgBloodSugar(entries: BloodSugarEntry[]): number | nu
 export async function getWaterLog(date: string): Promise<number> {
   const raw = await AsyncStorage.getItem(KEYS.WATER_LOG);
   if (!raw) return 0;
-  return (JSON.parse(raw) as Record<string, number>)[date] ?? 0;
+  return safeParse<Record<string, number>>(raw, {})[date] ?? 0;
 }
 
 export async function setWaterLog(date: string, ml: number): Promise<void> {
   const raw = await AsyncStorage.getItem(KEYS.WATER_LOG);
-  const log: Record<string, number> = raw ? JSON.parse(raw) : {};
+  const log: Record<string, number> = safeParse(raw, {} as Record<string, number>);
   log[date] = Math.max(0, ml);
   await AsyncStorage.setItem(KEYS.WATER_LOG, JSON.stringify(log));
 }
@@ -401,7 +411,7 @@ export async function addWater(date: string, ml: number): Promise<number> {
 export async function getWaterStreak(goalMl = 1500): Promise<number> {
   const raw = await AsyncStorage.getItem(KEYS.WATER_LOG);
   if (!raw) return 0;
-  const log: Record<string, number> = JSON.parse(raw);
+  const log: Record<string, number> = safeParse(raw, {} as Record<string, number>);
   const today = getTodayKey();
   let streak = 0;
   let current = today;
@@ -424,7 +434,7 @@ export async function getWaterStreak(goalMl = 1500): Promise<number> {
 
 export async function saveWeightEntry(entry: WeightEntry): Promise<void> {
   const raw = await AsyncStorage.getItem(KEYS.WEIGHT_LOG);
-  const entries: Record<string, WeightEntry> = raw ? JSON.parse(raw) : {};
+  const entries: Record<string, WeightEntry> = safeParse(raw, {} as Record<string, WeightEntry>);
   entries[entry.date] = entry;
   await AsyncStorage.setItem(KEYS.WEIGHT_LOG, JSON.stringify(entries));
 }
@@ -432,7 +442,7 @@ export async function saveWeightEntry(entry: WeightEntry): Promise<void> {
 export async function getWeightHistory(days = 30): Promise<WeightEntry[]> {
   const raw = await AsyncStorage.getItem(KEYS.WEIGHT_LOG);
   if (!raw) return [];
-  return Object.values(JSON.parse(raw) as Record<string, WeightEntry>)
+  return Object.values(safeParse<Record<string, WeightEntry>>(raw, {}))
     .sort((a, b) => b.date.localeCompare(a.date))
     .slice(0, days);
 }
@@ -448,8 +458,7 @@ export async function getLatestWeight(): Promise<WeightEntry | null> {
 
 export async function getUserXP(): Promise<UserXP> {
   const raw = await AsyncStorage.getItem(KEYS.USER_XP);
-  if (!raw) return { totalXP: 0, level: 1, lastUpdated: '' };
-  return JSON.parse(raw) as UserXP;
+  return safeParse<UserXP>(raw, { totalXP: 0, level: 1, lastUpdated: '' });
 }
 
 export async function addXP(amount: number): Promise<UserXP> {
@@ -467,7 +476,7 @@ export async function addXP(amount: number): Promise<UserXP> {
 
 export async function getUnlockedAchievements(): Promise<UnlockedAchievement[]> {
   const raw = await AsyncStorage.getItem(KEYS.ACHIEVEMENTS);
-  return raw ? JSON.parse(raw) : [];
+  return safeParse<UnlockedAchievement[]>(raw, []);
 }
 
 export async function getUnlockedAchievementIds(): Promise<string[]> {
@@ -489,7 +498,7 @@ export async function unlockAchievement(id: AchievementId): Promise<boolean> {
 
 export async function getMedications(): Promise<Medication[]> {
   const raw = await AsyncStorage.getItem(KEYS.MEDICATIONS);
-  return raw ? JSON.parse(raw) : [];
+  return safeParse<Medication[]>(raw, []);
 }
 
 export async function saveMedication(med: Medication): Promise<void> {
@@ -506,13 +515,13 @@ export async function deleteMedication(id: string): Promise<void> {
 
 export async function getMedLog(date: string): Promise<MedLog> {
   const raw = await AsyncStorage.getItem(KEYS.MED_LOGS);
-  const logs: Record<string, MedLog> = raw ? JSON.parse(raw) : {};
+  const logs: Record<string, MedLog> = safeParse(raw, {} as Record<string, MedLog>);
   return logs[date] ?? { date, taken: [] };
 }
 
 export async function toggleMedTaken(date: string, key: string): Promise<MedLog> {
   const raw = await AsyncStorage.getItem(KEYS.MED_LOGS);
-  const logs: Record<string, MedLog> = raw ? JSON.parse(raw) : {};
+  const logs: Record<string, MedLog> = safeParse(raw, {} as Record<string, MedLog>);
   const log = logs[date] ?? { date, taken: [] };
   if (log.taken.includes(key)) {
     log.taken = log.taken.filter(k => k !== key);
@@ -531,7 +540,7 @@ export async function toggleMedTaken(date: string, key: string): Promise<MedLog>
 export async function getIllnesses(): Promise<IllnessEntry[]> {
   const raw = await AsyncStorage.getItem(KEYS.ILLNESS_LOG);
   if (!raw) return [];
-  return (JSON.parse(raw) as IllnessEntry[])
+  return safeParse<IllnessEntry[]>(raw, [])
     .sort((a, b) => b.startDate.localeCompare(a.startDate));
 }
 
@@ -606,13 +615,15 @@ export async function exportAllData(): Promise<string> {
   const pairs = await AsyncStorage.multiGet(BACKUP_KEYS);
   const data: Record<string, any> = {};
   for (const [key, val] of pairs) {
-    if (val) data[key] = JSON.parse(val);
+    if (val) data[key] = safeParse(val, null);
   }
   return JSON.stringify({ version: 1, exportedAt: new Date().toISOString(), data });
 }
 
 export async function importAllData(jsonStr: string): Promise<void> {
-  const parsed = JSON.parse(jsonStr);
+  let parsed: any;
+  try { parsed = JSON.parse(jsonStr); }
+  catch { throw new Error('올바르지 않은 백업 파일입니다'); }
   if (!parsed?.data) throw new Error('올바르지 않은 백업 파일입니다');
   const pairs: [string, string][] = Object.entries(parsed.data).map(([k, v]) => [k, JSON.stringify(v)]);
   await AsyncStorage.multiSet(pairs);
@@ -645,7 +656,7 @@ function selectWeeklyChallenges(weekKey: string): ChallengeId[] {
 export async function getWeeklyChallenge(): Promise<WeeklyChallenge> {
   const weekKey = getWeekKey();
   const raw = await AsyncStorage.getItem(KEYS.WEEKLY_CHALLENGE);
-  const existing: WeeklyChallenge | null = raw ? JSON.parse(raw) : null;
+  const existing: WeeklyChallenge | null = safeParse<WeeklyChallenge | null>(raw, null);
   if (existing && existing.weekKey === weekKey) return existing;
 
   // 새 주 — 새 챌린지 생성
@@ -676,7 +687,7 @@ export async function updateChallengeProgress(logs: DailyLog[], waterGoalMl = 15
   const thisWeekLogs = logs.filter(l => l.date >= mondayStr && l.date <= todayStr);
 
   const raw = await AsyncStorage.getItem(KEYS.WATER_LOG);
-  const waterLog: Record<string, number> = raw ? JSON.parse(raw) : {};
+  const waterLog: Record<string, number> = safeParse(raw, {} as Record<string, number>);
 
   const progress: Record<ChallengeId, number> = {} as any;
   for (const id of challenge.challengeIds) {
@@ -736,7 +747,7 @@ export async function claimChallengeReward(id: ChallengeId): Promise<number> {
 export async function getAllExerciseEntries(): Promise<ExerciseEntry[]> {
   const raw = await AsyncStorage.getItem(KEYS.EXERCISE_ENTRIES);
   if (!raw) return [];
-  return (JSON.parse(raw) as ExerciseEntry[])
+  return safeParse<ExerciseEntry[]>(raw, [])
     .sort((a, b) => b.timestamp.localeCompare(a.timestamp));
 }
 
@@ -775,7 +786,7 @@ export async function getPermanentStats(): Promise<PermanentStats> {
   const raw = await AsyncStorage.getItem(KEYS.PERMANENT_STATS);
   if (!raw) return { ...EMPTY_PERMANENT_STATS };
   try {
-    return { ...EMPTY_PERMANENT_STATS, ...JSON.parse(raw) };
+    return { ...EMPTY_PERMANENT_STATS, ...safeParse<Partial<PermanentStats>>(raw, {}) };
   } catch {
     return { ...EMPTY_PERMANENT_STATS };
   }
@@ -814,7 +825,7 @@ export async function recalcAndSavePermanentStats(): Promise<PermanentStats> {
 export async function getInBodyRecords(): Promise<InBodyRecord[]> {
   const raw = await AsyncStorage.getItem(KEYS.INBODY_RECORDS);
   if (!raw) return [];
-  return (JSON.parse(raw) as InBodyRecord[])
+  return safeParse<InBodyRecord[]>(raw, [])
     .sort((a, b) => b.date.localeCompare(a.date));
 }
 
