@@ -129,8 +129,10 @@ export default function CoachScreen() {
     try {
       const reply = await sendChatMessage({ messages: history, profile, recentLogs, inbodyRecords, permStats, conditionInfo });
       pushMsg({ id: generateId(), kind: 'chat', role: 'assistant', content: reply });
-    } catch {
-      pushMsg({ id: generateId(), kind: 'chat', role: 'assistant', content: '잠깐 문제가 생겼어요. 다시 시도해주세요 🙏' });
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err);
+      console.error('Chat error:', detail);
+      pushMsg({ id: generateId(), kind: 'chat', role: 'assistant', content: `잠깐 문제가 생겼어요 🙏\n(${detail})` });
     } finally { setResponding(false); scrollToBottom(); }
   }, [messages, profile, permStats, recentLogs, inbodyRecords, conditionInfo]);
 
