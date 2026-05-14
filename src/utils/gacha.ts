@@ -10,7 +10,8 @@ import {
 } from '../types';
 import { generateId } from './storage';
 
-const GACHA_KEY = 'hrpg_gacha_inventory';
+const GACHA_KEY      = 'hrpg_gacha_inventory';
+const DAILY_FREE_KEY = 'hrpg_gacha_daily_free';
 
 // ─── 뽑기 풀 정의 ───────────────────────────────────────────
 type ScrollTemplate = {
@@ -130,9 +131,33 @@ export async function getGold(): Promise<number> {
   return inv.gold;
 }
 
+// ─── 일일 무료 뽑기 ──────────────────────────────────────────
+
+export async function canDailyFreePull(): Promise<boolean> {
+  const raw = await AsyncStorage.getItem(DAILY_FREE_KEY);
+  if (!raw) return true;
+  const today = new Date().toISOString().slice(0, 10);
+  return raw !== today;
+}
+
+export async function doDailyFreePull(): Promise<GachaPullResult | null> {
+  const can = await canDailyFreePull();
+  if (!can) return null;
+  const today = new Date().toISOString().slice(0, 10);
+  await AsyncStorage.setItem(DAILY_FREE_KEY, today);
+  const inv = await getGachaInventory();
+  const result = weightedRandom();
+  let newScrolls = [...inv.scrolls];
+  let goldToAdd = 0;
+  if (result.type === 'scroll') newScrolls.push(result.scroll);
+  else if (result.type === 'gold') goldToAdd = result.amount;
+  await setGachaInventory({ ...inv, gold: inv.gold + goldToAdd, scrolls: newScrolls });
+  return result;
+}
+
 // ─── 뽑기 실행 ───────────────────────────────────────────────
-const SINGLE_COST = 50;
-const TEN_COST    = 450;
+const SINGLE_COST = 30;
+const TEN_COST    = 270;
 
 export async function doPull(count: 1 | 10): Promise<{ results: GachaPullResult[]; newGold: number } | null> {
   const inv = await getGachaInventory();
@@ -208,4 +233,4 @@ export function sumActiveBonuses(bonuses: GachaBonus[]): Partial<Record<StatKey,
   return result;
 }
 
-export { SINGLE_COST, TEN_COST };
+export { SINGLE_COST, TEN_COST, DAILY_FREE_KEY };

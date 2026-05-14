@@ -328,7 +328,7 @@ export default function InputScreen() {
     await replaceExerciseEntriesForDate(selectedDate, exerciseEntries);
     if (!existingLog) {
       await addXP(xpGained); // 첫 저장 시만 XP 지급
-      await addGold(20);     // 체크인 완료 골드 보상
+      await addGold(50);     // 체크인 완료 골드 보상
     }
     const permStatsAfter = await recalcAndSavePermanentStats();
 

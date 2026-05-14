@@ -8,7 +8,7 @@ import {
   GACHA_RARITY_COLOR, GACHA_RARITY_LABEL,
   GachaBonus, GachaInventory, GachaPullResult, GachaScroll, StatKey, STAT_LABEL,
 } from '../types';
-import { SINGLE_COST, TEN_COST, applyXpPotions, doPull, getGachaInventory, useScroll } from '../utils/gacha';
+import { SINGLE_COST, TEN_COST, applyXpPotions, canDailyFreePull, doDailyFreePull, doPull, getGachaInventory, useScroll } from '../utils/gacha';
 
 interface Props {
   visible: boolean;
@@ -100,15 +100,33 @@ export default function GachaModal({ visible, onClose, addXpFn, onInventoryChang
   const [pulling, setPulling] = useState(false);
   const [results, setResults] = useState<GachaPullResult[] | null>(null);
   const [inv, setInv] = useState<GachaInventory | null>(null);
+  const [canFree, setCanFree] = useState(false);
 
   const loadInv = async () => {
     const data = await getGachaInventory();
     setInv(data);
+    setCanFree(await canDailyFreePull());
   };
 
   const handleTabChange = (t: Tab) => {
     setTab(t);
     if (t !== 'pull') { setResults(null); loadInv(); }
+  };
+
+  const handleFreePull = async () => {
+    setPulling(true);
+    setResults(null);
+    try {
+      const result = await doDailyFreePull();
+      if (!result) { Alert.alert('오늘 이미 무료 뽑기 했어요!'); return; }
+      if (result.type === 'xp_potion') await addXpFn(result.amount);
+      setResults([result]);
+      setInv(await getGachaInventory());
+      setCanFree(false);
+      onInventoryChanged();
+    } finally {
+      setPulling(false);
+    }
   };
 
   const handlePull = async (count: 1 | 10) => {
@@ -213,6 +231,25 @@ export default function GachaModal({ visible, onClose, addXpFn, onInventoryChang
                 ))}
                 <Text style={s.rateNote}>10연 뽑기: 희귀 이상 1개 보장</Text>
               </View>
+
+              {/* 일일 무료 뽑기 */}
+              <TouchableOpacity
+                style={[s.freePullBtn, !canFree && { opacity: 0.4 }]}
+                onPress={handleFreePull}
+                disabled={!canFree || pulling}
+                activeOpacity={0.8}
+              >
+                <Text style={s.freePullEmoji}>🎁</Text>
+                <View>
+                  <Text style={s.freePullLabel}>일일 무료 뽑기</Text>
+                  <Text style={s.freePullSub}>{canFree ? '오늘 무료 뽑기 가능!' : '내일 다시 도전하세요'}</Text>
+                </View>
+                <View style={[s.freePillBadge, !canFree && { backgroundColor: COLORS.bgInput, borderColor: COLORS.border }]}>
+                  <Text style={[s.freePillTxt, !canFree && { color: COLORS.textDisabled }]}>
+                    {canFree ? 'FREE' : 'DONE'}
+                  </Text>
+                </View>
+              </TouchableOpacity>
 
               {/* 뽑기 버튼 */}
               <View style={s.pullBtnRow}>
@@ -376,6 +413,32 @@ const s = StyleSheet.create({
     fontFamily: 'monospace',
     fontWeight: '600',
   },
+
+  freePullBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: 'rgba(16,185,129,0.10)',
+    borderWidth: 1,
+    borderColor: 'rgba(16,185,129,0.35)',
+    borderRadius: RADIUS.md,
+    paddingVertical: 12,
+    paddingHorizontal: SPACING.md,
+    marginBottom: SPACING.sm,
+  },
+  freePullEmoji: { fontSize: 28 },
+  freePullLabel: { fontSize: FONTS.sm, fontWeight: '800', color: COLORS.good },
+  freePullSub: { fontSize: FONTS.xxs, color: COLORS.textMuted, marginTop: 1 },
+  freePillBadge: {
+    marginLeft: 'auto',
+    backgroundColor: 'rgba(16,185,129,0.20)',
+    borderWidth: 1,
+    borderColor: 'rgba(16,185,129,0.50)',
+    borderRadius: RADIUS.full,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  freePillTxt: { fontSize: FONTS.xxs, fontWeight: '900', color: COLORS.good, fontFamily: 'monospace' },
 
   pullBtnRow: { flexDirection: 'row', gap: 10, marginBottom: SPACING.md },
   pullBtn: {

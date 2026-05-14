@@ -10,6 +10,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import CharacterCard from '../components/CharacterCard';
 import DailyRings from '../components/DailyRings';
 import GachaModal from '../components/GachaModal';
+import MiniGameModal from '../components/MiniGameModal';
 import PermanentStatPanel from '../components/PermanentStatPanel';
 import QuestList, { Quest } from '../components/QuestList';
 import StatGrid from '../components/StatGrid';
@@ -69,6 +70,7 @@ export default function HomeScreen() {
   const [bossState, setBossState] = useState<WeeklyBossState | null>(null);
   const [gachaInv, setGachaInv] = useState<GachaInventory | null>(null);
   const [showGacha, setShowGacha] = useState(false);
+  const [showMiniGame, setShowMiniGame] = useState(false);
 
   // 모달
   const [showBSModal, setShowBSModal] = useState(false);
@@ -182,15 +184,15 @@ export default function HomeScreen() {
   // 퀘스트 — 이모지 없는 깔끔한 라벨
   const quests: Quest[] = [
     { label: '일일 체크인 완료', sub: '수면·운동·음주 기록', done: !!todayLog,
-      action: () => navigation.navigate('Input'), xp: 50, gold: 20 },
+      action: () => navigation.navigate('Input'), xp: 50, gold: 50 },
     { label: '식단 기록', sub: '오늘 먹은 것 기록', done: foodSummary.calories > 0,
-      action: () => navigation.navigate('Calorie'), xp: 20, gold: 10 },
+      action: () => navigation.navigate('Calorie'), xp: 20, gold: 20 },
     { label: '공복 혈당 측정', sub: '기상 후 공복혈당', done: !!morningBS,
-      action: () => setShowBSModal(true), xp: 10, gold: 5 },
+      action: () => setShowBSModal(true), xp: 10, gold: 15 },
     { label: '운동 기록', sub: '오늘의 운동', done: todayHasExercise,
-      action: () => navigation.navigate('Input'), xp: 25, gold: 10 },
+      action: () => navigation.navigate('Input'), xp: 25, gold: 25 },
     { label: `물 ${(WATER_GOAL/1000).toFixed(1)}L 마시기`, sub: `${waterMl} / ${WATER_GOAL} ml`,
-      done: waterMl >= WATER_GOAL, action: handleAddWater, xp: 15, gold: 5 },
+      done: waterMl >= WATER_GOAL, action: handleAddWater, xp: 15, gold: 15 },
   ];
 
   const greeting = (() => {
@@ -327,6 +329,25 @@ export default function HomeScreen() {
           />
         </View>
 
+        {/* ── 미니게임 배너 ── */}
+        <TouchableOpacity
+          style={s.minigameBanner}
+          onPress={() => setShowMiniGame(true)}
+          activeOpacity={0.85}
+        >
+          <View style={[s.gachaBannerGlow, { backgroundColor: 'rgba(239,68,68,0.10)' }]} pointerEvents="none" />
+          <View style={s.coachBannerLeft}>
+            <View style={[s.coachIconWrap, { backgroundColor: 'rgba(239,68,68,0.18)', borderColor: 'rgba(239,68,68,0.40)' }]}>
+              <Text style={{ fontSize: 18 }}>⚔️</Text>
+            </View>
+            <View>
+              <Text style={[s.coachBannerTitle, { color: COLORS.bad }]}>보스 격파 미니게임</Text>
+              <Text style={s.coachBannerSub}>오브를 탭해 보스를 쓰러뜨려라  ·  골드 보상</Text>
+            </View>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={COLORS.bad} />
+        </TouchableOpacity>
+
         {/* ── 마법 뽑기 배너 ── */}
         <TouchableOpacity
           style={s.gachaBanner}
@@ -374,6 +395,15 @@ export default function HomeScreen() {
         onClose={() => setShowGacha(false)}
         addXpFn={addXP}
         onInventoryChanged={() => { getGachaInventory().then(setGachaInv); }}
+      />
+
+      {/* ── 미니게임 모달 ── */}
+      <MiniGameModal
+        visible={showMiniGame}
+        onClose={() => setShowMiniGame(false)}
+        bossState={bossState}
+        addXpFn={addXP}
+        onGoldEarned={() => { getGachaInventory().then(setGachaInv); }}
       />
 
       {/* ── 공복 혈당 입력 모달 ── */}
@@ -568,6 +598,20 @@ const s = StyleSheet.create({
     padding: SPACING.md,
     borderWidth: 1,
     borderColor: 'rgba(167,139,250,0.40)',
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  minigameBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginHorizontal: SPACING.md,
+    marginBottom: SPACING.md,
+    backgroundColor: COLORS.bgCard,
+    borderRadius: RADIUS.md,
+    padding: SPACING.md,
+    borderWidth: 1,
+    borderColor: 'rgba(239,68,68,0.40)',
     overflow: 'hidden',
     position: 'relative',
   },
