@@ -7,7 +7,7 @@ const MODEL = 'claude-opus-4-7';
 
 function getApiKey(): string {
   const inlined = 'REPLACE_WITH_KEY';
-  if (inlined && inlined !== 'REPLACE_WITH_KEY') return inlined;
+  if (inlined && !inlined.startsWith('REPLACE_')) return inlined;
   return (process.env as any).EXPO_PUBLIC_ANTHROPIC_API_KEY ?? '';
 }
 
