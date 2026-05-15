@@ -4,8 +4,12 @@ import { RecentCondition } from './permanentStats';
 
 const OR_MODELS = [
   'deepseek/deepseek-chat-v3-0324:free',
+  'qwen/qwen3-14b:free',
+  'qwen/qwen3-8b:free',
   'meta-llama/llama-3.3-70b-instruct:free',
   'google/gemma-3-12b-it:free',
+  'mistralai/mistral-7b-instruct:free',
+  'deepseek/deepseek-r1:free',
 ];
 const OR_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
@@ -52,7 +56,7 @@ async function callGeminiMessages(
     const data = await res.json();
     return data.choices?.[0]?.message?.content ?? '';
   }
-  throw new Error('모든 모델이 일시적으로 혼잡해요. 잠시 후 다시 시도해주세요.');
+  throw new Error('서버가 바빠요. 1~2분 후 다시 눌러주세요.');
 }
 
 // ─── 컨텍스트 빌더 ────────────────────────────────────────
