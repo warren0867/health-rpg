@@ -2,11 +2,10 @@ import { getEvoStage } from '../components/AvatarEvo';
 import { DailyLog, InBodyRecord, PermanentStats, UserProfile } from '../types';
 import { RecentCondition } from './permanentStats';
 
-// 빠른 순서로 정렬 — 앞에서 429 나오면 다음 모델로 폴백
 const OR_MODELS = [
-  'google/gemini-2.0-flash-exp:free',
-  'deepseek/deepseek-chat:free',
+  'deepseek/deepseek-chat-v3-0324:free',
   'meta-llama/llama-3.3-70b-instruct:free',
+  'google/gemma-3-12b-it:free',
 ];
 const OR_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
@@ -45,7 +44,7 @@ async function callGeminiMessages(
       headers,
       body: JSON.stringify({ ...JSON.parse(body), model }),
     });
-    if (res.status === 429) continue;
+    if (res.status === 429 || res.status === 404 || res.status === 503) continue;
     if (!res.ok) {
       const err = await res.text();
       throw new Error(`OpenRouter API error ${res.status}: ${err}`);
