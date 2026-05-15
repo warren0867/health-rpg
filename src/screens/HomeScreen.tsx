@@ -310,106 +310,56 @@ export default function HomeScreen() {
         {/* ── 오늘의 퀘스트 ── */}
         <QuestList quests={quests} />
 
-        {/* ── 빠른 기록 (액션 그리드) ── */}
-        <SectionLabel>빠른 기록</SectionLabel>
-        <View style={s.actionGrid}>
-          <ActionCard
-            label="식단 기록"
-            sub="FOOD LOG"
-            icon="restaurant-outline"
+        {/* ── 메뉴 그리드 ── */}
+        <SectionLabel>기록</SectionLabel>
+        <View style={s.menuGrid}>
+          <GameMenuCard
+            emoji="🍽️"
+            title="식단 기록"
+            tag="FOOD LOG"
             color={COLORS.primary}
-            tintBg={COLORS.primaryGlow}
             onPress={() => navigation.navigate('Calorie')}
           />
-          <ActionCard
-            label="체크인"
-            sub="DAILY · +50 XP"
-            icon="checkmark-done-outline"
+          <GameMenuCard
+            emoji="📋"
+            title="오늘 체크인"
+            tag="DAILY +50XP"
             color={COLORS.amber}
-            tintBg={COLORS.amberGlow}
             onPress={() => navigation.navigate('Input')}
           />
         </View>
 
-        {/* ── 미니게임 배너 ── */}
-        <TouchableOpacity
-          style={s.minigameBanner}
-          onPress={() => setShowMiniGame(true)}
-          activeOpacity={0.82}
-        >
-          <View style={[s.bannerGlowBg, { backgroundColor: 'rgba(239,68,68,0.10)' }]} pointerEvents="none" />
-          <View style={s.bannerLeft}>
-            <View style={[s.bannerIconBox, { backgroundColor: 'rgba(239,68,68,0.18)', borderColor: 'rgba(239,68,68,0.45)' }]}>
-              <Text style={s.bannerEmoji}>⚔️</Text>
-            </View>
-            <View style={s.bannerTextCol}>
-              <Text style={[s.bannerTitle, { color: COLORS.bad }]}>보스 격파</Text>
-              <Text style={[s.bannerTag, { color: COLORS.bad + '88' }]}>MINI GAME  ·  골드 보상</Text>
-              <Text style={s.bannerDesc}>오브를 탭해 보스를 쓰러뜨려라</Text>
-            </View>
-          </View>
-          <Ionicons name="chevron-forward" size={24} color={COLORS.bad + 'AA'} />
-        </TouchableOpacity>
-
-        {/* ── 벽돌깨기 배너 ── */}
-        <TouchableOpacity
-          style={s.brickBanner}
-          onPress={() => setShowBrickBreaker(true)}
-          activeOpacity={0.82}
-        >
-          <View style={[s.bannerGlowBg, { backgroundColor: 'rgba(34,211,238,0.08)' }]} pointerEvents="none" />
-          <View style={s.bannerLeft}>
-            <View style={[s.bannerIconBox, { backgroundColor: 'rgba(34,211,238,0.15)', borderColor: 'rgba(34,211,238,0.40)' }]}>
-              <Text style={s.bannerEmoji}>🧱</Text>
-            </View>
-            <View style={s.bannerTextCol}>
-              <Text style={[s.bannerTitle, { color: COLORS.primary }]}>벽돌깨기</Text>
-              <Text style={[s.bannerTag, { color: COLORS.primary + '88' }]}>MINI GAME  ·  골드 보상</Text>
-              <Text style={s.bannerDesc}>패들로 공을 튕겨 모든 벽돌 파괴</Text>
-            </View>
-          </View>
-          <Ionicons name="chevron-forward" size={24} color={COLORS.primary + 'AA'} />
-        </TouchableOpacity>
-
-        {/* ── 마법 뽑기 배너 ── */}
-        <TouchableOpacity
-          style={s.gachaBanner}
-          onPress={() => setShowGacha(true)}
-          activeOpacity={0.82}
-        >
-          <View style={[s.bannerGlowBg, { backgroundColor: 'rgba(167,139,250,0.09)' }]} pointerEvents="none" />
-          <View style={s.bannerLeft}>
-            <View style={[s.bannerIconBox, { backgroundColor: 'rgba(167,139,250,0.20)', borderColor: 'rgba(167,139,250,0.50)' }]}>
-              <Text style={s.bannerEmoji}>⚗️</Text>
-            </View>
-            <View style={s.bannerTextCol}>
-              <Text style={[s.bannerTitle, { color: '#A78BFA' }]}>마법 뽑기</Text>
-              <Text style={[s.bannerTag, { color: '#A78BFA88' }]}>GACHA  ·  주문서로 스탯 강화</Text>
-              <Text style={s.bannerDesc}>보유 골드  <Text style={{ color: COLORS.amber, fontWeight: '800' }}>{gachaInv?.gold ?? 0} G</Text></Text>
-            </View>
-          </View>
-          <Ionicons name="chevron-forward" size={24} color="#A78BFA88" />
-        </TouchableOpacity>
-
-        {/* ── AI 코치 배너 ── */}
-        <TouchableOpacity
-          style={s.coachBanner}
-          onPress={() => navigation.navigate('Coach')}
-          activeOpacity={0.82}
-        >
-          <View style={[s.bannerGlowBg, { backgroundColor: COLORS.purpleGlow }]} pointerEvents="none" />
-          <View style={s.bannerLeft}>
-            <View style={[s.bannerIconBox, { backgroundColor: COLORS.purple + '22', borderColor: COLORS.purple + '55' }]}>
-              <Ionicons name="sparkles" size={26} color={COLORS.purple} />
-            </View>
-            <View style={s.bannerTextCol}>
-              <Text style={[s.bannerTitle, { color: COLORS.purple }]}>AI 건강 코치</Text>
-              <Text style={[s.bannerTag, { color: COLORS.purple + '88' }]}>AI COACH  ·  무료 상담</Text>
-              <Text style={s.bannerDesc}>운동·식단·인바디 분석 상담</Text>
-            </View>
-          </View>
-          <Ionicons name="chevron-forward" size={24} color={COLORS.purple + 'AA'} />
-        </TouchableOpacity>
+        <SectionLabel>콘텐츠</SectionLabel>
+        <View style={s.menuGrid}>
+          <GameMenuCard
+            emoji="⚔️"
+            title="보스 격파"
+            tag="BOSS BATTLE"
+            color="#EF4444"
+            onPress={() => setShowMiniGame(true)}
+          />
+          <GameMenuCard
+            emoji="🧱"
+            title="벽돌깨기"
+            tag="BREAKOUT"
+            color={COLORS.primary}
+            onPress={() => setShowBrickBreaker(true)}
+          />
+          <GameMenuCard
+            emoji="⚗️"
+            title="마법 뽑기"
+            tag={`GACHA · ${gachaInv?.gold ?? 0}G`}
+            color="#A78BFA"
+            onPress={() => setShowGacha(true)}
+          />
+          <GameMenuCard
+            emojiIcon="sparkles"
+            title="AI 코치"
+            tag="AI COACH"
+            color="#A78BFA"
+            onPress={() => navigation.navigate('Coach')}
+          />
+        </View>
 
         <View style={{ height: 40 }} />
       </ScrollView>
@@ -511,17 +461,29 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
-function ActionCard({ label, sub, icon, color, tintBg, onPress }: {
-  label: string; sub: string; icon: any; color: string; tintBg: string; onPress: () => void;
+function GameMenuCard({ emoji, emojiIcon, title, tag, color, onPress }: {
+  emoji?: string; emojiIcon?: any; title: string; tag: string; color: string; onPress: () => void;
 }) {
   return (
-    <TouchableOpacity style={[s.actionCard, { borderColor: color + '35' }]} onPress={onPress} activeOpacity={0.75}>
-      <View style={[s.actionCardGlow, { backgroundColor: color + '0C' }]} pointerEvents="none" />
-      <View style={[s.actionIcon, { backgroundColor: color + '20', borderColor: color + '50', borderWidth: 1 }]}>
-        <Ionicons name={icon} size={28} color={color} />
+    <TouchableOpacity
+      style={[s.menuCard, { borderColor: color + '40' }]}
+      onPress={onPress}
+      activeOpacity={0.75}
+    >
+      {/* 아이콘 영역 */}
+      <View style={[s.menuIconArea, { backgroundColor: color + '18' }]}>
+        {/* 뒷 글로우 원 */}
+        <View style={[s.menuGlowCircle, { backgroundColor: color + '28' }]} pointerEvents="none" />
+        {emoji
+          ? <Text style={s.menuEmoji}>{emoji}</Text>
+          : <Ionicons name={emojiIcon} size={40} color={color} />
+        }
       </View>
-      <Text style={s.actionLabel}>{label}</Text>
-      <Text style={[s.actionSub, { color: color + 'BB' }]}>{sub}</Text>
+      {/* 라벨 영역 */}
+      <View style={[s.menuLabelArea, { borderTopColor: color + '22' }]}>
+        <Text style={s.menuTitle} numberOfLines={1}>{title}</Text>
+        <Text style={[s.menuTag, { color: color }]} numberOfLines={1}>{tag}</Text>
+      </View>
     </TouchableOpacity>
   );
 }
@@ -631,90 +593,58 @@ const s = StyleSheet.create({
     gap: 10,
     marginBottom: SPACING.md,
   },
-  // ── 배너 공통 (비율 맞춤) ──
-  bannerBase: {
+  // ── 게임 메뉴 그리드 ──
+  menuGrid: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginHorizontal: SPACING.md,
-    marginBottom: SPACING.md,
-    backgroundColor: COLORS.bgCard,
-    borderRadius: RADIUS.lg,
-    paddingVertical: 14,
+    flexWrap: 'wrap',
     paddingHorizontal: SPACING.md,
-    borderWidth: 1,
-    overflow: 'hidden',
-    position: 'relative',
+    gap: 10,
+    marginBottom: SPACING.md,
   },
-  bannerGlowBg: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
-  bannerLeft: { flexDirection: 'row', alignItems: 'center', gap: 14, flex: 1 },
-  bannerIconBox: {
-    width: 54, height: 54,
-    borderRadius: RADIUS.md + 2,
-    alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1.5,
-  },
-  bannerEmoji: { fontSize: 28 },
-  bannerTextCol: { flex: 1, gap: 2 },
-  bannerTitle: { fontSize: FONTS.md + 1, fontWeight: '900', letterSpacing: -0.3 },
-  bannerTag: { fontSize: 10, fontFamily: 'monospace', fontWeight: '800', letterSpacing: 0.8 },
-  bannerDesc: { fontSize: FONTS.xs, color: COLORS.textMuted, marginTop: 1 },
-
-  // 개별 배너 (색상만 다름)
-  gachaBanner: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    marginHorizontal: SPACING.md, marginBottom: SPACING.md,
-    backgroundColor: COLORS.bgCard, borderRadius: RADIUS.lg,
-    paddingVertical: 14, paddingHorizontal: SPACING.md,
-    borderWidth: 1, borderColor: 'rgba(167,139,250,0.45)',
-    overflow: 'hidden', position: 'relative',
-  },
-  brickBanner: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    marginHorizontal: SPACING.md, marginBottom: SPACING.md,
-    backgroundColor: COLORS.bgCard, borderRadius: RADIUS.lg,
-    paddingVertical: 14, paddingHorizontal: SPACING.md,
-    borderWidth: 1, borderColor: 'rgba(34,211,238,0.42)',
-    overflow: 'hidden', position: 'relative',
-  },
-  minigameBanner: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    marginHorizontal: SPACING.md, marginBottom: SPACING.md,
-    backgroundColor: COLORS.bgCard, borderRadius: RADIUS.lg,
-    paddingVertical: 14, paddingHorizontal: SPACING.md,
-    borderWidth: 1, borderColor: 'rgba(239,68,68,0.45)',
-    overflow: 'hidden', position: 'relative',
-  },
-  coachBanner: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    marginHorizontal: SPACING.md, marginBottom: SPACING.md,
-    backgroundColor: COLORS.bgCard, borderRadius: RADIUS.lg,
-    paddingVertical: 14, paddingHorizontal: SPACING.md,
-    borderWidth: 1, borderColor: COLORS.purple + '50',
-    overflow: 'hidden', position: 'relative',
-  },
-
-  // ── 액션 카드 (게임 버튼 스타일) ──
-  actionCard: {
-    flex: 1,
+  menuCard: {
+    width: '48.5%',
     backgroundColor: COLORS.bgCard,
     borderRadius: RADIUS.lg,
-    padding: SPACING.md,
-    paddingVertical: SPACING.lg,
     borderWidth: 1,
-    gap: 12,
     overflow: 'hidden',
+    // shadow
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  menuIconArea: {
+    height: 100,
+    alignItems: 'center',
+    justifyContent: 'center',
     position: 'relative',
   },
-  actionCardGlow: {
-    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+  menuGlowCircle: {
+    position: 'absolute',
+    width: 72, height: 72, borderRadius: 36,
   },
-  actionIcon: {
-    width: 52, height: 52, borderRadius: 14,
-    alignItems: 'center', justifyContent: 'center',
+  menuEmoji: { fontSize: 48, zIndex: 1 },
+  menuLabelArea: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    backgroundColor: 'rgba(0,0,0,0.25)',
+    gap: 3,
   },
-  actionLabel: { fontSize: FONTS.md, fontWeight: '900', color: COLORS.text, letterSpacing: -0.3 },
-  actionSub: { fontSize: FONTS.xs, fontFamily: 'monospace', letterSpacing: 0.5, fontWeight: '700' },
+  menuTitle: {
+    fontSize: FONTS.sm,
+    fontWeight: '900',
+    color: COLORS.text,
+    letterSpacing: -0.2,
+  },
+  menuTag: {
+    fontSize: 10,
+    fontFamily: 'monospace',
+    fontWeight: '800',
+    letterSpacing: 0.8,
+  },
+
 
   // Modal
   modalOverlay: {
