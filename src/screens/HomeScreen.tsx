@@ -390,6 +390,7 @@ export default function HomeScreen() {
         addXpFn={addXP}
         onInventoryChanged={() => { getGachaInventory().then(setGachaInv); }}
         initialTab={gachaInitialTab}
+        permStats={permStats}
       />
 
       {/* ── 벽돌깨기 모달 ── */}

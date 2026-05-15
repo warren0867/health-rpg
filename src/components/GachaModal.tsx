@@ -1,13 +1,14 @@
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator, Alert, Animated, Modal, ScrollView,
+  ActivityIndicator, Animated, Modal, ScrollView,
   StyleSheet, Text, TouchableOpacity, View,
 } from 'react-native';
 import { COLORS, FONTS, RADIUS, SPACING } from '../constants/theme';
 import {
   GACHA_RARITY_COLOR, GACHA_RARITY_LABEL,
-  GachaBonus, GachaInventory, GachaPullResult, GachaScroll, STAT_LABEL,
+  GachaBonus, GachaInventory, GachaPullResult, GachaScroll,
+  PermanentStats, STAT_FULLNAME, STAT_LABEL, StatKey,
 } from '../types';
 import {
   SINGLE_COST, TEN_COST,
@@ -21,6 +22,7 @@ interface Props {
   addXpFn: (xp: number) => Promise<any>;
   onInventoryChanged: () => void;
   initialTab?: Tab;
+  permStats?: PermanentStats;
 }
 
 type Tab = 'pull' | 'inventory' | 'bonus';
@@ -74,12 +76,52 @@ function ResultCard({ result }: { result: GachaPullResult }) {
   );
 }
 
-// ── 인벤토리 주문서 카드 (대형) ───────────────────────────────
-function ScrollCard({ scroll, onUse }: { scroll: GachaScroll; onUse: () => void }) {
+// ── 인벤토리 주문서 카드 ──────────────────────────────────────
+function ScrollCard({
+  scroll, currentStatVal, activeBonusForStat, onUse,
+}: {
+  scroll: GachaScroll;
+  currentStatVal: number;
+  activeBonusForStat: number;
+  onUse: () => Promise<void>;
+}) {
   const color = GACHA_RARITY_COLOR[scroll.rarity];
+  const [state, setState] = useState<'idle' | 'loading' | 'done'>('idle');
+  const doneAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+
+  const handlePress = async () => {
+    if (state !== 'idle') return;
+    setState('loading');
+    // 버튼 눌림 피드백
+    Animated.sequence([
+      Animated.timing(scaleAnim, { toValue: 0.96, duration: 80, useNativeDriver: true }),
+      Animated.timing(scaleAnim, { toValue: 1, duration: 80, useNativeDriver: true }),
+    ]).start();
+    await onUse();
+    setState('done');
+    Animated.spring(doneAnim, { toValue: 1, tension: 100, friction: 7, useNativeDriver: true }).start();
+  };
+
+  const baseVal = currentStatVal - activeBonusForStat; // 버프 제외 순수 기본값
+  const afterVal = baseVal + activeBonusForStat + scroll.bonus;
+
   return (
-    <View style={[ic.card, { borderColor: color + '44' }]}>
+    <Animated.View style={[ic.card, { borderColor: color + '44', transform: [{ scale: scaleAnim }] }]}>
       <View style={[ic.glowBg, { backgroundColor: color + '0C' }]} pointerEvents="none" />
+
+      {/* 완료 오버레이 */}
+      {state === 'done' && (
+        <Animated.View style={[ic.doneOverlay, { opacity: doneAnim }]}>
+          <Animated.View style={{ transform: [{ scale: doneAnim.interpolate({ inputRange: [0, 1], outputRange: [0.5, 1] }) }] }}>
+            <View style={ic.doneIconBox}>
+              <Ionicons name="checkmark" size={36} color="#000" />
+            </View>
+            <Text style={ic.doneTxt}>강화 완료!</Text>
+            <Text style={ic.doneSub}>{STAT_FULLNAME[scroll.stat]} +{scroll.bonus} 적용됨</Text>
+          </Animated.View>
+        </Animated.View>
+      )}
 
       {/* 상단: 이모지 + 이름 + 등급 */}
       <View style={ic.top}>
@@ -87,38 +129,70 @@ function ScrollCard({ scroll, onUse }: { scroll: GachaScroll; onUse: () => void 
           <Text style={ic.emoji}>{scroll.emoji}</Text>
         </View>
         <View style={ic.topRight}>
-          <View style={ic.nameRow}>
-            <Text style={[ic.name, { color }]} numberOfLines={1}>{scroll.name}</Text>
+          <Text style={[ic.name, { color }]} numberOfLines={1}>{scroll.name}</Text>
+          <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+            <View style={[ic.rarePill, { backgroundColor: color + '22', borderColor: color + '55' }]}>
+              <Text style={[ic.rareTxt, { color }]}>{GACHA_RARITY_LABEL[scroll.rarity]}</Text>
+            </View>
+            <Text style={ic.dur}>{scroll.durationDays}일 지속</Text>
           </View>
-          <View style={[ic.rarePill, { backgroundColor: color + '22', borderColor: color + '55' }]}>
-            <Text style={[ic.rareTxt, { color }]}>{GACHA_RARITY_LABEL[scroll.rarity]}</Text>
-          </View>
-          <Text style={ic.dur}>{scroll.durationDays}일 지속 주문서</Text>
         </View>
       </View>
 
-      {/* 효과 미리보기 */}
-      <View style={[ic.effectBox, { borderColor: color + '30', backgroundColor: color + '08' }]}>
-        <Text style={ic.effectLabel}>사용 효과</Text>
-        <View style={ic.effectRow}>
-          <View style={[ic.statChip, { backgroundColor: color + '28', borderColor: color + '55', borderWidth: 1 }]}>
-            <Text style={[ic.statChipTxt, { color }]}>{STAT_LABEL[scroll.stat]}</Text>
+      {/* 스탯 임팩트 표시 */}
+      <View style={[ic.impactBox, { borderColor: color + '30', backgroundColor: color + '08' }]}>
+        <Text style={ic.impactLabel}>사용 시 변화</Text>
+        <View style={ic.impactRow}>
+          <View style={ic.impactStatBox}>
+            <Text style={[ic.impactStatKey, { color: color + 'AA' }]}>{STAT_LABEL[scroll.stat]}</Text>
+            <Text style={[ic.impactStatName, { color: COLORS.textMuted }]}>{STAT_FULLNAME[scroll.stat]}</Text>
           </View>
-          <Text style={[ic.effectVal, { color }]}>+{scroll.bonus} 포인트</Text>
-          <Text style={ic.effectFor}>{scroll.durationDays}일간 유지</Text>
+          {/* 현재값 */}
+          <View style={ic.impactValBox}>
+            <Text style={ic.impactValLabel}>현재</Text>
+            <Text style={[ic.impactVal, { color: COLORS.textSub }]}>{Math.floor(currentStatVal)}</Text>
+          </View>
+          <Ionicons name="arrow-forward" size={16} color={color} style={{ marginTop: 10 }} />
+          {/* 사용 후 */}
+          <View style={ic.impactValBox}>
+            <Text style={ic.impactValLabel}>사용 후</Text>
+            <Text style={[ic.impactVal, { color }]}>{Math.floor(afterVal)}</Text>
+          </View>
+          {/* 증가량 */}
+          <View style={[ic.deltaBadge, { backgroundColor: color + '22', borderColor: color + '55' }]}>
+            <Text style={[ic.deltaTxt, { color }]}>+{scroll.bonus}</Text>
+          </View>
         </View>
-        <Text style={ic.effectNote}>
-          <Ionicons name="information-circle-outline" size={11} color={COLORS.textDisabled} />
-          {' '}홈 화면 영구 능력치에 즉시 반영됩니다
-        </Text>
+        {activeBonusForStat > 0 && (
+          <Text style={ic.impactNote}>
+            <Ionicons name="flash" size={10} color={COLORS.amber} />
+            {' '}현재 {STAT_LABEL[scroll.stat]} 버프 {activeBonusForStat}pt 포함됨 — 사용 시 교체
+          </Text>
+        )}
       </View>
 
       {/* 사용 버튼 */}
-      <TouchableOpacity style={[ic.useBtn, { backgroundColor: color }]} onPress={onUse} activeOpacity={0.8}>
-        <Text style={ic.useBtnTxt}>사용하기</Text>
-        <Ionicons name="arrow-forward" size={16} color="#000" />
+      <TouchableOpacity
+        style={[ic.useBtn, { backgroundColor: state === 'done' ? COLORS.good : color }, state === 'loading' && { opacity: 0.7 }]}
+        onPress={handlePress}
+        activeOpacity={0.8}
+        disabled={state !== 'idle'}
+      >
+        {state === 'loading' ? (
+          <ActivityIndicator color="#000" size="small" />
+        ) : state === 'done' ? (
+          <>
+            <Ionicons name="checkmark-circle" size={16} color="#000" />
+            <Text style={ic.useBtnTxt}>강화 완료</Text>
+          </>
+        ) : (
+          <>
+            <Text style={ic.useBtnTxt}>사용하기</Text>
+            <Ionicons name="arrow-forward" size={16} color="#000" />
+          </>
+        )}
       </TouchableOpacity>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -128,7 +202,6 @@ function BonusCard({ bonus }: { bonus: GachaBonus }) {
   const expires = new Date(bonus.expiresAt);
   const remainMs = Math.max(0, expires.getTime() - Date.now());
   const remainDays = Math.ceil(remainMs / 86400000);
-  // GachaBonus has no durationDays — assume 7-day bonuses for progress bar
   const totalMs = 7 * 86400000;
   const pct = Math.min(100, Math.round((remainMs / totalMs) * 100));
   const urgency = remainDays <= 1 ? COLORS.bad : remainDays <= 3 ? COLORS.warn : COLORS.good;
@@ -137,12 +210,10 @@ function BonusCard({ bonus }: { bonus: GachaBonus }) {
     <View style={[bc.card, { borderColor: color + '44' }]}>
       <View style={[bc.glowBg, { backgroundColor: color + '09' }]} pointerEvents="none" />
       <View style={bc.body}>
-        {/* 스탯 박스 */}
         <View style={[bc.statBox, { backgroundColor: color + '1C', borderColor: color + '44', borderWidth: 1 }]}>
           <Text style={[bc.statKey, { color: color + 'BB' }]}>{STAT_LABEL[bonus.stat]}</Text>
           <Text style={[bc.statVal, { color }]}>+{bonus.bonus}</Text>
         </View>
-
         <View style={bc.mid}>
           <View style={bc.titleRow}>
             <Text style={[bc.buffName, { color: COLORS.text }]} numberOfLines={1}>{bonus.name}</Text>
@@ -151,12 +222,9 @@ function BonusCard({ bonus }: { bonus: GachaBonus }) {
               <Text style={[bc.activeTxt, { color: COLORS.good }]}>활성</Text>
             </View>
           </View>
-
-          {/* 남은 시간 바 */}
           <View style={bc.timeTrack}>
             <View style={[bc.timeFill, { width: `${pct}%` as any, backgroundColor: urgency }]} />
           </View>
-
           <View style={bc.timeRow}>
             <Text style={[bc.timeLeft, { color: urgency }]}>
               {remainDays > 0 ? `${remainDays}일 남음` : '오늘 만료'}
@@ -172,7 +240,7 @@ function BonusCard({ bonus }: { bonus: GachaBonus }) {
 }
 
 // ── 메인 컴포넌트 ─────────────────────────────────────────────
-export default function GachaModal({ visible, onClose, addXpFn, onInventoryChanged, initialTab }: Props) {
+export default function GachaModal({ visible, onClose, addXpFn, onInventoryChanged, initialTab, permStats }: Props) {
   const [tab, setTab]         = useState<Tab>(initialTab ?? 'pull');
   const [pulling, setPulling] = useState(false);
   const [results, setResults] = useState<GachaPullResult[] | null>(null);
@@ -197,6 +265,11 @@ export default function GachaModal({ visible, onClose, addXpFn, onInventoryChang
     }
   }, [visible]);
 
+  // initialTab이 바뀌면 탭도 바꿈 (홈에서 다른 타일 누를 때)
+  useEffect(() => {
+    if (visible && initialTab) setTab(initialTab);
+  }, [initialTab]);
+
   const switchTab = (t: Tab) => {
     setTab(t);
     if (t !== 'pull') { setResults(null); loadInv(); }
@@ -206,7 +279,7 @@ export default function GachaModal({ visible, onClose, addXpFn, onInventoryChang
     setPulling(true); setResults(null);
     try {
       const result = await doDailyFreePull();
-      if (!result) { Alert.alert('오늘 이미 무료 뽑기 했어요!'); return; }
+      if (!result) return;
       if (result.type === 'xp_potion') await addXpFn(result.amount);
       setResults([result]);
       setInv(await getGachaInventory());
@@ -218,14 +291,11 @@ export default function GachaModal({ visible, onClose, addXpFn, onInventoryChang
   const handlePull = async (count: 1 | 10) => {
     if (!inv) return;
     const cost = count === 1 ? SINGLE_COST : TEN_COST;
-    if (inv.gold < cost) {
-      Alert.alert('골드 부족', `뽑기에는 ${cost}G가 필요해요.\n현재: ${inv.gold}G\n\n퀘스트를 완료해서 골드를 모으세요!`);
-      return;
-    }
+    if (inv.gold < cost) return;
     setPulling(true); setResults(null);
     try {
       const res = await doPull(count);
-      if (!res) { Alert.alert('골드 부족!'); return; }
+      if (!res) return;
       await applyXpPotions(res.results, addXpFn);
       setResults(res.results);
       setInv(await getGachaInventory());
@@ -233,34 +303,23 @@ export default function GachaModal({ visible, onClose, addXpFn, onInventoryChang
     } finally { setPulling(false); }
   };
 
-  const handleUseScroll = (scrollId: string, scrollName: string, stat: string, bonus: number, days: number) => {
-    Alert.alert(
-      '주문서 사용',
-      `[${scrollName}]\n\n✦ ${stat} +${bonus} 포인트\n✦ ${days}일간 영구 능력치에 반영\n\n사용하시겠어요?`,
-      [
-        { text: '취소', style: 'cancel' },
-        {
-          text: '사용하기', onPress: async () => {
-            const bonus_result = await useScroll(scrollId);
-            if (bonus_result) {
-              const exp = new Date(bonus_result.expiresAt).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' });
-              Alert.alert(
-                '✦ 강화 완료!',
-                `${stat} +${bonus} 효과 활성화\n${exp}까지 영구 능력치에 반영됩니다.\n\n홈 화면에서 스탯 변화를 확인하세요!`
-              );
-              await loadInv();
-              onInventoryChanged();
-            }
-          }
-        }
-      ]
-    );
+  const handleUseScroll = async (scrollId: string) => {
+    const result = await useScroll(scrollId);
+    if (result) {
+      await loadInv();
+      onInventoryChanged();
+    }
   };
 
-  // 결과에 주문서가 있는지
   const hasScrollsInResult = results?.some(r => r.type === 'scroll') ?? false;
   const scrollCount = inv?.scrolls.length ?? 0;
   const bonusCount  = inv?.activeBonuses.length ?? 0;
+
+  // 스탯별 현재 활성 버프 합산
+  const activeBonusByStatMap: Partial<Record<StatKey, number>> = {};
+  for (const b of inv?.activeBonuses ?? []) {
+    activeBonusByStatMap[b.stat] = (activeBonusByStatMap[b.stat] ?? 0) + b.bonus;
+  }
 
   return (
     <Modal visible={visible} animationType="none" transparent onRequestClose={onClose}>
@@ -288,8 +347,8 @@ export default function GachaModal({ visible, onClose, addXpFn, onInventoryChang
           <View style={s.tabRow}>
             {([
               { key: 'pull',      label: '뽑기',      icon: 'dice-outline' },
-              { key: 'inventory', label: '인벤토리',  icon: 'bag-outline',     badge: scrollCount },
-              { key: 'bonus',     label: '활성 버프', icon: 'flash-outline',   badge: bonusCount },
+              { key: 'inventory', label: '인벤토리',  icon: 'bag-outline',   badge: scrollCount },
+              { key: 'bonus',     label: '활성 버프', icon: 'flash-outline', badge: bonusCount },
             ] as { key: Tab; label: string; icon: any; badge?: number }[]).map(t => (
               <TouchableOpacity
                 key={t.key}
@@ -311,17 +370,16 @@ export default function GachaModal({ visible, onClose, addXpFn, onInventoryChang
           {/* ── 뽑기 탭 ── */}
           {tab === 'pull' && (
             <ScrollView showsVerticalScrollIndicator={false}>
-              {/* 확률표 */}
               <View style={s.rateCard}>
                 <Text style={s.rateTitle}>아이템 등급 확률</Text>
                 <View style={s.rateGrid}>
                   {([
-                    { label: '일반',   color: GACHA_RARITY_COLOR.common,    pct: '40%' },
-                    { label: '희귀',   color: GACHA_RARITY_COLOR.rare,      pct: '28%' },
-                    { label: '영웅',   color: GACHA_RARITY_COLOR.epic,      pct: '18%' },
-                    { label: '전설',   color: GACHA_RARITY_COLOR.legendary, pct: '2.5%' },
-                    { label: 'XP 물약', color: COLORS.amber,                pct: '8%' },
-                    { label: '꽝(골드)', color: COLORS.textDisabled,         pct: '3.5%' },
+                    { label: '일반',     color: GACHA_RARITY_COLOR.common,    pct: '40%' },
+                    { label: '희귀',     color: GACHA_RARITY_COLOR.rare,      pct: '28%' },
+                    { label: '영웅',     color: GACHA_RARITY_COLOR.epic,      pct: '18%' },
+                    { label: '전설',     color: GACHA_RARITY_COLOR.legendary, pct: '2.5%' },
+                    { label: 'XP 물약',  color: COLORS.amber,                 pct: '8%' },
+                    { label: '꽝(골드)', color: COLORS.textDisabled,          pct: '3.5%' },
                   ] as { label: string; color: string; pct: string }[]).map(r => (
                     <View key={r.label} style={s.rateItem}>
                       <View style={[s.rateDot, { backgroundColor: r.color }]} />
@@ -333,7 +391,6 @@ export default function GachaModal({ visible, onClose, addXpFn, onInventoryChang
                 <Text style={s.rateNote}>✦ 10연 뽑기: 희귀 이상 1개 보장</Text>
               </View>
 
-              {/* 무료 뽑기 */}
               <TouchableOpacity
                 style={[s.freePullBtn, !canFree && s.freePullBtnDone]}
                 onPress={handleFreePull}
@@ -356,14 +413,8 @@ export default function GachaModal({ visible, onClose, addXpFn, onInventoryChang
                 </View>
               </TouchableOpacity>
 
-              {/* 뽑기 버튼 */}
               <View style={s.pullRow}>
-                <TouchableOpacity
-                  style={[s.pullBtn, pulling && { opacity: 0.5 }]}
-                  onPress={() => handlePull(1)}
-                  disabled={pulling}
-                  activeOpacity={0.8}
-                >
+                <TouchableOpacity style={[s.pullBtn, pulling && { opacity: 0.5 }]} onPress={() => handlePull(1)} disabled={pulling} activeOpacity={0.8}>
                   {pulling ? <ActivityIndicator color="#000" /> : (
                     <>
                       <Text style={s.pullEmoji}>🎰</Text>
@@ -372,12 +423,7 @@ export default function GachaModal({ visible, onClose, addXpFn, onInventoryChang
                     </>
                   )}
                 </TouchableOpacity>
-                <TouchableOpacity
-                  style={[s.pullBtn, s.pullBtnTen, pulling && { opacity: 0.5 }]}
-                  onPress={() => handlePull(10)}
-                  disabled={pulling}
-                  activeOpacity={0.8}
-                >
+                <TouchableOpacity style={[s.pullBtn, s.pullBtnTen, pulling && { opacity: 0.5 }]} onPress={() => handlePull(10)} disabled={pulling} activeOpacity={0.8}>
                   {pulling ? <ActivityIndicator color="#000" /> : (
                     <>
                       <Text style={s.pullEmoji}>🎲</Text>
@@ -389,21 +435,14 @@ export default function GachaModal({ visible, onClose, addXpFn, onInventoryChang
                 </TouchableOpacity>
               </View>
 
-              {/* 결과 */}
               {results && (
                 <View style={s.resultSection}>
                   <Text style={s.resultTitle}>✦ 뽑기 결과</Text>
                   <View style={s.resultGrid}>
                     {results.map((r, i) => <ResultCard key={i} result={r} />)}
                   </View>
-
-                  {/* 주문서 있으면 인벤토리로 안내 */}
                   {hasScrollsInResult && (
-                    <TouchableOpacity
-                      style={s.goInventoryBtn}
-                      onPress={() => switchTab('inventory')}
-                      activeOpacity={0.8}
-                    >
+                    <TouchableOpacity style={s.goInventoryBtn} onPress={() => switchTab('inventory')} activeOpacity={0.8}>
                       <Ionicons name="bag-outline" size={16} color={COLORS.primary} />
                       <Text style={s.goInventoryTxt}>인벤토리에서 주문서 사용하기</Text>
                       <Ionicons name="arrow-forward" size={14} color={COLORS.primary} />
@@ -411,7 +450,6 @@ export default function GachaModal({ visible, onClose, addXpFn, onInventoryChang
                   )}
                 </View>
               )}
-
               <View style={{ height: 24 }} />
             </ScrollView>
           )}
@@ -419,13 +457,23 @@ export default function GachaModal({ visible, onClose, addXpFn, onInventoryChang
           {/* ── 인벤토리 탭 ── */}
           {tab === 'inventory' && (
             <ScrollView showsVerticalScrollIndicator={false}>
-              {/* 안내 배너 */}
-              <View style={s.guideBanner}>
-                <Ionicons name="information-circle" size={16} color={COLORS.primary} />
-                <Text style={s.guideTxt}>
-                  주문서를 사용하면 <Text style={{ color: COLORS.primary, fontWeight: '800' }}>영구 능력치</Text>가 일시적으로 강화됩니다
-                </Text>
-              </View>
+              {/* 현재 스탯 미니 패널 */}
+              {permStats && (
+                <View style={s.statMiniPanel}>
+                  <Text style={s.statMiniTitle}>현재 영구 능력치</Text>
+                  <View style={s.statMiniRow}>
+                    {(['str','end','vit','agi','wis'] as StatKey[]).map(k => (
+                      <View key={k} style={s.statMiniCell}>
+                        <Text style={s.statMiniKey}>{STAT_LABEL[k]}</Text>
+                        <Text style={s.statMiniVal}>{Math.floor(permStats[k])}</Text>
+                        {(activeBonusByStatMap[k] ?? 0) > 0 && (
+                          <Text style={s.statMiniBonus}>+{activeBonusByStatMap[k]}</Text>
+                        )}
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              )}
 
               {(!inv || inv.scrolls.length === 0) ? (
                 <View style={s.empty}>
@@ -444,10 +492,9 @@ export default function GachaModal({ visible, onClose, addXpFn, onInventoryChang
                     <ScrollCard
                       key={scroll.id}
                       scroll={scroll}
-                      onUse={() => handleUseScroll(
-                        scroll.id, scroll.name,
-                        STAT_LABEL[scroll.stat], scroll.bonus, scroll.durationDays
-                      )}
+                      currentStatVal={permStats ? permStats[scroll.stat] : 0}
+                      activeBonusForStat={activeBonusByStatMap[scroll.stat] ?? 0}
+                      onUse={() => handleUseScroll(scroll.id)}
                     />
                   ))}
                 </>
@@ -459,7 +506,6 @@ export default function GachaModal({ visible, onClose, addXpFn, onInventoryChang
           {/* ── 활성 버프 탭 ── */}
           {tab === 'bonus' && (
             <ScrollView showsVerticalScrollIndicator={false}>
-              {/* 버프 설명 */}
               <View style={s.guideBanner}>
                 <Ionicons name="flash" size={14} color={COLORS.amber} />
                 <Text style={s.guideTxt}>
@@ -471,7 +517,7 @@ export default function GachaModal({ visible, onClose, addXpFn, onInventoryChang
                 <View style={s.empty}>
                   <Text style={s.emptyEmoji}>💤</Text>
                   <Text style={s.emptyTxt}>활성 버프가 없어요</Text>
-                  <Text style={s.emptySub}>인벤토리에서 주문서를 사용하면\n스탯이 강화됩니다</Text>
+                  <Text style={s.emptySub}>인벤토리에서 주문서를 사용하면{'\n'}스탯이 강화됩니다</Text>
                   <TouchableOpacity style={s.emptyGoBtn} onPress={() => switchTab('inventory')} activeOpacity={0.8}>
                     <Text style={s.emptyGoBtnTxt}>인벤토리 확인</Text>
                     <Ionicons name="arrow-forward" size={14} color="#000" />
@@ -481,13 +527,11 @@ export default function GachaModal({ visible, onClose, addXpFn, onInventoryChang
                 <>
                   <Text style={s.listHeader}>{inv.activeBonuses.length}개 버프 활성 중</Text>
                   {inv.activeBonuses.map(b => <BonusCard key={b.id} bonus={b} />)}
-
-                  {/* 효과 요약 */}
                   <View style={s.summaryCard}>
                     <Text style={s.summaryTitle}>현재 총 보너스</Text>
                     {inv.activeBonuses.map(b => (
                       <View key={b.id} style={s.summaryRow}>
-                        <Text style={s.summaryKey}>{STAT_LABEL[b.stat]}</Text>
+                        <Text style={s.summaryKey}>{STAT_FULLNAME[b.stat]}</Text>
                         <Text style={[s.summaryVal, { color: GACHA_RARITY_COLOR[b.rarity] }]}>+{b.bonus}</Text>
                       </View>
                     ))}
@@ -513,16 +557,11 @@ const s = StyleSheet.create({
     paddingTop: SPACING.md,
     paddingHorizontal: SPACING.md,
     maxHeight: '93%',
-    borderTopWidth: 1,
-    borderLeftWidth: 1,
-    borderRightWidth: 1,
+    borderTopWidth: 1, borderLeftWidth: 1, borderRightWidth: 1,
     borderColor: COLORS.border,
   },
 
-  header: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    marginBottom: SPACING.md,
-  },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.md },
   headerLeft: { gap: 4 },
   title: { color: COLORS.text, fontSize: FONTS.lg, fontWeight: '900', letterSpacing: -0.3 },
   goldRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
@@ -547,7 +586,6 @@ const s = StyleSheet.create({
   rateLabel: { fontSize: FONTS.xxs, color: COLORS.textMuted, flex: 1 },
   rateNote: { fontSize: FONTS.xxs, color: COLORS.primary, fontFamily: 'monospace', fontWeight: '700', borderTopWidth: 1, borderTopColor: COLORS.border, paddingTop: 8 },
 
-  // 무료 뽑기
   freePullBtn: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: COLORS.goodGlow, borderWidth: 1, borderColor: COLORS.good + '44', borderRadius: RADIUS.md, paddingVertical: 14, paddingHorizontal: SPACING.md, marginBottom: SPACING.sm },
   freePullBtnDone: { backgroundColor: COLORS.bgCard, borderColor: COLORS.border },
   freePullEmoji: { fontSize: 30 },
@@ -557,7 +595,6 @@ const s = StyleSheet.create({
   freeBadgeDone: { backgroundColor: COLORS.bgInput, borderColor: COLORS.border },
   freeBadgeTxt: { fontSize: 11, fontWeight: '900', color: COLORS.good, fontFamily: 'monospace' },
 
-  // 뽑기 버튼
   pullRow: { flexDirection: 'row', gap: 10, marginBottom: SPACING.md },
   pullBtn: { flex: 1, backgroundColor: COLORS.primary, borderRadius: RADIUS.md, paddingVertical: 16, alignItems: 'center', gap: 4 },
   pullBtnTen: { backgroundColor: COLORS.amber },
@@ -567,20 +604,25 @@ const s = StyleSheet.create({
   savePill: { backgroundColor: 'rgba(0,0,0,0.20)', borderRadius: RADIUS.full, paddingHorizontal: 8, paddingVertical: 2 },
   saveTxt: { fontSize: 9, color: '#000', fontWeight: '900' },
 
-  // 결과
   resultSection: { marginTop: SPACING.sm },
   resultTitle: { color: COLORS.amber, fontSize: FONTS.md, fontWeight: '900', textAlign: 'center', marginBottom: SPACING.sm, fontFamily: 'monospace', letterSpacing: 1 },
   resultGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center' },
-  goInventoryBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    marginTop: SPACING.md,
-    backgroundColor: COLORS.primaryGlow,
-    borderRadius: RADIUS.md, paddingVertical: 14,
-    borderWidth: 1, borderColor: COLORS.primaryLine,
-  },
+  goInventoryBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: SPACING.md, backgroundColor: COLORS.primaryGlow, borderRadius: RADIUS.md, paddingVertical: 14, borderWidth: 1, borderColor: COLORS.primaryLine },
   goInventoryTxt: { fontSize: FONTS.sm, fontWeight: '800', color: COLORS.primary },
 
-  // 인벤토리/버프 공통
+  // 현재 스탯 미니 패널
+  statMiniPanel: {
+    backgroundColor: COLORS.bgCard, borderRadius: RADIUS.md,
+    padding: SPACING.md, marginBottom: SPACING.sm,
+    borderWidth: 1, borderColor: COLORS.border,
+  },
+  statMiniTitle: { fontSize: FONTS.xxs, color: COLORS.textDisabled, fontFamily: 'monospace', fontWeight: '800', letterSpacing: 1.5, marginBottom: 10, textTransform: 'uppercase' },
+  statMiniRow: { flexDirection: 'row', justifyContent: 'space-between' },
+  statMiniCell: { alignItems: 'center', gap: 2, flex: 1 },
+  statMiniKey: { fontSize: 10, color: COLORS.textDisabled, fontFamily: 'monospace', fontWeight: '800', letterSpacing: 1 },
+  statMiniVal: { fontSize: FONTS.lg, fontWeight: '900', color: COLORS.text, fontFamily: 'monospace' },
+  statMiniBonus: { fontSize: 10, color: COLORS.amber, fontFamily: 'monospace', fontWeight: '800' },
+
   guideBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: COLORS.bgCard, borderRadius: RADIUS.md, padding: 12, marginBottom: SPACING.sm, borderWidth: 1, borderColor: COLORS.border },
   guideTxt: { flex: 1, fontSize: FONTS.xxs, color: COLORS.textMuted, lineHeight: 16 },
   listHeader: { fontSize: FONTS.xxs, color: COLORS.textDisabled, fontFamily: 'monospace', letterSpacing: 1.5, fontWeight: '800', marginBottom: SPACING.sm, textTransform: 'uppercase' },
@@ -592,7 +634,6 @@ const s = StyleSheet.create({
   emptyGoBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8, backgroundColor: COLORS.primary, borderRadius: RADIUS.full, paddingHorizontal: 20, paddingVertical: 10 },
   emptyGoBtnTxt: { color: '#000', fontWeight: '800', fontSize: FONTS.xs },
 
-  // 버프 요약
   summaryCard: { backgroundColor: COLORS.bgCard, borderRadius: RADIUS.md, padding: SPACING.md, marginTop: SPACING.sm, borderWidth: 1, borderColor: COLORS.border, gap: 8 },
   summaryTitle: { fontSize: FONTS.xxs, color: COLORS.textDisabled, fontFamily: 'monospace', letterSpacing: 1.5, fontWeight: '800', textTransform: 'uppercase', marginBottom: 4 },
   summaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
@@ -619,23 +660,45 @@ const ic = StyleSheet.create({
     position: 'relative', padding: SPACING.md, gap: 12,
   },
   glowBg: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+  // 완료 오버레이
+  doneOverlay: {
+    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: COLORS.good + 'EE',
+    zIndex: 10, alignItems: 'center', justifyContent: 'center', gap: 8,
+    borderRadius: RADIUS.lg,
+  },
+  doneIconBox: {
+    width: 64, height: 64, borderRadius: 32,
+    backgroundColor: '#000', alignItems: 'center', justifyContent: 'center',
+  },
+  doneTxt: { fontSize: FONTS.xl, fontWeight: '900', color: '#000' },
+  doneSub: { fontSize: FONTS.sm, color: '#000', fontWeight: '700', opacity: 0.8 },
+  // 카드 본체
   top: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   emojiBox: { width: 56, height: 56, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   emoji: { fontSize: 30 },
-  topRight: { flex: 1, gap: 4 },
-  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  name: { fontSize: FONTS.md, fontWeight: '900', flex: 1 },
+  topRight: { flex: 1, gap: 6 },
+  name: { fontSize: FONTS.md, fontWeight: '900' },
   rarePill: { borderRadius: RADIUS.full, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, alignSelf: 'flex-start' },
   rareTxt: { fontSize: 10, fontWeight: '900', fontFamily: 'monospace' },
   dur: { fontSize: FONTS.xxs, color: COLORS.textMuted, fontFamily: 'monospace' },
-  effectBox: { borderRadius: RADIUS.md, padding: 12, borderWidth: 1, gap: 8 },
-  effectLabel: { fontSize: 10, color: COLORS.textDisabled, fontFamily: 'monospace', fontWeight: '800', letterSpacing: 1 },
-  effectRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  statChip: { borderRadius: RADIUS.sm, paddingHorizontal: 10, paddingVertical: 4 },
-  statChipTxt: { fontSize: FONTS.xs, fontWeight: '900', fontFamily: 'monospace' },
-  effectVal: { fontSize: FONTS.lg, fontWeight: '900', fontFamily: 'monospace' },
-  effectFor: { fontSize: FONTS.xxs, color: COLORS.textMuted, fontFamily: 'monospace', flex: 1 },
-  effectNote: { fontSize: FONTS.xxs, color: COLORS.textDisabled, lineHeight: 16 },
+  // 임팩트 박스
+  impactBox: { borderRadius: RADIUS.md, padding: 12, borderWidth: 1, gap: 10 },
+  impactLabel: { fontSize: 10, color: COLORS.textDisabled, fontFamily: 'monospace', fontWeight: '800', letterSpacing: 1 },
+  impactRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
+  impactStatBox: { alignItems: 'center', marginBottom: 2 },
+  impactStatKey: { fontSize: 11, fontFamily: 'monospace', fontWeight: '900', letterSpacing: 1 },
+  impactStatName: { fontSize: 9, fontFamily: 'monospace', marginTop: 1 },
+  impactValBox: { alignItems: 'center', gap: 2 },
+  impactValLabel: { fontSize: 9, color: COLORS.textDisabled, fontFamily: 'monospace' },
+  impactVal: { fontSize: FONTS.xl, fontWeight: '900', fontFamily: 'monospace', letterSpacing: -1 },
+  deltaBadge: {
+    borderRadius: RADIUS.full, paddingHorizontal: 10, paddingVertical: 4,
+    borderWidth: 1, marginBottom: 4,
+  },
+  deltaTxt: { fontSize: FONTS.sm, fontWeight: '900', fontFamily: 'monospace' },
+  impactNote: { fontSize: FONTS.xxs, color: COLORS.textDisabled, lineHeight: 16 },
+  // 사용 버튼
   useBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: RADIUS.md, paddingVertical: 14 },
   useBtnTxt: { fontSize: FONTS.sm, fontWeight: '900', color: '#000' },
 });
