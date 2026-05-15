@@ -335,76 +335,80 @@ export default function HomeScreen() {
         <TouchableOpacity
           style={s.minigameBanner}
           onPress={() => setShowMiniGame(true)}
-          activeOpacity={0.85}
+          activeOpacity={0.82}
         >
-          <View style={[s.gachaBannerGlow, { backgroundColor: 'rgba(239,68,68,0.10)' }]} pointerEvents="none" />
-          <View style={s.coachBannerLeft}>
-            <View style={[s.coachIconWrap, { backgroundColor: 'rgba(239,68,68,0.18)', borderColor: 'rgba(239,68,68,0.40)' }]}>
-              <Text style={{ fontSize: 18 }}>⚔️</Text>
+          <View style={[s.bannerGlowBg, { backgroundColor: 'rgba(239,68,68,0.10)' }]} pointerEvents="none" />
+          <View style={s.bannerLeft}>
+            <View style={[s.bannerIconBox, { backgroundColor: 'rgba(239,68,68,0.18)', borderColor: 'rgba(239,68,68,0.45)' }]}>
+              <Text style={s.bannerEmoji}>⚔️</Text>
             </View>
-            <View>
-              <Text style={[s.coachBannerTitle, { color: COLORS.bad }]}>보스 격파 미니게임</Text>
-              <Text style={s.coachBannerSub}>오브를 탭해 보스를 쓰러뜨려라  ·  골드 보상</Text>
+            <View style={s.bannerTextCol}>
+              <Text style={[s.bannerTitle, { color: COLORS.bad }]}>보스 격파</Text>
+              <Text style={[s.bannerTag, { color: COLORS.bad + '88' }]}>MINI GAME  ·  골드 보상</Text>
+              <Text style={s.bannerDesc}>오브를 탭해 보스를 쓰러뜨려라</Text>
             </View>
           </View>
-          <Ionicons name="chevron-forward" size={18} color={COLORS.bad} />
+          <Ionicons name="chevron-forward" size={24} color={COLORS.bad + 'AA'} />
         </TouchableOpacity>
 
         {/* ── 벽돌깨기 배너 ── */}
         <TouchableOpacity
           style={s.brickBanner}
           onPress={() => setShowBrickBreaker(true)}
-          activeOpacity={0.85}
+          activeOpacity={0.82}
         >
-          <View style={[s.gachaBannerGlow, { backgroundColor: 'rgba(34,211,238,0.08)' }]} pointerEvents="none" />
-          <View style={s.coachBannerLeft}>
-            <View style={[s.coachIconWrap, { backgroundColor: 'rgba(34,211,238,0.15)', borderColor: 'rgba(34,211,238,0.38)' }]}>
-              <Text style={{ fontSize: 18 }}>🧱</Text>
+          <View style={[s.bannerGlowBg, { backgroundColor: 'rgba(34,211,238,0.08)' }]} pointerEvents="none" />
+          <View style={s.bannerLeft}>
+            <View style={[s.bannerIconBox, { backgroundColor: 'rgba(34,211,238,0.15)', borderColor: 'rgba(34,211,238,0.40)' }]}>
+              <Text style={s.bannerEmoji}>🧱</Text>
             </View>
-            <View>
-              <Text style={[s.coachBannerTitle, { color: COLORS.primary }]}>벽돌깨기 미니게임</Text>
-              <Text style={s.coachBannerSub}>패들로 공을 튕겨 모든 벽돌 파괴  ·  골드 보상</Text>
+            <View style={s.bannerTextCol}>
+              <Text style={[s.bannerTitle, { color: COLORS.primary }]}>벽돌깨기</Text>
+              <Text style={[s.bannerTag, { color: COLORS.primary + '88' }]}>MINI GAME  ·  골드 보상</Text>
+              <Text style={s.bannerDesc}>패들로 공을 튕겨 모든 벽돌 파괴</Text>
             </View>
           </View>
-          <Ionicons name="chevron-forward" size={18} color={COLORS.primary} />
+          <Ionicons name="chevron-forward" size={24} color={COLORS.primary + 'AA'} />
         </TouchableOpacity>
 
         {/* ── 마법 뽑기 배너 ── */}
         <TouchableOpacity
           style={s.gachaBanner}
           onPress={() => setShowGacha(true)}
-          activeOpacity={0.85}
+          activeOpacity={0.82}
         >
-          <View style={[s.gachaBannerGlow, { backgroundColor: 'rgba(167,139,250,0.09)' }]} pointerEvents="none" />
-          <View style={s.coachBannerLeft}>
-            <View style={[s.coachIconWrap, { backgroundColor: 'rgba(167,139,250,0.20)', borderColor: 'rgba(167,139,250,0.45)' }]}>
-              <Text style={{ fontSize: 20 }}>⚗️</Text>
+          <View style={[s.bannerGlowBg, { backgroundColor: 'rgba(167,139,250,0.09)' }]} pointerEvents="none" />
+          <View style={s.bannerLeft}>
+            <View style={[s.bannerIconBox, { backgroundColor: 'rgba(167,139,250,0.20)', borderColor: 'rgba(167,139,250,0.50)' }]}>
+              <Text style={s.bannerEmoji}>⚗️</Text>
             </View>
-            <View>
-              <Text style={[s.coachBannerTitle, { color: '#A78BFA' }]}>마법 뽑기</Text>
-              <Text style={s.coachBannerSub}>보유 골드  <Text style={{ color: COLORS.amber, fontWeight: '800' }}>🪙 {gachaInv?.gold ?? 0}G</Text>  ·  주문서로 스탯 강화</Text>
+            <View style={s.bannerTextCol}>
+              <Text style={[s.bannerTitle, { color: '#A78BFA' }]}>마법 뽑기</Text>
+              <Text style={[s.bannerTag, { color: '#A78BFA88' }]}>GACHA  ·  주문서로 스탯 강화</Text>
+              <Text style={s.bannerDesc}>보유 골드  <Text style={{ color: COLORS.amber, fontWeight: '800' }}>{gachaInv?.gold ?? 0} G</Text></Text>
             </View>
           </View>
-          <Ionicons name="chevron-forward" size={18} color="#A78BFA" />
+          <Ionicons name="chevron-forward" size={24} color="#A78BFA88" />
         </TouchableOpacity>
 
         {/* ── AI 코치 배너 ── */}
         <TouchableOpacity
           style={s.coachBanner}
           onPress={() => navigation.navigate('Coach')}
-          activeOpacity={0.85}
+          activeOpacity={0.82}
         >
-          <View style={s.coachBannerGlow} pointerEvents="none" />
-          <View style={s.coachBannerLeft}>
-            <View style={s.coachIconWrap}>
-              <Ionicons name="sparkles" size={18} color={COLORS.purple} />
+          <View style={[s.bannerGlowBg, { backgroundColor: COLORS.purpleGlow }]} pointerEvents="none" />
+          <View style={s.bannerLeft}>
+            <View style={[s.bannerIconBox, { backgroundColor: COLORS.purple + '22', borderColor: COLORS.purple + '55' }]}>
+              <Ionicons name="sparkles" size={26} color={COLORS.purple} />
             </View>
-            <View>
-              <Text style={s.coachBannerTitle}>AI 건강 코치</Text>
-              <Text style={s.coachBannerSub}>운동·식단·인바디 분석 상담</Text>
+            <View style={s.bannerTextCol}>
+              <Text style={[s.bannerTitle, { color: COLORS.purple }]}>AI 건강 코치</Text>
+              <Text style={[s.bannerTag, { color: COLORS.purple + '88' }]}>AI COACH  ·  무료 상담</Text>
+              <Text style={s.bannerDesc}>운동·식단·인바디 분석 상담</Text>
             </View>
           </View>
-          <Ionicons name="chevron-forward" size={18} color={COLORS.purple} />
+          <Ionicons name="chevron-forward" size={24} color={COLORS.purple + 'AA'} />
         </TouchableOpacity>
 
         <View style={{ height: 40 }} />
@@ -511,13 +515,13 @@ function ActionCard({ label, sub, icon, color, tintBg, onPress }: {
   label: string; sub: string; icon: any; color: string; tintBg: string; onPress: () => void;
 }) {
   return (
-    <TouchableOpacity style={[s.actionCard, { borderColor: color + '28' }]} onPress={onPress} activeOpacity={0.7}>
-      <View style={[s.actionCardGlow, { backgroundColor: color + '08' }]} pointerEvents="none" />
-      <View style={[s.actionIcon, { backgroundColor: color + '1C', borderColor: color + '40', borderWidth: 1 }]}>
-        <Ionicons name={icon} size={20} color={color} />
+    <TouchableOpacity style={[s.actionCard, { borderColor: color + '35' }]} onPress={onPress} activeOpacity={0.75}>
+      <View style={[s.actionCardGlow, { backgroundColor: color + '0C' }]} pointerEvents="none" />
+      <View style={[s.actionIcon, { backgroundColor: color + '20', borderColor: color + '50', borderWidth: 1 }]}>
+        <Ionicons name={icon} size={28} color={color} />
       </View>
       <Text style={s.actionLabel}>{label}</Text>
-      <Text style={[s.actionSub, { color: color + 'AA' }]}>{sub}</Text>
+      <Text style={[s.actionSub, { color: color + 'BB' }]}>{sub}</Text>
     </TouchableOpacity>
   );
 }
@@ -627,104 +631,78 @@ const s = StyleSheet.create({
     gap: 10,
     marginBottom: SPACING.md,
   },
-  gachaBanner: {
+  // ── 배너 공통 (비율 맞춤) ──
+  bannerBase: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     marginHorizontal: SPACING.md,
     marginBottom: SPACING.md,
     backgroundColor: COLORS.bgCard,
-    borderRadius: RADIUS.md,
-    padding: SPACING.md,
+    borderRadius: RADIUS.lg,
+    paddingVertical: 14,
+    paddingHorizontal: SPACING.md,
     borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.40)',
     overflow: 'hidden',
     position: 'relative',
+  },
+  bannerGlowBg: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+  bannerLeft: { flexDirection: 'row', alignItems: 'center', gap: 14, flex: 1 },
+  bannerIconBox: {
+    width: 54, height: 54,
+    borderRadius: RADIUS.md + 2,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1.5,
+  },
+  bannerEmoji: { fontSize: 28 },
+  bannerTextCol: { flex: 1, gap: 2 },
+  bannerTitle: { fontSize: FONTS.md + 1, fontWeight: '900', letterSpacing: -0.3 },
+  bannerTag: { fontSize: 10, fontFamily: 'monospace', fontWeight: '800', letterSpacing: 0.8 },
+  bannerDesc: { fontSize: FONTS.xs, color: COLORS.textMuted, marginTop: 1 },
+
+  // 개별 배너 (색상만 다름)
+  gachaBanner: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    marginHorizontal: SPACING.md, marginBottom: SPACING.md,
+    backgroundColor: COLORS.bgCard, borderRadius: RADIUS.lg,
+    paddingVertical: 14, paddingHorizontal: SPACING.md,
+    borderWidth: 1, borderColor: 'rgba(167,139,250,0.45)',
+    overflow: 'hidden', position: 'relative',
   },
   brickBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginHorizontal: SPACING.md,
-    marginBottom: SPACING.md,
-    backgroundColor: COLORS.bgCard,
-    borderRadius: RADIUS.md,
-    padding: SPACING.md,
-    borderWidth: 1,
-    borderColor: 'rgba(34,211,238,0.38)',
-    overflow: 'hidden',
-    position: 'relative',
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    marginHorizontal: SPACING.md, marginBottom: SPACING.md,
+    backgroundColor: COLORS.bgCard, borderRadius: RADIUS.lg,
+    paddingVertical: 14, paddingHorizontal: SPACING.md,
+    borderWidth: 1, borderColor: 'rgba(34,211,238,0.42)',
+    overflow: 'hidden', position: 'relative',
   },
   minigameBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginHorizontal: SPACING.md,
-    marginBottom: SPACING.md,
-    backgroundColor: COLORS.bgCard,
-    borderRadius: RADIUS.md,
-    padding: SPACING.md,
-    borderWidth: 1,
-    borderColor: 'rgba(239,68,68,0.40)',
-    overflow: 'hidden',
-    position: 'relative',
-  },
-  gachaBannerGlow: {
-    position: 'absolute',
-    top: 0, left: 0, right: 0, bottom: 0,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    marginHorizontal: SPACING.md, marginBottom: SPACING.md,
+    backgroundColor: COLORS.bgCard, borderRadius: RADIUS.lg,
+    paddingVertical: 14, paddingHorizontal: SPACING.md,
+    borderWidth: 1, borderColor: 'rgba(239,68,68,0.45)',
+    overflow: 'hidden', position: 'relative',
   },
   coachBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginHorizontal: SPACING.md,
-    marginBottom: SPACING.md,
-    backgroundColor: COLORS.bgCard,
-    borderRadius: RADIUS.md,
-    padding: SPACING.md,
-    borderWidth: 1,
-    borderColor: COLORS.purple + '44',
-    overflow: 'hidden',
-    position: 'relative',
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    marginHorizontal: SPACING.md, marginBottom: SPACING.md,
+    backgroundColor: COLORS.bgCard, borderRadius: RADIUS.lg,
+    paddingVertical: 14, paddingHorizontal: SPACING.md,
+    borderWidth: 1, borderColor: COLORS.purple + '50',
+    overflow: 'hidden', position: 'relative',
   },
-  coachBannerGlow: {
-    position: 'absolute',
-    top: 0, left: 0, right: 0, bottom: 0,
-    backgroundColor: COLORS.purpleGlow,
-  },
-  coachBannerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  coachIconWrap: {
-    width: 38, height: 38,
-    borderRadius: RADIUS.md,
-    backgroundColor: COLORS.purple + '22',
-    borderWidth: 1,
-    borderColor: COLORS.purple + '44',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  coachBannerTitle: {
-    fontSize: FONTS.sm,
-    fontWeight: '700',
-    color: COLORS.purple,
-    marginBottom: 2,
-  },
-  coachBannerSub: {
-    fontSize: FONTS.xxs,
-    color: COLORS.textMuted,
-    fontFamily: 'monospace',
-  },
+
+  // ── 액션 카드 (게임 버튼 스타일) ──
   actionCard: {
     flex: 1,
     backgroundColor: COLORS.bgCard,
     borderRadius: RADIUS.lg,
     padding: SPACING.md,
-    paddingVertical: SPACING.md + 4,
+    paddingVertical: SPACING.lg,
     borderWidth: 1,
-    gap: 10,
+    gap: 12,
     overflow: 'hidden',
     position: 'relative',
   },
@@ -732,11 +710,11 @@ const s = StyleSheet.create({
     position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
   },
   actionIcon: {
-    width: 40, height: 40, borderRadius: 12,
+    width: 52, height: 52, borderRadius: 14,
     alignItems: 'center', justifyContent: 'center',
   },
-  actionLabel: { fontSize: FONTS.sm, fontWeight: '800', color: COLORS.text },
-  actionSub: { fontSize: FONTS.xxs, fontFamily: 'monospace', letterSpacing: 0.5, fontWeight: '700' },
+  actionLabel: { fontSize: FONTS.md, fontWeight: '900', color: COLORS.text, letterSpacing: -0.3 },
+  actionSub: { fontSize: FONTS.xs, fontFamily: 'monospace', letterSpacing: 0.5, fontWeight: '700' },
 
   // Modal
   modalOverlay: {
