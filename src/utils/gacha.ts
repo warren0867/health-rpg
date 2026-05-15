@@ -221,6 +221,40 @@ export async function useScroll(scrollId: string): Promise<GachaBonus | null> {
   return bonus;
 }
 
+// ─── 주문서 합성 (같은 등급 3개 → 한 단계 위) ───────────────
+
+const RARITY_UP: Partial<Record<GachaRarity, GachaRarity>> = {
+  common: 'rare',
+  rare:   'epic',
+  epic:   'legendary',
+};
+
+export async function fuseScrolls(scrollIds: string[]): Promise<GachaScroll | null> {
+  if (scrollIds.length !== 3) return null;
+  const inv = await getGachaInventory();
+  const scrolls = scrollIds.map(id => inv.scrolls.find(s => s.id === id)).filter((s): s is GachaScroll => !!s);
+  if (scrolls.length !== 3) return null;
+
+  const rarity = scrolls[0].rarity;
+  if (!scrolls.every(s => s.rarity === rarity)) return null;
+
+  const nextRarity = RARITY_UP[rarity];
+  if (!nextRarity) return null; // legendary는 합성 불가
+
+  const pool = SCROLL_POOL.filter(t => t.rarity === nextRarity);
+  if (pool.length === 0) return null;
+  const tpl = pool[Math.floor(Math.random() * pool.length)];
+
+  const newScroll: GachaScroll = {
+    id: generateId(), name: tpl.name, emoji: tpl.emoji,
+    rarity: nextRarity, stat: tpl.stat, bonus: tpl.bonus, durationDays: tpl.durationDays,
+  };
+
+  const remaining = inv.scrolls.filter(s => !scrollIds.includes(s.id));
+  await setGachaInventory({ ...inv, scrolls: [...remaining, newScroll] });
+  return newScroll;
+}
+
 // ─── 현재 활성 버프 합산 ─────────────────────────────────────
 
 export function sumActiveBonuses(bonuses: GachaBonus[]): Partial<Record<StatKey, number>> {

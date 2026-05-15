@@ -2,10 +2,11 @@ import { getEvoStage } from '../components/AvatarEvo';
 import { DailyLog, InBodyRecord, PermanentStats, UserProfile } from '../types';
 import { RecentCondition } from './permanentStats';
 
+// 빠른 순서로 정렬 — 앞에서 429 나오면 다음 모델로 폴백
 const OR_MODELS = [
+  'google/gemini-2.0-flash-exp:free',
+  'deepseek/deepseek-chat:free',
   'meta-llama/llama-3.3-70b-instruct:free',
-  'nousresearch/hermes-3-llama-3.1-405b:free',
-  'deepseek/deepseek-v4-flash:free',
 ];
 const OR_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
@@ -139,22 +140,7 @@ export function buildSystemPrompt(
   inbodyRecords: InBodyRecord[],
   conditionInfo?: RecentCondition,
 ): string {
-  return `당신은 HealthRPG 앱의 전담 AI 건강 코치입니다.
-사용자의 실제 건강 데이터를 기반으로 따뜻하고 구체적인 피드백을 줍니다.
-
-[핵심 원칙]
-1. 칭찬은 구체적으로 — "잘했어요"가 아닌 "수면 7.5시간 덕분에 회복이 완벽했어요"처럼 수치 기반
-2. 비판 대신 설명 — "이건 나빠요"가 아닌 "음주 후 혈당이 올라가는 이유"를 알려주기
-3. 목표 연결 — 오늘의 행동이 사용자 목표(${GOAL_LABEL[profile.goal] ?? profile.goal})에 어떤 영향인지 연결
-4. RPG 언어 자연스럽게 — EVO 단계, 스탯 성장을 게임처럼 표현
-5. 짧고 임팩트 있게 — 핵심만. 이모지 적절히 활용
-
-[인바디 분석]
-- 골격근량이 적으면 근육 증가에 도움되는 구체적 행동 제안
-- 체지방률이 높으면 식이·운동 전략 제안
-- 개선이 있으면 수치로 직접 칭찬
-
-[응답] 반드시 한국어로만 응답
+  return `HealthRPG AI 건강 코치. 반드시 한국어로만 답. 짧고 임팩트 있게. 수치 기반 칭찬. 목표(${GOAL_LABEL[profile.goal] ?? profile.goal}) 연결. RPG 언어 자연스럽게.
 
 ${buildUserContext(profile, permStats, recentLogs, inbodyRecords, conditionInfo)}`;
 }

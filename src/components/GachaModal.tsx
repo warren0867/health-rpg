@@ -13,7 +13,7 @@ import {
 import {
   SINGLE_COST, TEN_COST,
   applyXpPotions, canDailyFreePull, doDailyFreePull, doPull,
-  getGachaInventory, useScroll,
+  fuseScrolls, getGachaInventory, useScroll,
 } from '../utils/gacha';
 
 interface Props {
@@ -248,6 +248,13 @@ export default function GachaModal({ visible, onClose, addXpFn, onInventoryChang
   const [canFree, setCanFree] = useState(false);
   const sheetAnim             = useRef(new Animated.Value(0)).current;
 
+  // 합성 모드
+  const [fuseMode, setFuseMode]         = useState(false);
+  const [selected, setSelected]         = useState<string[]>([]); // scrollId[]
+  const [fusing, setFusing]             = useState(false);
+  const [fuseResult, setFuseResult]     = useState<GachaScroll | null>(null);
+  const fuseResultAnim                  = useRef(new Animated.Value(0)).current;
+
   const loadInv = async () => {
     const data = await getGachaInventory();
     setInv(data);
@@ -310,6 +317,40 @@ export default function GachaModal({ visible, onClose, addXpFn, onInventoryChang
       onInventoryChanged();
     }
   };
+
+  // 합성 선택 토글
+  const toggleSelect = (scrollId: string, rarity: string) => {
+    setSelected(prev => {
+      if (prev.includes(scrollId)) return prev.filter(id => id !== scrollId);
+      if (prev.length >= 3) return prev; // 최대 3개
+      // 이미 선택된 등급과 다르면 무시
+      if (prev.length > 0) {
+        const firstRarity = inv?.scrolls.find(s => s.id === prev[0])?.rarity;
+        if (firstRarity && firstRarity !== rarity) return prev;
+      }
+      return [...prev, scrollId];
+    });
+  };
+
+  const handleFuse = async () => {
+    if (selected.length !== 3 || fusing) return;
+    setFusing(true);
+    fuseResultAnim.setValue(0);
+    const newScroll = await fuseScrolls(selected);
+    setFusing(false);
+    setSelected([]);
+    if (newScroll) {
+      setFuseResult(newScroll);
+      Animated.spring(fuseResultAnim, { toValue: 1, tension: 80, friction: 7, useNativeDriver: true }).start();
+      await loadInv();
+      onInventoryChanged();
+    }
+  };
+
+  const closeFuseResult = () => { setFuseResult(null); fuseResultAnim.setValue(0); };
+
+  const selectedRarity = selected.length > 0 ? inv?.scrolls.find(s => s.id === selected[0])?.rarity : null;
+  const RARITY_NEXT_LABEL: Record<string, string> = { common: '→ 희귀', rare: '→ 영웅', epic: '→ 전설' };
 
   const hasScrollsInResult = results?.some(r => r.type === 'scroll') ?? false;
   const scrollCount = inv?.scrolls.length ?? 0;
@@ -487,20 +528,125 @@ export default function GachaModal({ visible, onClose, addXpFn, onInventoryChang
                 </View>
               ) : (
                 <>
-                  <Text style={s.listHeader}>{inv.scrolls.length}개 주문서 보유</Text>
-                  {inv.scrolls.map(scroll => (
-                    <ScrollCard
-                      key={scroll.id}
-                      scroll={scroll}
-                      currentStatVal={permStats ? permStats[scroll.stat] : 0}
-                      activeBonusForStat={activeBonusByStatMap[scroll.stat] ?? 0}
-                      onUse={() => handleUseScroll(scroll.id)}
-                    />
-                  ))}
+                  {/* 헤더 + 합성 토글 */}
+                  <View style={s.invHeader}>
+                    <Text style={s.listHeader}>{inv.scrolls.length}개 주문서 보유</Text>
+                    <TouchableOpacity
+                      style={[s.fuseToggleBtn, fuseMode && { backgroundColor: '#A78BFA', borderColor: '#A78BFA' }]}
+                      onPress={() => { setFuseMode(m => !m); setSelected([]); }}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={s.fuseToggleEmoji}>⚗️</Text>
+                      <Text style={[s.fuseToggleTxt, fuseMode && { color: '#000' }]}>
+                        {fuseMode ? '합성 취소' : '합성하기'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* 합성 안내 */}
+                  {fuseMode && (
+                    <View style={s.fuseGuide}>
+                      <Ionicons name="information-circle" size={14} color="#A78BFA" />
+                      <Text style={s.fuseGuideTxt}>
+                        같은 등급 주문서 3개를 선택하면 한 단계 위 등급으로 합성돼요
+                        {selectedRarity ? `  ✦ ${RARITY_NEXT_LABEL[selectedRarity] ?? ''}` : ''}
+                      </Text>
+                    </View>
+                  )}
+
+                  {inv.scrolls.map(scroll => {
+                    const isSelected = selected.includes(scroll.id);
+                    const isDisabled = fuseMode && !isSelected && selected.length === 3;
+                    const isWrongRarity = fuseMode && selected.length > 0 &&
+                      inv.scrolls.find(s => s.id === selected[0])?.rarity !== scroll.rarity;
+
+                    if (fuseMode) {
+                      const color = GACHA_RARITY_COLOR[scroll.rarity];
+                      return (
+                        <TouchableOpacity
+                          key={scroll.id}
+                          onPress={() => toggleSelect(scroll.id, scroll.rarity)}
+                          activeOpacity={0.8}
+                          disabled={isDisabled || isWrongRarity}
+                          style={[
+                            s.fuseCard,
+                            { borderColor: isSelected ? color : COLORS.border },
+                            isSelected && { backgroundColor: color + '18' },
+                            (isDisabled || isWrongRarity) && { opacity: 0.35 },
+                          ]}
+                        >
+                          {/* 선택 체크 */}
+                          <View style={[s.fuseCheck, isSelected && { backgroundColor: color, borderColor: color }]}>
+                            {isSelected && <Ionicons name="checkmark" size={12} color="#000" />}
+                          </View>
+                          <Text style={s.fuseCardEmoji}>{scroll.emoji}</Text>
+                          <View style={s.fuseCardInfo}>
+                            <Text style={[s.fuseCardName, { color: isSelected ? color : COLORS.text }]} numberOfLines={1}>{scroll.name}</Text>
+                            <Text style={s.fuseCardSub}>{GACHA_RARITY_LABEL[scroll.rarity]}  ·  {STAT_LABEL[scroll.stat]} +{scroll.bonus}</Text>
+                          </View>
+                          {isSelected && (
+                            <View style={[s.fuseSelNum, { backgroundColor: color }]}>
+                              <Text style={s.fuseSelNumTxt}>{selected.indexOf(scroll.id) + 1}</Text>
+                            </View>
+                          )}
+                        </TouchableOpacity>
+                      );
+                    }
+
+                    return (
+                      <ScrollCard
+                        key={scroll.id}
+                        scroll={scroll}
+                        currentStatVal={permStats ? permStats[scroll.stat] : 0}
+                        activeBonusForStat={activeBonusByStatMap[scroll.stat] ?? 0}
+                        onUse={() => handleUseScroll(scroll.id)}
+                      />
+                    );
+                  })}
+
+                  {/* 합성 실행 버튼 */}
+                  {fuseMode && (
+                    <TouchableOpacity
+                      style={[s.fuseBtn, selected.length === 3 && s.fuseBtnActive, fusing && { opacity: 0.6 }]}
+                      onPress={handleFuse}
+                      disabled={selected.length !== 3 || fusing}
+                      activeOpacity={0.85}
+                    >
+                      {fusing
+                        ? <ActivityIndicator color="#000" />
+                        : <>
+                            <Text style={s.fuseBtnEmoji}>⚗️</Text>
+                            <Text style={[s.fuseBtnTxt, selected.length === 3 && { color: '#000' }]}>
+                              {selected.length}/3 선택 {selected.length === 3 ? '— 합성하기!' : '— 같은 등급 3개 선택'}
+                            </Text>
+                          </>
+                      }
+                    </TouchableOpacity>
+                  )}
                 </>
               )}
               <View style={{ height: 24 }} />
             </ScrollView>
+          )}
+
+          {/* 합성 결과 오버레이 */}
+          {fuseResult && (
+            <Animated.View style={[s.fuseResultOverlay, { opacity: fuseResultAnim, transform: [{ scale: fuseResultAnim.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1] }) }] }]}>
+              <TouchableOpacity style={s.fuseResultBg} onPress={closeFuseResult} activeOpacity={1} />
+              <View style={[s.fuseResultCard, { borderColor: GACHA_RARITY_COLOR[fuseResult.rarity] + '88' }]}>
+                <View style={[s.fuseResultGlow, { backgroundColor: GACHA_RARITY_COLOR[fuseResult.rarity] + '20' }]} pointerEvents="none" />
+                <Text style={s.fuseResultTitle}>✦ 합성 성공!</Text>
+                <Text style={s.fuseResultEmoji}>{fuseResult.emoji}</Text>
+                <Text style={[s.fuseResultName, { color: GACHA_RARITY_COLOR[fuseResult.rarity] }]}>{fuseResult.name}</Text>
+                <View style={[s.fuseResultPill, { backgroundColor: GACHA_RARITY_COLOR[fuseResult.rarity] + '22', borderColor: GACHA_RARITY_COLOR[fuseResult.rarity] + '66' }]}>
+                  <Text style={[s.fuseResultRarity, { color: GACHA_RARITY_COLOR[fuseResult.rarity] }]}>{GACHA_RARITY_LABEL[fuseResult.rarity]}</Text>
+                </View>
+                <Text style={s.fuseResultStat}>{STAT_LABEL[fuseResult.stat]} +{fuseResult.bonus}  ·  {fuseResult.durationDays}일</Text>
+                <TouchableOpacity style={[s.fuseResultBtn, { backgroundColor: GACHA_RARITY_COLOR[fuseResult.rarity] }]} onPress={closeFuseResult} activeOpacity={0.8}>
+                  <Text style={s.fuseResultBtnTxt}>인벤토리에 추가됨!</Text>
+                </TouchableOpacity>
+              </View>
+            </Animated.View>
           )}
 
           {/* ── 활성 버프 탭 ── */}
@@ -639,6 +785,80 @@ const s = StyleSheet.create({
   summaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   summaryKey: { fontSize: FONTS.sm, color: COLORS.textSub, fontWeight: '700' },
   summaryVal: { fontSize: FONTS.md, fontWeight: '900', fontFamily: 'monospace' },
+
+  // 합성 UI
+  invHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: SPACING.sm },
+  fuseToggleBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    backgroundColor: COLORS.bgCard, borderRadius: RADIUS.full,
+    paddingHorizontal: 12, paddingVertical: 6,
+    borderWidth: 1, borderColor: COLORS.border,
+  },
+  fuseToggleEmoji: { fontSize: 13 },
+  fuseToggleTxt: { fontSize: FONTS.xxs, fontWeight: '800', color: COLORS.textSub, fontFamily: 'monospace' },
+
+  fuseGuide: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 7,
+    backgroundColor: '#A78BFA14', borderRadius: RADIUS.md, padding: 10,
+    marginBottom: SPACING.sm, borderWidth: 1, borderColor: '#A78BFA33',
+  },
+  fuseGuideTxt: { flex: 1, fontSize: FONTS.xxs, color: '#A78BFA', lineHeight: 16, fontFamily: 'monospace' },
+
+  fuseCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: COLORS.bgCard, borderRadius: RADIUS.md,
+    borderWidth: 1.5, padding: 12, marginBottom: 8,
+  },
+  fuseCheck: {
+    width: 22, height: 22, borderRadius: 11,
+    borderWidth: 2, borderColor: COLORS.border,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  fuseCardEmoji: { fontSize: 26 },
+  fuseCardInfo: { flex: 1, gap: 3 },
+  fuseCardName: { fontSize: FONTS.sm, fontWeight: '800' },
+  fuseCardSub: { fontSize: FONTS.xxs, color: COLORS.textMuted, fontFamily: 'monospace' },
+  fuseSelNum: {
+    width: 22, height: 22, borderRadius: 11,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  fuseSelNumTxt: { fontSize: 12, fontWeight: '900', color: '#000' },
+
+  fuseBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    backgroundColor: COLORS.bgCard, borderRadius: RADIUS.md,
+    paddingVertical: 16, marginTop: 4,
+    borderWidth: 1, borderColor: COLORS.border,
+  },
+  fuseBtnActive: { backgroundColor: '#A78BFA', borderColor: '#A78BFA' },
+  fuseBtnEmoji: { fontSize: 18 },
+  fuseBtnTxt: { fontSize: FONTS.sm, fontWeight: '900', color: COLORS.textDisabled, fontFamily: 'monospace' },
+
+  // 합성 결과 팝업
+  fuseResultOverlay: {
+    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+    alignItems: 'center', justifyContent: 'center',
+    zIndex: 100,
+  },
+  fuseResultBg: {
+    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.75)',
+  },
+  fuseResultCard: {
+    backgroundColor: COLORS.bgCard, borderRadius: RADIUS.xl,
+    borderWidth: 2, padding: SPACING.lg + 4,
+    alignItems: 'center', gap: 10, width: 260,
+    overflow: 'hidden',
+  },
+  fuseResultGlow: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+  fuseResultTitle: { fontSize: FONTS.sm, fontWeight: '900', color: COLORS.amber, fontFamily: 'monospace', letterSpacing: 1 },
+  fuseResultEmoji: { fontSize: 64, marginVertical: 4 },
+  fuseResultName: { fontSize: FONTS.lg, fontWeight: '900', textAlign: 'center' },
+  fuseResultPill: { borderRadius: RADIUS.full, paddingHorizontal: 14, paddingVertical: 4, borderWidth: 1 },
+  fuseResultRarity: { fontSize: FONTS.xs, fontWeight: '900', fontFamily: 'monospace' },
+  fuseResultStat: { fontSize: FONTS.sm, color: COLORS.textMuted, fontFamily: 'monospace', marginTop: 2 },
+  fuseResultBtn: { borderRadius: RADIUS.md, paddingHorizontal: 24, paddingVertical: 12, marginTop: 4 },
+  fuseResultBtnTxt: { fontSize: FONTS.sm, fontWeight: '900', color: '#000' },
 });
 
 // ── 결과 카드 스타일 ──────────────────────────────────────────
