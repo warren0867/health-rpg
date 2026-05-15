@@ -20,6 +20,7 @@ interface Props {
   onClose: () => void;
   addXpFn: (xp: number) => Promise<any>;
   onInventoryChanged: () => void;
+  initialTab?: Tab;
 }
 
 type Tab = 'pull' | 'inventory' | 'bonus';
@@ -171,8 +172,8 @@ function BonusCard({ bonus }: { bonus: GachaBonus }) {
 }
 
 // ── 메인 컴포넌트 ─────────────────────────────────────────────
-export default function GachaModal({ visible, onClose, addXpFn, onInventoryChanged }: Props) {
-  const [tab, setTab]         = useState<Tab>('pull');
+export default function GachaModal({ visible, onClose, addXpFn, onInventoryChanged, initialTab }: Props) {
+  const [tab, setTab]         = useState<Tab>(initialTab ?? 'pull');
   const [pulling, setPulling] = useState(false);
   const [results, setResults] = useState<GachaPullResult[] | null>(null);
   const [inv, setInv]         = useState<GachaInventory | null>(null);
@@ -192,7 +193,7 @@ export default function GachaModal({ visible, onClose, addXpFn, onInventoryChang
     } else {
       sheetAnim.setValue(0);
       setResults(null);
-      setTab('pull');
+      setTab(initialTab ?? 'pull');
     }
   }, [visible]);
 

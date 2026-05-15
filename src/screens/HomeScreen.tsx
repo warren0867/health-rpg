@@ -71,6 +71,7 @@ export default function HomeScreen() {
   const [bossState, setBossState] = useState<WeeklyBossState | null>(null);
   const [gachaInv, setGachaInv] = useState<GachaInventory | null>(null);
   const [showGacha, setShowGacha] = useState(false);
+  const [gachaInitialTab, setGachaInitialTab] = useState<'pull' | 'inventory' | 'bonus'>('pull');
   const [showMiniGame, setShowMiniGame] = useState(false);
   const [showBrickBreaker, setShowBrickBreaker] = useState(false);
 
@@ -329,7 +330,7 @@ export default function HomeScreen() {
           />
         </View>
 
-        <SectionLabel>콘텐츠</SectionLabel>
+        <SectionLabel>게임</SectionLabel>
         <View style={s.menuGrid}>
           <GameMenuCard
             emoji="⚔️"
@@ -345,18 +346,36 @@ export default function HomeScreen() {
             color={COLORS.primary}
             onPress={() => setShowBrickBreaker(true)}
           />
+        </View>
+
+        <SectionLabel>가챠</SectionLabel>
+        <View style={s.menuGrid}>
           <GameMenuCard
             emoji="⚗️"
             title="마법 뽑기"
             tag={`GACHA · ${gachaInv?.gold ?? 0}G`}
             color="#A78BFA"
-            onPress={() => setShowGacha(true)}
+            onPress={() => { setGachaInitialTab('pull'); setShowGacha(true); }}
+          />
+          <GameMenuCard
+            emoji="🎒"
+            title="인벤토리"
+            tag={`주문서 ${gachaInv?.scrolls?.length ?? 0}개`}
+            color="#34D399"
+            onPress={() => { setGachaInitialTab('inventory'); setShowGacha(true); }}
+          />
+          <GameMenuCard
+            emoji="✨"
+            title="활성 버프"
+            tag={`버프 ${gachaInv?.activeBonuses?.length ?? 0}개`}
+            color={COLORS.amber}
+            onPress={() => { setGachaInitialTab('bonus'); setShowGacha(true); }}
           />
           <GameMenuCard
             emojiIcon="sparkles"
             title="AI 코치"
             tag="AI COACH"
-            color="#A78BFA"
+            color="#60A5FA"
             onPress={() => navigation.navigate('Coach')}
           />
         </View>
@@ -370,6 +389,7 @@ export default function HomeScreen() {
         onClose={() => setShowGacha(false)}
         addXpFn={addXP}
         onInventoryChanged={() => { getGachaInventory().then(setGachaInv); }}
+        initialTab={gachaInitialTab}
       />
 
       {/* ── 벽돌깨기 모달 ── */}
@@ -598,11 +618,12 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     paddingHorizontal: SPACING.md,
-    gap: 10,
+    rowGap: 10,
+    justifyContent: 'space-between',
     marginBottom: SPACING.md,
   },
   menuCard: {
-    width: '48.5%',
+    width: '49%',
     backgroundColor: COLORS.bgCard,
     borderRadius: RADIUS.lg,
     borderWidth: 1,
