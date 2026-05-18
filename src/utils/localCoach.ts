@@ -335,8 +335,10 @@ function replyAlcohol(ctx: CoachContext): string {
 export function getLocalCoachReply(userMessage: string, ctx: CoachContext): string | null {
   const msg = userMessage.toLowerCase().trim();
 
-  // 인사·짧은 메시지
-  if (/안녕|hi|hello|처음|시작|하이|ㅎㅇ|ㅎㅎ|반가|오|야|이봐/.test(msg) || msg.length <= 3) {
+  // 인사·짧은 메시지 (야·오 제거 — 해야돼·앞으로 등 내부에서 오탐)
+  if (/안녕|하이|ㅎㅇ|ㅎㅎ|반가|hi|hello|처음|시작/.test(msg) ||
+      msg.length <= 3 ||
+      /^(야|오|이봐|헤이)$/.test(msg)) {
     return replyGreeting(ctx);
   }
 

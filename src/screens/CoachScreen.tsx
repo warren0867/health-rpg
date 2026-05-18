@@ -339,7 +339,8 @@ export default function CoachScreen() {
             blurOnSubmit={false}
             onSubmitEditing={send}
             onKeyPress={(e: any) => {
-              if (e.nativeEvent.key === 'Enter' && !e.nativeEvent.shiftKey) {
+              // isComposing: 한글 IME 조합 중 Enter로 글자 확정 시 중복 전송 방지
+              if (e.nativeEvent.key === 'Enter' && !e.nativeEvent.shiftKey && !e.nativeEvent.isComposing) {
                 e.preventDefault?.();
                 send();
               }
