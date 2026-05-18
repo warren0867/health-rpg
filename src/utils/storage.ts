@@ -24,6 +24,8 @@ const KEYS = {
   PERMANENT_STATS: 'hrpg_permanent_stats',
   EXERCISE_ENTRIES: 'hrpg_exercise_entries',
   INBODY_RECORDS: 'hrpg_inbody_records',
+  PERM_STAT_HISTORY: 'hrpg_perm_stat_history',
+  WEEKLY_REPORT: 'hrpg_weekly_report',
 } as const;
 
 // ─────────────────────────────────────────────
@@ -815,6 +817,7 @@ export async function recalcAndSavePermanentStats(): Promise<PermanentStats> {
     inbodyRecords: inbody,
   });
   await setPermanentStats(stats);
+  await savePermStatSnapshot(stats);
   return stats;
 }
 
@@ -844,6 +847,65 @@ export async function deleteInBodyRecord(id: string): Promise<void> {
 export async function getLatestInBody(): Promise<InBodyRecord | null> {
   const all = await getInBodyRecords();
   return all[0] ?? null;
+}
+
+// ─────────────────────────────────────────────
+//  영구 스탯 성장 히스토리 (날짜별 스냅샷)
+// ─────────────────────────────────────────────
+
+export interface PermStatSnapshot {
+  date: string; // YYYY-MM-DD
+  str: number; end: number; vit: number; agi: number; wis: number;
+  totalGained: number;
+}
+
+export async function savePermStatSnapshot(stats: PermanentStats): Promise<void> {
+  const raw = await AsyncStorage.getItem(KEYS.PERM_STAT_HISTORY);
+  const history: PermStatSnapshot[] = raw ? safeParse<PermStatSnapshot[]>(raw, []) : [];
+  const today = new Date().toISOString().slice(0, 10);
+  // 오늘 날짜 스냅샷이 이미 있으면 덮어씀
+  const filtered = history.filter(s => s.date !== today);
+  filtered.push({ date: today, str: stats.str, end: stats.end, vit: stats.vit, agi: stats.agi, wis: stats.wis, totalGained: stats.totalGained });
+  // 최대 90일 보관
+  const trimmed = filtered.sort((a, b) => a.date.localeCompare(b.date)).slice(-90);
+  await AsyncStorage.setItem(KEYS.PERM_STAT_HISTORY, JSON.stringify(trimmed));
+}
+
+export async function getPermStatHistory(): Promise<PermStatSnapshot[]> {
+  const raw = await AsyncStorage.getItem(KEYS.PERM_STAT_HISTORY);
+  if (!raw) return [];
+  return safeParse<PermStatSnapshot[]>(raw, []).sort((a, b) => a.date.localeCompare(b.date));
+}
+
+// ─────────────────────────────────────────────
+//  AI 주간 리포트 캐시
+// ─────────────────────────────────────────────
+
+export interface WeeklyReport {
+  weekKey: string;   // "YYYY-WNN"
+  content: string;   // AI 생성 리포트 텍스트
+  generatedAt: string;
+}
+
+function getCurrentWeekKey(): string {
+  const d = new Date();
+  const year = d.getFullYear();
+  const start = new Date(year, 0, 1);
+  const week = Math.ceil(((d.getTime() - start.getTime()) / 86400000 + start.getDay() + 1) / 7);
+  return `${year}-W${String(week).padStart(2, '0')}`;
+}
+
+export async function getWeeklyReport(): Promise<WeeklyReport | null> {
+  const raw = await AsyncStorage.getItem(KEYS.WEEKLY_REPORT);
+  const report = safeParse<WeeklyReport | null>(raw, null);
+  if (!report) return null;
+  // 이번 주 key와 다르면 만료 처리
+  if (report.weekKey !== getCurrentWeekKey()) return null;
+  return report;
+}
+
+export async function saveWeeklyReport(report: WeeklyReport): Promise<void> {
+  await AsyncStorage.setItem(KEYS.WEEKLY_REPORT, JSON.stringify(report));
 }
 
 // 역대 최장 streak (영구 보너스 산정용)

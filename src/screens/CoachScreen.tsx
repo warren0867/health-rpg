@@ -129,10 +129,8 @@ export default function CoachScreen() {
     try {
       const reply = await sendChatMessage({ messages: history, profile, recentLogs, inbodyRecords, permStats, conditionInfo });
       pushMsg({ id: generateId(), kind: 'chat', role: 'assistant', content: reply });
-    } catch (err) {
-      const detail = err instanceof Error ? err.message : String(err);
-      console.error('Chat error:', detail);
-      pushMsg({ id: generateId(), kind: 'chat', role: 'assistant', content: `잠깐 문제가 생겼어요 🙏\n(${detail})` });
+    } catch {
+      pushMsg({ id: generateId(), kind: 'chat', role: 'assistant', content: '서버가 일시적으로 바쁩니다. 잠시 후 다시 시도해주세요.' });
     } finally { setResponding(false); scrollToBottom(); }
   }, [messages, profile, permStats, recentLogs, inbodyRecords, conditionInfo]);
 

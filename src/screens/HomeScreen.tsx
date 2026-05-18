@@ -13,6 +13,7 @@ import GachaModal from '../components/GachaModal';
 import BrickBreakerModal from '../components/BrickBreakerModal';
 import MiniGameModal from '../components/MiniGameModal';
 import PermanentStatPanel from '../components/PermanentStatPanel';
+import SkillPanel from '../components/SkillPanel';
 import QuestList, { Quest } from '../components/QuestList';
 import StatGrid from '../components/StatGrid';
 import WeeklyBossCard from '../components/WeeklyBossCard';
@@ -26,15 +27,16 @@ import {
   addWater, addXP, calcImmunity, generateId, getAllDailyLogs, getCurrentIllness,
   getDailyLog, getFoodEntriesByDate, getLatestWeight, getMorningBS,
   getPermanentStats, getRecentDailyLogs, getRecentMorningBS, getStreak,
-  getTodayKey, getUnlockedAchievementIds, getUserProfile, getUserXP,
+  getTodayKey, getUnlockedAchievementIds, getUnlockedAchievements, getUserProfile, getUserXP,
   getWaterLog, getWaterStreak, recalcAndSavePermanentStats, saveMorningBS,
   saveUserProfile, sumFoodEntries, unlockAchievement, updateChallengeProgress,
 } from '../utils/storage';
 import { RecentCondition, calcRecentCondition } from '../utils/permanentStats';
 import { StatusEffect, calcStatusEffects } from '../utils/statusEffects';
 import { WeeklyBossState, claimBossReward, updateWeeklyBoss } from '../utils/weeklyBoss';
-import { GachaBonus, GachaInventory } from '../types';
+import { GachaBonus, GachaInventory, ACHIEVEMENT_DEFS, UnlockedAchievement } from '../types';
 import { addGold, getGachaInventory } from '../utils/gacha';
+import { NotifSettings, getNotifSettings, saveNotifSettings, scheduleAllNotifications, requestPermissions } from '../utils/notifications';
 
 /**
  * 홈 화면 — Vital Quest 디자인 v1
@@ -76,6 +78,9 @@ export default function HomeScreen() {
   const [showBrickBreaker, setShowBrickBreaker] = useState(false);
 
   // 모달
+  const [recentAchievements, setRecentAchievements] = useState<UnlockedAchievement[]>([]);
+  const [showNotifModal, setShowNotifModal] = useState(false);
+  const [notifSettings, setNotifSettings] = useState<NotifSettings | null>(null);
   const [showBSModal, setShowBSModal] = useState(false);
   const [bsInput, setBsInput] = useState('');
   const [showProfileModal, setShowProfileModal] = useState(false);
@@ -126,6 +131,8 @@ export default function HomeScreen() {
     setBossState(boss);
     const gacha = await getGachaInventory();
     setGachaInv(gacha);
+    const allAch = await getUnlockedAchievements();
+    setRecentAchievements([...allAch].sort((a, b) => b.unlockedAt.localeCompare(a.unlockedAt)).slice(0, 3));
 
     setLoading(false);
   }, [today]);
@@ -222,7 +229,7 @@ export default function HomeScreen() {
               {greeting}, <Text style={s.titleAccent}>{profile?.name ?? '용사'}</Text>님
             </Text>
           </View>
-          <TouchableOpacity style={s.iconBtn} onPress={() => Alert.alert('알림', '알림 설정은 준비중이에요')}>
+          <TouchableOpacity style={s.iconBtn} onPress={async () => { const ns = await getNotifSettings(); setNotifSettings(ns); setShowNotifModal(true); }}>
             <Ionicons name="notifications-outline" size={20} color={COLORS.textSub} />
           </TouchableOpacity>
         </View>
@@ -288,6 +295,10 @@ export default function HomeScreen() {
         <SectionLabel>영구 능력치</SectionLabel>
         <PermanentStatPanel stats={permStats} activeBonuses={gachaInv?.activeBonuses ?? []} />
 
+        {/* ── 패시브 스킬 ── */}
+        <SectionLabel>패시브 스킬</SectionLabel>
+        <SkillPanel level={xpProgress?.level ?? 1} />
+
         {/* ── 오늘의 컨디션 (일일 변동) ── */}
         {stats ? (
           <>
@@ -311,74 +322,59 @@ export default function HomeScreen() {
         {/* ── 오늘의 퀘스트 ── */}
         <QuestList quests={quests} />
 
-        {/* ── 메뉴 그리드 ── */}
-        <SectionLabel>기록</SectionLabel>
-        <View style={s.menuGrid}>
-          <GameMenuCard
-            emoji="🍽️"
-            title="식단 기록"
-            tag="FOOD LOG"
-            color={COLORS.primary}
-            onPress={() => navigation.navigate('Calorie')}
-          />
-          <GameMenuCard
-            emoji="📋"
-            title="오늘 체크인"
-            tag="DAILY +50XP"
-            color={COLORS.amber}
-            onPress={() => navigation.navigate('Input')}
-          />
+        {/* ── 최근 업적 ── */}
+        {recentAchievements.length > 0 && (
+          <>
+            <SectionLabel>최근 업적</SectionLabel>
+            <View style={s.achRow}>
+              {recentAchievements.map(ua => {
+                const def = ACHIEVEMENT_DEFS[ua.id as keyof typeof ACHIEVEMENT_DEFS];
+                if (!def) return null;
+                return (
+                  <View key={ua.id} style={s.achCard}>
+                    <Text style={s.achEmoji}>{def.emoji}</Text>
+                    <Text style={s.achName}>{def.name}</Text>
+                    <Text style={s.achDesc}>{def.desc}</Text>
+                  </View>
+                );
+              })}
+            </View>
+          </>
+        )}
+
+        {/* ── 빠른 이동 ── */}
+        <View style={s.quickRow}>
+          {([
+            { icon: 'create-outline',     label: '체크인', color: COLORS.amber,   press: () => navigation.navigate('Input') },
+            { icon: 'restaurant-outline', label: '식단',   color: COLORS.primary, press: () => navigation.navigate('Calorie') },
+            { icon: 'water-outline',      label: '혈당',   color: COLORS.info,    press: () => navigation.navigate('BloodSugar') },
+            { icon: 'body-outline',       label: '인바디', color: COLORS.good,    press: () => navigation.navigate('InBody') },
+            { icon: 'bar-chart-outline',  label: '기록',   color: COLORS.purple,  press: () => navigation.navigate('History') },
+          ] as const).map(({ icon, label, color, press }) => (
+            <TouchableOpacity key={label} style={s.quickItem} onPress={press} activeOpacity={0.7}>
+              <View style={[s.quickIcon, { backgroundColor: color + '25' }]}>
+                <Ionicons name={icon} size={22} color={color} />
+              </View>
+              <Text style={s.quickLabel}>{label}</Text>
+            </TouchableOpacity>
+          ))}
         </View>
 
+        {/* ── 게임 ── */}
         <SectionLabel>게임</SectionLabel>
-        <View style={s.menuGrid}>
-          <GameMenuCard
-            emoji="⚔️"
-            title="보스 격파"
-            tag="BOSS BATTLE"
-            color="#EF4444"
-            onPress={() => setShowMiniGame(true)}
-          />
-          <GameMenuCard
-            emoji="🧱"
-            title="벽돌깨기"
-            tag="BREAKOUT"
-            color={COLORS.primary}
-            onPress={() => setShowBrickBreaker(true)}
-          />
-        </View>
+        <AppListSection>
+          <AppListRow icon="skull-outline" color="#EF4444" title="보스 격파" sub="주간 보스에 도전" onPress={() => setShowMiniGame(true)} />
+          <AppListRow icon="game-controller-outline" color={COLORS.primary} title="벽돌깨기" sub="아케이드 미니게임" onPress={() => setShowBrickBreaker(true)} last />
+        </AppListSection>
 
-        <SectionLabel>가챠</SectionLabel>
-        <View style={s.menuGrid}>
-          <GameMenuCard
-            emoji="⚗️"
-            title="마법 뽑기"
-            tag={`GACHA · ${gachaInv?.gold ?? 0}G`}
-            color="#A78BFA"
-            onPress={() => { setGachaInitialTab('pull'); setShowGacha(true); }}
-          />
-          <GameMenuCard
-            emoji="🎒"
-            title="인벤토리"
-            tag={`주문서 ${gachaInv?.scrolls?.length ?? 0}개`}
-            color="#34D399"
-            onPress={() => { setGachaInitialTab('inventory'); setShowGacha(true); }}
-          />
-          <GameMenuCard
-            emoji="✨"
-            title="활성 버프"
-            tag={`버프 ${gachaInv?.activeBonuses?.length ?? 0}개`}
-            color={COLORS.amber}
-            onPress={() => { setGachaInitialTab('bonus'); setShowGacha(true); }}
-          />
-          <GameMenuCard
-            emojiIcon="sparkles"
-            title="AI 코치"
-            tag="AI COACH"
-            color="#60A5FA"
-            onPress={() => navigation.navigate('Coach')}
-          />
-        </View>
+        {/* ── 아이템 & AI ── */}
+        <SectionLabel>아이템 & AI</SectionLabel>
+        <AppListSection>
+          <AppListRow icon="flask-outline" color="#A78BFA" title="마법 뽑기" sub="주문서·강화 아이템" badge={`${gachaInv?.gold ?? 0}G`} onPress={() => { setGachaInitialTab('pull'); setShowGacha(true); }} />
+          <AppListRow icon="bag-outline" color="#34D399" title="인벤토리" sub="보유 주문서" badge={`주문서 ${gachaInv?.scrolls?.length ?? 0}개`} onPress={() => { setGachaInitialTab('inventory'); setShowGacha(true); }} />
+          <AppListRow icon="star-outline" color={COLORS.amber} title="활성 버프" sub="능력치 강화 버프" badge={gachaInv?.activeBonuses?.length ? `${gachaInv.activeBonuses.length}개` : ''} onPress={() => { setGachaInitialTab('bonus'); setShowGacha(true); }} />
+          <AppListRow icon="chatbubble-ellipses-outline" color="#60A5FA" title="AI 코치" sub="건강 조언 & 채팅" onPress={() => navigation.navigate('Coach')} last />
+        </AppListSection>
 
         <View style={{ height: 40 }} />
       </ScrollView>
@@ -468,11 +464,100 @@ export default function HomeScreen() {
           </View>
         </View>
       </Modal>
+      {/* ── 알림 설정 모달 ── */}
+      {notifSettings && (
+        <Modal visible={showNotifModal} animationType="slide" transparent onRequestClose={() => setShowNotifModal(false)}>
+          <View style={s.modalOverlay}>
+            <View style={[s.modalSheet, { maxHeight: '85%' }]}>
+              <Text style={s.modalTitle}>알림 설정</Text>
+              <ScrollView showsVerticalScrollIndicator={false}>
+                <NotifToggleRow
+                  label="알림 전체 켜기"
+                  value={notifSettings.enabled}
+                  onToggle={v => setNotifSettings(prev => prev ? { ...prev, enabled: v } : prev)}
+                />
+                {notifSettings.enabled && (
+                  <>
+                    <Text style={s.notifSection}>아침</Text>
+                    <NotifToggleRow
+                      label="공복혈당 알림"
+                      sub={`${notifSettings.morningBSHour}:00`}
+                      value={notifSettings.morningBS}
+                      onToggle={v => setNotifSettings(prev => prev ? { ...prev, morningBS: v } : prev)}
+                    />
+                    <NotifToggleRow
+                      label="아침 식단 기록"
+                      sub={`${notifSettings.breakfastLogHour}:00`}
+                      value={notifSettings.breakfastLog}
+                      onToggle={v => setNotifSettings(prev => prev ? { ...prev, breakfastLog: v } : prev)}
+                    />
+                    <Text style={s.notifSection}>점심</Text>
+                    <NotifToggleRow
+                      label="점심 식단 기록"
+                      sub="12:30"
+                      value={notifSettings.mealLog}
+                      onToggle={v => setNotifSettings(prev => prev ? { ...prev, mealLog: v } : prev)}
+                    />
+                    <Text style={s.notifSection}>저녁</Text>
+                    <NotifToggleRow
+                      label="저녁 식단 기록"
+                      sub={`${notifSettings.dinnerLogHour}:00`}
+                      value={notifSettings.dinnerLog}
+                      onToggle={v => setNotifSettings(prev => prev ? { ...prev, dinnerLog: v } : prev)}
+                    />
+                    <NotifToggleRow
+                      label="저녁 종합 기록"
+                      sub={`${notifSettings.eveningLogHour}:00`}
+                      value={notifSettings.eveningLog}
+                      onToggle={v => setNotifSettings(prev => prev ? { ...prev, eveningLog: v } : prev)}
+                    />
+                  </>
+                )}
+              </ScrollView>
+              <View style={s.modalBtnRow}>
+                <TouchableOpacity style={s.modalBtnGhost} onPress={() => setShowNotifModal(false)}>
+                  <Text style={s.modalBtnGhostText}>취소</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={s.modalBtnPrimary}
+                  onPress={async () => {
+                    if (!notifSettings) return;
+                    if (notifSettings.enabled) {
+                      const granted = await requestPermissions();
+                      if (!granted) { Alert.alert('알림 권한', '설정에서 알림 권한을 허용해주세요'); return; }
+                    }
+                    await saveNotifSettings(notifSettings);
+                    await scheduleAllNotifications(notifSettings);
+                    setShowNotifModal(false);
+                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                  }}
+                >
+                  <Text style={s.modalBtnPrimaryText}>저장</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      )}
     </SafeAreaView>
   );
 }
 
 // ─── 작은 헬퍼 컴포넌트 ──────────────────────────────
+function NotifToggleRow({ label, sub, value, onToggle }: { label: string; sub?: string; value: boolean; onToggle: (v: boolean) => void }) {
+  return (
+    <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: COLORS.border }} onPress={() => onToggle(!value)} activeOpacity={0.7}>
+      <View style={{ flex: 1 }}>
+        <Text style={{ color: COLORS.text, fontSize: 14 }}>{label}</Text>
+        {sub && <Text style={{ color: COLORS.textSub, fontSize: 12, marginTop: 2 }}>{sub}</Text>}
+      </View>
+      <View style={{ width: 44, height: 24, borderRadius: 12, backgroundColor: value ? COLORS.primary : COLORS.border, justifyContent: 'center', paddingHorizontal: 2 }}>
+        <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: '#fff', alignSelf: value ? 'flex-end' : 'flex-start' }} />
+      </View>
+    </TouchableOpacity>
+  );
+}
+
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
     <View style={s.sectionLabelWrap}>
@@ -482,29 +567,25 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
-function GameMenuCard({ emoji, emojiIcon, title, tag, color, onPress }: {
-  emoji?: string; emojiIcon?: any; title: string; tag: string; color: string; onPress: () => void;
+function AppListSection({ children }: { children: React.ReactNode }) {
+  return <View style={s.listSection}>{children}</View>;
+}
+
+function AppListRow({ icon, color, title, sub, badge, last, onPress }: {
+  icon: any; color: string; title: string;
+  sub?: string; badge?: string; last?: boolean; onPress: () => void;
 }) {
   return (
-    <TouchableOpacity
-      style={[s.menuCard, { borderColor: color + '40' }]}
-      onPress={onPress}
-      activeOpacity={0.75}
-    >
-      {/* 아이콘 영역 */}
-      <View style={[s.menuIconArea, { backgroundColor: color + '18' }]}>
-        {/* 뒷 글로우 원 */}
-        <View style={[s.menuGlowCircle, { backgroundColor: color + '28' }]} pointerEvents="none" />
-        {emoji
-          ? <Text style={s.menuEmoji}>{emoji}</Text>
-          : <Ionicons name={emojiIcon} size={40} color={color} />
-        }
+    <TouchableOpacity style={[s.listRow, last && s.listRowLast]} onPress={onPress} activeOpacity={0.6}>
+      <View style={[s.listIconBox, { backgroundColor: color + '20' }]}>
+        <Ionicons name={icon} size={20} color={color} />
       </View>
-      {/* 라벨 영역 */}
-      <View style={[s.menuLabelArea, { borderTopColor: color + '22' }]}>
-        <Text style={s.menuTitle} numberOfLines={1}>{title}</Text>
-        <Text style={[s.menuTag, { color: color }]} numberOfLines={1}>{tag}</Text>
+      <View style={s.listText}>
+        <Text style={s.listTitle}>{title}</Text>
+        {sub && <Text style={s.listSub}>{sub}</Text>}
       </View>
+      {!!badge && <Text style={s.listBadge}>{badge}</Text>}
+      <Ionicons name="chevron-forward" size={16} color={COLORS.textDisabled} />
     </TouchableOpacity>
   );
 }
@@ -614,58 +695,60 @@ const s = StyleSheet.create({
     gap: 10,
     marginBottom: SPACING.md,
   },
-  // ── 게임 메뉴 그리드 ──
-  menuGrid: {
+
+  // ── 빠른 이동 ──
+  quickRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     paddingHorizontal: SPACING.md,
-    rowGap: 10,
-    justifyContent: 'space-between',
+    paddingVertical: 4,
     marginBottom: SPACING.md,
+    justifyContent: 'space-between',
   },
-  menuCard: {
-    width: '49%',
+  quickItem: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 6,
+  },
+  quickIcon: {
+    width: 52, height: 52, borderRadius: 16,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  quickLabel: {
+    fontSize: FONTS.xxs,
+    color: COLORS.textSub,
+    fontWeight: '600',
+    letterSpacing: 0.2,
+  },
+
+  // ── iOS 설정 스타일 리스트 ──
+  listSection: {
     backgroundColor: COLORS.bgCard,
     borderRadius: RADIUS.lg,
+    marginHorizontal: SPACING.md,
+    marginBottom: SPACING.md,
     borderWidth: 1,
+    borderColor: COLORS.border,
     overflow: 'hidden',
-    // shadow
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 5,
   },
-  menuIconArea: {
-    height: 100,
+  listRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
+    paddingHorizontal: SPACING.md,
+    paddingVertical: 13,
+    gap: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.borderSub,
   },
-  menuGlowCircle: {
-    position: 'absolute',
-    width: 72, height: 72, borderRadius: 36,
+  listRowLast: { borderBottomWidth: 0 },
+  listIconBox: {
+    width: 38, height: 38, borderRadius: 10,
+    alignItems: 'center', justifyContent: 'center',
+    flexShrink: 0,
   },
-  menuEmoji: { fontSize: 48, zIndex: 1 },
-  menuLabelArea: {
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderTopWidth: 1,
-    backgroundColor: 'rgba(0,0,0,0.25)',
-    gap: 3,
-  },
-  menuTitle: {
-    fontSize: FONTS.sm,
-    fontWeight: '900',
-    color: COLORS.text,
-    letterSpacing: -0.2,
-  },
-  menuTag: {
-    fontSize: 10,
-    fontFamily: 'monospace',
-    fontWeight: '800',
-    letterSpacing: 0.8,
-  },
+  listText: { flex: 1 },
+  listTitle: { color: COLORS.text, fontSize: FONTS.sm, fontWeight: '700' },
+  listSub: { color: COLORS.textMuted, fontSize: FONTS.xxs, marginTop: 1, fontFamily: 'monospace' },
+  listBadge: { color: COLORS.textMuted, fontSize: FONTS.xs, fontFamily: 'monospace', fontWeight: '700', marginRight: 4 },
 
 
   // Modal
@@ -724,4 +807,26 @@ const s = StyleSheet.create({
     alignItems: 'center',
   },
   modalBtnPrimaryText: { color: '#000', fontWeight: '800', fontSize: FONTS.sm },
+
+  // 업적
+  achRow: {
+    flexDirection: 'row', gap: 8,
+    paddingHorizontal: SPACING.md,
+    marginBottom: SPACING.md,
+  },
+  achCard: {
+    flex: 1, backgroundColor: COLORS.bgCard,
+    borderRadius: RADIUS.md, padding: 10,
+    borderWidth: 1, borderColor: COLORS.border,
+    alignItems: 'center',
+  },
+  achEmoji: { fontSize: 22, marginBottom: 4 },
+  achName: { fontSize: 11, fontWeight: '700', color: COLORS.text, textAlign: 'center', marginBottom: 2 },
+  achDesc: { fontSize: 9, color: COLORS.textMuted, textAlign: 'center', lineHeight: 13 },
+
+  // 알림 설정
+  notifSection: {
+    fontSize: FONTS.xs, fontWeight: '700', color: COLORS.textMuted,
+    marginTop: 14, marginBottom: 4, letterSpacing: 0.5,
+  },
 });

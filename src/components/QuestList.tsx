@@ -75,7 +75,8 @@ export default function QuestList({ quests }: Props) {
             </View>
             {(q.gold ?? 0) > 0 && (
               <View style={[styles.goldPill, q.done && styles.pillDone]}>
-                <Text style={[styles.goldText, q.done && styles.doneText]}>🪙{q.gold}</Text>
+                <Ionicons name="logo-bitcoin" size={9} color={q.done ? COLORS.good : COLORS.amber} />
+                <Text style={[styles.goldText, q.done && styles.doneText]}>{q.gold}G</Text>
               </View>
             )}
           </View>
@@ -165,6 +166,7 @@ const styles = StyleSheet.create({
   xpText: { fontFamily: 'monospace', fontSize: FONTS.xxs, fontWeight: '700', color: COLORS.amber },
   doneText: { color: COLORS.good },
   goldPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 2,
     paddingVertical: 3, paddingHorizontal: 7,
     borderRadius: RADIUS.full,
     backgroundColor: 'rgba(245,158,11,0.14)',

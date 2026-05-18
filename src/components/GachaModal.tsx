@@ -16,6 +16,21 @@ import {
   fuseScrolls, getGachaInventory, useScroll,
 } from '../utils/gacha';
 
+// 등급별 아이콘 매핑
+const RARITY_ICON: Record<string, keyof typeof Ionicons.glyphMap> = {
+  common:    'document-outline',
+  rare:      'albums-outline',
+  epic:      'diamond-outline',
+  legendary: 'star',
+};
+const STAT_ICON: Record<string, keyof typeof Ionicons.glyphMap> = {
+  str: 'flame',
+  end: 'pulse',
+  vit: 'shield-checkmark',
+  agi: 'flash',
+  wis: 'sparkles',
+};
+
 interface Props {
   visible: boolean;
   onClose: () => void;
@@ -38,7 +53,9 @@ function ResultCard({ result }: { result: GachaPullResult }) {
     return (
       <Animated.View style={[rc.card, { borderColor: COLORS.amber + '88', backgroundColor: COLORS.amberGlow,
         transform: [{ scale: anim }], opacity: anim }]}>
-        <Text style={rc.emoji}>⚗️</Text>
+        <View style={[rc.iconBox, { backgroundColor: COLORS.amber + '20' }]}>
+          <Ionicons name="flask" size={26} color={COLORS.amber} />
+        </View>
         <Text style={[rc.name, { color: COLORS.amber }]}>경험치 물약</Text>
         <Text style={rc.sub}>+{result.amount} XP</Text>
         <View style={[rc.pill, { backgroundColor: COLORS.amber + '22', borderColor: COLORS.amber + '55' }]}>
@@ -51,7 +68,9 @@ function ResultCard({ result }: { result: GachaPullResult }) {
     return (
       <Animated.View style={[rc.card, { borderColor: COLORS.textMuted + '44', backgroundColor: COLORS.bgInput,
         transform: [{ scale: anim }], opacity: anim }]}>
-        <Text style={rc.emoji}>🪙</Text>
+        <View style={[rc.iconBox, { backgroundColor: COLORS.bgHighlight }]}>
+          <Ionicons name="logo-bitcoin" size={26} color={COLORS.textMuted} />
+        </View>
         <Text style={[rc.name, { color: COLORS.textSub }]}>골드 반환</Text>
         <Text style={rc.sub}>+{result.amount} G</Text>
         <View style={[rc.pill, { backgroundColor: COLORS.bgHighlight, borderColor: COLORS.border }]}>
@@ -65,7 +84,9 @@ function ResultCard({ result }: { result: GachaPullResult }) {
   return (
     <Animated.View style={[rc.card, { borderColor: color + '88', backgroundColor: color + '14',
       transform: [{ scale: anim }], opacity: anim }]}>
-      <Text style={rc.emoji}>{scroll.emoji}</Text>
+      <View style={[rc.iconBox, { backgroundColor: color + '20' }]}>
+        <Ionicons name={RARITY_ICON[scroll.rarity]} size={26} color={color} />
+      </View>
       <Text style={[rc.name, { color }]}>{scroll.name}</Text>
       <Text style={rc.sub}>{STAT_LABEL[scroll.stat]} +{scroll.bonus}</Text>
       <Text style={[rc.dur, { color: color + 'AA' }]}>{scroll.durationDays}일</Text>
@@ -123,10 +144,10 @@ function ScrollCard({
         </Animated.View>
       )}
 
-      {/* 상단: 이모지 + 이름 + 등급 */}
+      {/* 상단: 아이콘 + 이름 + 등급 */}
       <View style={ic.top}>
-        <View style={[ic.emojiBox, { backgroundColor: color + '22', borderColor: color + '55', borderWidth: 1.5 }]}>
-          <Text style={ic.emoji}>{scroll.emoji}</Text>
+        <View style={[ic.iconBox, { backgroundColor: color + '20', borderColor: color + '40', borderWidth: 1.5 }]}>
+          <Ionicons name={RARITY_ICON[scroll.rarity]} size={26} color={color} />
         </View>
         <View style={ic.topRight}>
           <Text style={[ic.name, { color }]} numberOfLines={1}>{scroll.name}</Text>
@@ -310,11 +331,12 @@ export default function GachaModal({ visible, onClose, addXpFn, onInventoryChang
     } finally { setPulling(false); }
   };
 
+  // 강화 완료 애니메이션이 보이도록 loadInv를 1200ms 지연
   const handleUseScroll = async (scrollId: string) => {
     const result = await useScroll(scrollId);
     if (result) {
-      await loadInv();
       onInventoryChanged();
+      setTimeout(() => loadInv(), 1200);
     }
   };
 
@@ -373,7 +395,12 @@ export default function GachaModal({ visible, onClose, addXpFn, onInventoryChang
           {/* 헤더 */}
           <View style={s.header}>
             <View style={s.headerLeft}>
-              <Text style={s.title}>⚗️  마법 뽑기</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <View style={s.headerIconBox}>
+                  <Ionicons name="flask" size={16} color="#A78BFA" />
+                </View>
+                <Text style={s.title}>마법 뽑기</Text>
+              </View>
               <View style={s.goldRow}>
                 <Ionicons name="ellipse" size={10} color={COLORS.amber} />
                 <Text style={s.goldTxt}>{inv?.gold ?? 0} G 보유</Text>
@@ -429,7 +456,7 @@ export default function GachaModal({ visible, onClose, addXpFn, onInventoryChang
                     </View>
                   ))}
                 </View>
-                <Text style={s.rateNote}>✦ 10연 뽑기: 희귀 이상 1개 보장</Text>
+                <Text style={s.rateNote}>◆ 10연 뽑기: 희귀 이상 1개 보장</Text>
               </View>
 
               <TouchableOpacity
@@ -438,7 +465,9 @@ export default function GachaModal({ visible, onClose, addXpFn, onInventoryChang
                 disabled={!canFree || pulling}
                 activeOpacity={0.8}
               >
-                <Text style={s.freePullEmoji}>🎁</Text>
+                <View style={[s.freePullIconBox, !canFree && { opacity: 0.4 }]}>
+                  <Ionicons name="gift" size={28} color={canFree ? COLORS.good : COLORS.textDisabled} />
+                </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[s.freePullLabel, !canFree && { color: COLORS.textDisabled }]}>
                     일일 무료 뽑기
@@ -458,18 +487,18 @@ export default function GachaModal({ visible, onClose, addXpFn, onInventoryChang
                 <TouchableOpacity style={[s.pullBtn, pulling && { opacity: 0.5 }]} onPress={() => handlePull(1)} disabled={pulling} activeOpacity={0.8}>
                   {pulling ? <ActivityIndicator color="#000" /> : (
                     <>
-                      <Text style={s.pullEmoji}>🎰</Text>
+                      <Ionicons name="sparkles" size={28} color="#000" />
                       <Text style={s.pullLabel}>단일 뽑기</Text>
-                      <Text style={s.pullCost}>🪙 {SINGLE_COST}G</Text>
+                      <Text style={s.pullCost}>{SINGLE_COST} G</Text>
                     </>
                   )}
                 </TouchableOpacity>
                 <TouchableOpacity style={[s.pullBtn, s.pullBtnTen, pulling && { opacity: 0.5 }]} onPress={() => handlePull(10)} disabled={pulling} activeOpacity={0.8}>
                   {pulling ? <ActivityIndicator color="#000" /> : (
                     <>
-                      <Text style={s.pullEmoji}>🎲</Text>
+                      <Ionicons name="layers" size={28} color="#000" />
                       <Text style={s.pullLabel}>10연 뽑기</Text>
-                      <Text style={s.pullCost}>🪙 {TEN_COST}G</Text>
+                      <Text style={s.pullCost}>{TEN_COST} G</Text>
                       <View style={s.savePill}><Text style={s.saveTxt}>10% 절약</Text></View>
                     </>
                   )}
@@ -478,7 +507,7 @@ export default function GachaModal({ visible, onClose, addXpFn, onInventoryChang
 
               {results && (
                 <View style={s.resultSection}>
-                  <Text style={s.resultTitle}>✦ 뽑기 결과</Text>
+                  <Text style={s.resultTitle}>◆ 뽑기 결과</Text>
                   <View style={s.resultGrid}>
                     {results.map((r, i) => <ResultCard key={i} result={r} />)}
                   </View>
@@ -518,7 +547,9 @@ export default function GachaModal({ visible, onClose, addXpFn, onInventoryChang
 
               {(!inv || inv.scrolls.length === 0) ? (
                 <View style={s.empty}>
-                  <Text style={s.emptyEmoji}>📭</Text>
+                  <View style={s.emptyIconBox}>
+                    <Ionicons name="file-tray-outline" size={40} color={COLORS.textDisabled} />
+                  </View>
                   <Text style={s.emptyTxt}>보유한 주문서가 없어요</Text>
                   <Text style={s.emptySub}>뽑기 탭에서 주문서를 획득하세요</Text>
                   <TouchableOpacity style={s.emptyGoBtn} onPress={() => switchTab('pull')} activeOpacity={0.8}>
@@ -536,7 +567,7 @@ export default function GachaModal({ visible, onClose, addXpFn, onInventoryChang
                       onPress={() => { setFuseMode(m => !m); setSelected([]); }}
                       activeOpacity={0.8}
                     >
-                      <Text style={s.fuseToggleEmoji}>⚗️</Text>
+                      <Ionicons name="git-merge-outline" size={14} color={fuseMode ? '#000' : COLORS.textSub} />
                       <Text style={[s.fuseToggleTxt, fuseMode && { color: '#000' }]}>
                         {fuseMode ? '합성 취소' : '합성하기'}
                       </Text>
@@ -579,7 +610,9 @@ export default function GachaModal({ visible, onClose, addXpFn, onInventoryChang
                           <View style={[s.fuseCheck, isSelected && { backgroundColor: color, borderColor: color }]}>
                             {isSelected && <Ionicons name="checkmark" size={12} color="#000" />}
                           </View>
-                          <Text style={s.fuseCardEmoji}>{scroll.emoji}</Text>
+                          <View style={[s.fuseCardIconBox, { backgroundColor: color + '20' }]}>
+                            <Ionicons name={RARITY_ICON[scroll.rarity]} size={20} color={color} />
+                          </View>
                           <View style={s.fuseCardInfo}>
                             <Text style={[s.fuseCardName, { color: isSelected ? color : COLORS.text }]} numberOfLines={1}>{scroll.name}</Text>
                             <Text style={s.fuseCardSub}>{GACHA_RARITY_LABEL[scroll.rarity]}  ·  {STAT_LABEL[scroll.stat]} +{scroll.bonus}</Text>
@@ -615,7 +648,7 @@ export default function GachaModal({ visible, onClose, addXpFn, onInventoryChang
                       {fusing
                         ? <ActivityIndicator color="#000" />
                         : <>
-                            <Text style={s.fuseBtnEmoji}>⚗️</Text>
+                            <Ionicons name="git-merge-outline" size={18} color={selected.length === 3 ? '#000' : COLORS.textDisabled} />
                             <Text style={[s.fuseBtnTxt, selected.length === 3 && { color: '#000' }]}>
                               {selected.length}/3 선택 {selected.length === 3 ? '— 합성하기!' : '— 같은 등급 3개 선택'}
                             </Text>
@@ -635,8 +668,10 @@ export default function GachaModal({ visible, onClose, addXpFn, onInventoryChang
               <TouchableOpacity style={s.fuseResultBg} onPress={closeFuseResult} activeOpacity={1} />
               <View style={[s.fuseResultCard, { borderColor: GACHA_RARITY_COLOR[fuseResult.rarity] + '88' }]}>
                 <View style={[s.fuseResultGlow, { backgroundColor: GACHA_RARITY_COLOR[fuseResult.rarity] + '20' }]} pointerEvents="none" />
-                <Text style={s.fuseResultTitle}>✦ 합성 성공!</Text>
-                <Text style={s.fuseResultEmoji}>{fuseResult.emoji}</Text>
+                <Text style={s.fuseResultTitle}>◆ 합성 성공!</Text>
+                <View style={[s.fuseResultIconBox, { backgroundColor: GACHA_RARITY_COLOR[fuseResult.rarity] + '25' }]}>
+                  <Ionicons name={RARITY_ICON[fuseResult.rarity]} size={56} color={GACHA_RARITY_COLOR[fuseResult.rarity]} />
+                </View>
                 <Text style={[s.fuseResultName, { color: GACHA_RARITY_COLOR[fuseResult.rarity] }]}>{fuseResult.name}</Text>
                 <View style={[s.fuseResultPill, { backgroundColor: GACHA_RARITY_COLOR[fuseResult.rarity] + '22', borderColor: GACHA_RARITY_COLOR[fuseResult.rarity] + '66' }]}>
                   <Text style={[s.fuseResultRarity, { color: GACHA_RARITY_COLOR[fuseResult.rarity] }]}>{GACHA_RARITY_LABEL[fuseResult.rarity]}</Text>
@@ -661,7 +696,9 @@ export default function GachaModal({ visible, onClose, addXpFn, onInventoryChang
 
               {(!inv || inv.activeBonuses.length === 0) ? (
                 <View style={s.empty}>
-                  <Text style={s.emptyEmoji}>💤</Text>
+                  <View style={s.emptyIconBox}>
+                    <Ionicons name="flash-off-outline" size={40} color={COLORS.textDisabled} />
+                  </View>
                   <Text style={s.emptyTxt}>활성 버프가 없어요</Text>
                   <Text style={s.emptySub}>인벤토리에서 주문서를 사용하면{'\n'}스탯이 강화됩니다</Text>
                   <TouchableOpacity style={s.emptyGoBtn} onPress={() => switchTab('inventory')} activeOpacity={0.8}>
@@ -709,6 +746,7 @@ const s = StyleSheet.create({
 
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.md },
   headerLeft: { gap: 4 },
+  headerIconBox: { width: 30, height: 30, borderRadius: 9, backgroundColor: '#A78BFA20', alignItems: 'center', justifyContent: 'center' },
   title: { color: COLORS.text, fontSize: FONTS.lg, fontWeight: '900', letterSpacing: -0.3 },
   goldRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   goldTxt: { color: COLORS.amber, fontSize: FONTS.sm, fontWeight: '800', fontFamily: 'monospace' },
@@ -734,7 +772,7 @@ const s = StyleSheet.create({
 
   freePullBtn: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: COLORS.goodGlow, borderWidth: 1, borderColor: COLORS.good + '44', borderRadius: RADIUS.md, paddingVertical: 14, paddingHorizontal: SPACING.md, marginBottom: SPACING.sm },
   freePullBtnDone: { backgroundColor: COLORS.bgCard, borderColor: COLORS.border },
-  freePullEmoji: { fontSize: 30 },
+  freePullIconBox: { width: 44, height: 44, borderRadius: 12, backgroundColor: 'rgba(16,185,129,0.15)', alignItems: 'center', justifyContent: 'center' },
   freePullLabel: { fontSize: FONTS.sm, fontWeight: '800', color: COLORS.good },
   freePullSub: { fontSize: FONTS.xxs, color: COLORS.textMuted, marginTop: 2 },
   freeBadge: { backgroundColor: COLORS.good + '28', borderRadius: RADIUS.full, paddingHorizontal: 12, paddingVertical: 5, borderWidth: 1, borderColor: COLORS.good + '55' },
@@ -744,7 +782,6 @@ const s = StyleSheet.create({
   pullRow: { flexDirection: 'row', gap: 10, marginBottom: SPACING.md },
   pullBtn: { flex: 1, backgroundColor: COLORS.primary, borderRadius: RADIUS.md, paddingVertical: 16, alignItems: 'center', gap: 4 },
   pullBtnTen: { backgroundColor: COLORS.amber },
-  pullEmoji: { fontSize: 26 },
   pullLabel: { color: '#000', fontSize: FONTS.sm, fontWeight: '900' },
   pullCost: { color: '#000', fontSize: FONTS.xxs, fontWeight: '700', fontFamily: 'monospace' },
   savePill: { backgroundColor: 'rgba(0,0,0,0.20)', borderRadius: RADIUS.full, paddingHorizontal: 8, paddingVertical: 2 },
@@ -774,7 +811,7 @@ const s = StyleSheet.create({
   listHeader: { fontSize: FONTS.xxs, color: COLORS.textDisabled, fontFamily: 'monospace', letterSpacing: 1.5, fontWeight: '800', marginBottom: SPACING.sm, textTransform: 'uppercase' },
 
   empty: { paddingVertical: 48, alignItems: 'center', gap: 8 },
-  emptyEmoji: { fontSize: 48, marginBottom: 4 },
+  emptyIconBox: { width: 72, height: 72, borderRadius: 20, backgroundColor: COLORS.bgCard, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
   emptyTxt: { color: COLORS.textSub, fontSize: FONTS.sm, fontWeight: '700' },
   emptySub: { color: COLORS.textMuted, fontSize: FONTS.xxs, fontFamily: 'monospace', textAlign: 'center', lineHeight: 18 },
   emptyGoBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8, backgroundColor: COLORS.primary, borderRadius: RADIUS.full, paddingHorizontal: 20, paddingVertical: 10 },
@@ -794,7 +831,6 @@ const s = StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: 6,
     borderWidth: 1, borderColor: COLORS.border,
   },
-  fuseToggleEmoji: { fontSize: 13 },
   fuseToggleTxt: { fontSize: FONTS.xxs, fontWeight: '800', color: COLORS.textSub, fontFamily: 'monospace' },
 
   fuseGuide: {
@@ -814,7 +850,7 @@ const s = StyleSheet.create({
     borderWidth: 2, borderColor: COLORS.border,
     alignItems: 'center', justifyContent: 'center',
   },
-  fuseCardEmoji: { fontSize: 26 },
+  fuseCardIconBox: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   fuseCardInfo: { flex: 1, gap: 3 },
   fuseCardName: { fontSize: FONTS.sm, fontWeight: '800' },
   fuseCardSub: { fontSize: FONTS.xxs, color: COLORS.textMuted, fontFamily: 'monospace' },
@@ -831,7 +867,6 @@ const s = StyleSheet.create({
     borderWidth: 1, borderColor: COLORS.border,
   },
   fuseBtnActive: { backgroundColor: '#A78BFA', borderColor: '#A78BFA' },
-  fuseBtnEmoji: { fontSize: 18 },
   fuseBtnTxt: { fontSize: FONTS.sm, fontWeight: '900', color: COLORS.textDisabled, fontFamily: 'monospace' },
 
   // 합성 결과 팝업
@@ -852,7 +887,7 @@ const s = StyleSheet.create({
   },
   fuseResultGlow: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
   fuseResultTitle: { fontSize: FONTS.sm, fontWeight: '900', color: COLORS.amber, fontFamily: 'monospace', letterSpacing: 1 },
-  fuseResultEmoji: { fontSize: 64, marginVertical: 4 },
+  fuseResultIconBox: { width: 96, height: 96, borderRadius: 24, alignItems: 'center', justifyContent: 'center', marginVertical: 4 },
   fuseResultName: { fontSize: FONTS.lg, fontWeight: '900', textAlign: 'center' },
   fuseResultPill: { borderRadius: RADIUS.full, paddingHorizontal: 14, paddingVertical: 4, borderWidth: 1 },
   fuseResultRarity: { fontSize: FONTS.xs, fontWeight: '900', fontFamily: 'monospace' },
@@ -864,7 +899,7 @@ const s = StyleSheet.create({
 // ── 결과 카드 스타일 ──────────────────────────────────────────
 const rc = StyleSheet.create({
   card: { width: 100, borderRadius: RADIUS.md, padding: 10, alignItems: 'center', gap: 4, borderWidth: 1.5 },
-  emoji: { fontSize: 30 },
+  iconBox: { width: 48, height: 48, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginBottom: 2 },
   name: { fontSize: 10, fontWeight: '800', textAlign: 'center', fontFamily: 'monospace' },
   sub: { fontSize: 9, color: COLORS.textMuted, textAlign: 'center', fontFamily: 'monospace' },
   dur: { fontSize: 9, fontFamily: 'monospace', fontWeight: '700' },
@@ -895,8 +930,7 @@ const ic = StyleSheet.create({
   doneSub: { fontSize: FONTS.sm, color: '#000', fontWeight: '700', opacity: 0.8 },
   // 카드 본체
   top: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  emojiBox: { width: 56, height: 56, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  emoji: { fontSize: 30 },
+  iconBox: { width: 52, height: 52, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   topRight: { flex: 1, gap: 6 },
   name: { fontSize: FONTS.md, fontWeight: '900' },
   rarePill: { borderRadius: RADIUS.full, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, alignSelf: 'flex-start' },

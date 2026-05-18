@@ -1,4 +1,5 @@
 import * as Haptics from 'expo-haptics';
+import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import React, { useCallback, useState } from 'react';
 import { useRefresh } from '../context/RefreshContext';
@@ -7,9 +8,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import MiniGraph from '../components/MiniGraph';
 import { COLORS, FONTS, getRank, RADIUS, SPACING } from '../constants/theme';
 import { DailyLog, IllnessEntry, MorningBloodSugar, WeightEntry, ILLNESS_EMOJI, ILLNESS_LABELS } from '../types';
-import { calcAvgBS, exportAllData, formatDate, generateId, getAllDailyLogs, getIllnesses, getRecentMorningBS, getTodayKey, getUserProfile, getWeightHistory, importAllData, saveWeightEntry } from '../utils/storage';
+import { calcAvgBS, exportAllData, formatDate, generateId, getAllDailyLogs, getIllnesses, getPermStatHistory, getRecentMorningBS, getTodayKey, getUserProfile, getWeightHistory, importAllData, saveWeightEntry, getWeeklyReport, saveWeeklyReport } from '../utils/storage';
+import type { PermStatSnapshot } from '../utils/storage';
 import { UserProfile } from '../types';
 import { EXERCISE_LABELS, calcAlcoholCalories } from '../utils/scoreCalculator';
+import { generateWeeklyReport } from '../utils/aiCoach';
 
 function calcBMI(weightKg: number, heightCm: number): number {
   return Math.round((weightKg / Math.pow(heightCm / 100, 2)) * 10) / 10;
@@ -25,6 +28,74 @@ function getBMILabel(bmi: number): { label: string; color: string } {
 // 로컬 타임존 기준 날짜 문자열 (UTC 혼용 버그 방지)
 function localDateStr(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+// 체중/BMI 추세 바 차트
+function WeightBMIChart({ entries, profile }: { entries: WeightEntry[]; profile: UserProfile | null }) {
+  if (entries.length === 0) {
+    return <Text style={{ color: COLORS.textMuted, fontSize: FONTS.sm, textAlign: 'center', paddingVertical: SPACING.md }}>아직 체중 기록이 없어요. 위 체중 변화 카드에서 기록해보세요.</Text>;
+  }
+
+  // 최근 30일 중 기록 있는 날, 날짜 오름차순 정렬
+  const sorted = [...entries].sort((a, b) => a.date.localeCompare(b.date));
+  const display = sorted.slice(-30);
+
+  const weights = display.map(e => e.weightKg);
+  const minW = Math.min(...weights);
+  const maxW = Math.max(...weights);
+  const range = maxW - minW || 1;
+
+  const CHART_H = 60;
+  const BAR_W = 8;
+
+  const avgWeight = weights.reduce((s, w) => s + w, 0) / weights.length;
+  const firstW = display[0].weightKg;
+  const lastW = display[display.length - 1].weightKg;
+  const change = Math.round((lastW - firstW) * 10) / 10;
+
+  const avgBMI = profile
+    ? Math.round((avgWeight / Math.pow(profile.heightCm / 100, 2)) * 10) / 10
+    : null;
+
+  return (
+    <View>
+      <View style={{ flexDirection: 'row', alignItems: 'flex-end', height: CHART_H + 30 }}>
+        {display.map((e, i) => {
+          const h = Math.max(4, ((e.weightKg - minW) / range) * CHART_H);
+          const isLatest = i === display.length - 1;
+          const showLabel = i === 0 || i === display.length - 1 || (display.length > 10 ? i % 5 === 0 : i % 2 === 0);
+          return (
+            <View key={e.date} style={{ flex: 1, alignItems: 'center' }}>
+              <Text style={{ color: isLatest ? COLORS.teal : COLORS.textSub, fontSize: 9, fontWeight: isLatest ? '900' : '400', marginBottom: 2 }}>
+                {e.weightKg}
+              </Text>
+              <View style={{ width: BAR_W, height: CHART_H, justifyContent: 'flex-end', backgroundColor: COLORS.bgHighlight, borderRadius: BAR_W / 2 }}>
+                <View style={{ width: BAR_W, height: h, backgroundColor: isLatest ? COLORS.teal : COLORS.purple, borderRadius: BAR_W / 2, opacity: isLatest ? 1 : 0.7 }} />
+              </View>
+              {showLabel
+                ? <Text style={{ color: COLORS.textSub, fontSize: 9, marginTop: 2 }}>{e.date.slice(5)}</Text>
+                : <View style={{ height: 13 }} />}
+            </View>
+          );
+        })}
+      </View>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: SPACING.sm, flexWrap: 'wrap', gap: 6 }}>
+        {avgBMI !== null && (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <Text style={{ color: COLORS.textSub, fontSize: FONTS.xs }}>평균 BMI</Text>
+            <Text style={{ color: COLORS.purple, fontWeight: '700', fontSize: FONTS.xs }}>{avgBMI}</Text>
+          </View>
+        )}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+          <Text style={{ color: COLORS.textSub, fontSize: FONTS.xs }}>변화량</Text>
+          <Text style={{ color: change > 0 ? COLORS.red : change < 0 ? COLORS.teal : COLORS.textMuted, fontWeight: '700', fontSize: FONTS.xs }}>
+            {change > 0 ? '+' : ''}{change}kg
+          </Text>
+        </View>
+        <Text style={{ color: COLORS.teal, fontWeight: '700', fontSize: FONTS.xs }}>현재 {lastW}kg</Text>
+      </View>
+    </View>
+  );
 }
 
 // 수면 패턴 바 차트 (연속 날짜 보장, v2)
@@ -211,12 +282,14 @@ export default function HistoryScreen() {
   const [weightInput, setWeightInput] = useState('');
   const [calYear, setCalYear] = useState(now.getFullYear());
   const [calMonth, setCalMonth] = useState(now.getMonth() + 1);
+  const [statHistory, setStatHistory] = useState<PermStatSnapshot[]>([]);
+  const [weeklyReport, setWeeklyReport] = useState<string | null>(null);
 
   useFocusEffect(
     useCallback(() => {
       (async () => {
         setLoading(true);
-        const [all, bs, weights, illnesses, prof] = await Promise.all([getAllDailyLogs(), getRecentMorningBS(7), getWeightHistory(30), getIllnesses(), getUserProfile()]);
+        const [all, bs, weights, illnesses, prof, statHist] = await Promise.all([getAllDailyLogs(), getRecentMorningBS(7), getWeightHistory(30), getIllnesses(), getUserProfile(), getPermStatHistory()]);
         setLogs(all);
         const map: Record<string, DailyLog> = {};
         all.forEach(l => { map[l.date] = l; });
@@ -224,6 +297,7 @@ export default function HistoryScreen() {
         setRecentBS(bs);
         setWeightHistory(weights);
         setProfile(prof);
+        setStatHistory(statHist);
         // 질병 날짜 맵 구성 (각 날짜 → 해당 질병)
         const imap: Record<string, IllnessEntry> = {};
         illnesses.forEach(ill => {
@@ -236,6 +310,32 @@ export default function HistoryScreen() {
           }
         });
         setIllnessMap(imap);
+
+        // AI 주간 리포트 로드 또는 생성
+        try {
+          const cached = await getWeeklyReport();
+          if (cached) {
+            setWeeklyReport(cached.content);
+          } else {
+            const recentLogs = all.slice(0, 7);
+            const reportContent = await generateWeeklyReport(recentLogs, prof);
+            setWeeklyReport(reportContent);
+            await saveWeeklyReport({
+              weekKey: (() => {
+                const d = new Date();
+                const year = d.getFullYear();
+                const start = new Date(year, 0, 1);
+                const week = Math.ceil(((d.getTime() - start.getTime()) / 86400000 + start.getDay() + 1) / 7);
+                return `${year}-W${String(week).padStart(2, '0')}`;
+              })(),
+              content: reportContent,
+              generatedAt: new Date().toISOString(),
+            });
+          }
+        } catch {
+          // 리포트 생성 실패 시 무시 (기존 기능 보호)
+        }
+
         setLoading(false);
       })();
     }, [])
@@ -356,6 +456,17 @@ export default function HistoryScreen() {
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <Text style={styles.pageTitle}>전체 기록</Text>
 
+        {/* AI 주간 리포트 */}
+        {weeklyReport && (
+          <View style={styles.aiReportCard}>
+            <View style={styles.aiReportHeader}>
+              <Ionicons name="chatbubble-ellipses-outline" size={16} color={COLORS.purple} />
+              <Text style={styles.aiReportTitle}>AI 주간 리포트</Text>
+            </View>
+            <Text style={styles.aiReportContent}>{weeklyReport}</Text>
+          </View>
+        )}
+
         {/* 전체 요약 */}
         {avg !== null && (
           <View style={styles.summaryCard}>
@@ -451,11 +562,25 @@ export default function HistoryScreen() {
           )}
         </View>
 
+        {/* 체중/BMI 추세 그래프 */}
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>체중/BMI 추세</Text>
+          <WeightBMIChart entries={weightHistory} profile={profile} />
+        </View>
+
         {/* 수면 패턴 */}
         {logs.length >= 3 && (
           <View style={styles.card}>
             <Text style={styles.sectionTitle}>😴 수면 패턴</Text>
             <SleepChart logs={logs.slice(0, 14)} />
+          </View>
+        )}
+
+        {/* 영구 능력치 성장 추이 */}
+        {statHistory.length >= 2 && (
+          <View style={styles.card}>
+            <Text style={styles.sectionTitle}>📈 영구 능력치 성장 추이</Text>
+            <StatGrowthChart history={statHistory.slice(-14)} />
           </View>
         )}
 
@@ -617,6 +742,97 @@ export default function HistoryScreen() {
         </View>
       </Modal>
     </SafeAreaView>
+  );
+}
+
+// ── 영구 능력치 성장 차트 ──
+function StatGrowthChart({ history }: { history: PermStatSnapshot[] }) {
+  if (history.length < 2) return null;
+
+  const STAT_COLORS: Record<string, string> = {
+    str: '#EF4444', end: '#3B82F6', vit: '#10B981', agi: '#F59E0B', wis: '#8B5CF6',
+  };
+  const STATS: Array<keyof Pick<PermStatSnapshot, 'str' | 'end' | 'vit' | 'agi' | 'wis'>> = ['str', 'end', 'vit', 'agi', 'wis'];
+  const STAT_LABELS: Record<string, string> = { str: 'STR', end: 'END', vit: 'VIT', agi: 'AGI', wis: 'WIS' };
+
+  const first = history[0];
+  const last = history[history.length - 1];
+  const totalGrowth = +(last.totalGained - first.totalGained).toFixed(1);
+
+  // totalGained 기준으로 바 높이 정규화
+  const allTotal = history.map(s => s.totalGained);
+  const maxTotal = Math.max(...allTotal);
+  const minTotal = Math.min(...allTotal);
+  const range = maxTotal - minTotal || 1;
+
+  const CHART_H = 60;
+  const BAR_W = 10;
+
+  return (
+    <View>
+      {/* 성장량 요약 */}
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.sm }}>
+        <Text style={{ color: COLORS.textMuted, fontSize: FONTS.xs }}>
+          최근 {history.length}일 기록
+        </Text>
+        <Text style={{ color: totalGrowth >= 0 ? COLORS.teal : COLORS.red, fontSize: FONTS.sm, fontWeight: '700' }}>
+          {totalGrowth >= 0 ? '+' : ''}{totalGrowth} p 성장
+        </Text>
+      </View>
+
+      {/* 바 차트 */}
+      <View style={{ flexDirection: 'row', alignItems: 'flex-end', height: CHART_H + 28 }}>
+        {history.map((snap, i) => {
+          const barH = Math.max(4, ((snap.totalGained - minTotal) / range) * CHART_H);
+          const showLabel = i === 0 || i === history.length - 1 || i % 3 === 0;
+          const isLatest = i === history.length - 1;
+
+          // 각 스탯 기여 비율로 색깔별 분할 표시
+          const statSum = STATS.reduce((s, k) => s + snap[k], 0) || 1;
+
+          return (
+            <View key={snap.date} style={{ flex: 1, alignItems: 'center' }}>
+              <View style={{ width: BAR_W, height: CHART_H, justifyContent: 'flex-end', backgroundColor: COLORS.bgHighlight, borderRadius: BAR_W / 2 }}>
+                <View style={{ width: BAR_W, height: barH, borderRadius: BAR_W / 2, overflow: 'hidden', flexDirection: 'column-reverse' }}>
+                  {STATS.map(stat => {
+                    const ratio = snap[stat] / statSum;
+                    return (
+                      <View
+                        key={stat}
+                        style={{ width: BAR_W, height: barH * ratio, backgroundColor: STAT_COLORS[stat], opacity: isLatest ? 1 : 0.75 }}
+                      />
+                    );
+                  })}
+                </View>
+              </View>
+              {showLabel
+                ? <Text style={{ color: COLORS.textSub, fontSize: 10, marginTop: 2 }}>{snap.date.slice(5)}</Text>
+                : <View style={{ height: 14 }} />}
+            </View>
+          );
+        })}
+      </View>
+
+      {/* 범례 */}
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: SPACING.sm, justifyContent: 'center' }}>
+        {STATS.map(stat => (
+          <View key={stat} style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+            <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: STAT_COLORS[stat] }} />
+            <Text style={{ color: COLORS.textSub, fontSize: FONTS.xs }}>{STAT_LABELS[stat]}</Text>
+          </View>
+        ))}
+      </View>
+
+      {/* 현재 스탯 수치 */}
+      <View style={{ flexDirection: 'row', justifyContent: 'space-around', marginTop: SPACING.sm, backgroundColor: COLORS.bgHighlight, borderRadius: RADIUS.md, padding: SPACING.sm }}>
+        {STATS.map(stat => (
+          <View key={stat} style={{ alignItems: 'center' }}>
+            <Text style={{ color: STAT_COLORS[stat], fontSize: FONTS.sm, fontWeight: '900' }}>{last[stat].toFixed(1)}</Text>
+            <Text style={{ color: COLORS.textMuted, fontSize: FONTS.xxs }}>{STAT_LABELS[stat]}</Text>
+          </View>
+        ))}
+      </View>
+    </View>
   );
 }
 
@@ -806,6 +1022,32 @@ const styles = StyleSheet.create({
   backupBtnText: { color: COLORS.purple, fontWeight: '700', fontSize: FONTS.sm },
   restoreBtn: { flex: 1, backgroundColor: COLORS.bgHighlight, borderRadius: RADIUS.lg, paddingVertical: 12, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border },
   restoreBtnText: { color: COLORS.textSub, fontWeight: '700', fontSize: FONTS.sm },
+
+  // AI 주간 리포트 카드
+  aiReportCard: {
+    backgroundColor: COLORS.bgCard,
+    borderRadius: RADIUS.lg,
+    padding: SPACING.md,
+    marginBottom: SPACING.md,
+    borderWidth: 1,
+    borderColor: COLORS.purple + '44',
+  },
+  aiReportHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: SPACING.sm,
+  },
+  aiReportTitle: {
+    color: COLORS.text,
+    fontSize: FONTS.sm,
+    fontWeight: '700',
+  },
+  aiReportContent: {
+    color: COLORS.textSub,
+    fontSize: FONTS.xs,
+    lineHeight: 20,
+  },
 
   // 체중 모달
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'flex-end' },

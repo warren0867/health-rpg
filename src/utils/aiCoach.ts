@@ -1,14 +1,15 @@
 import { getEvoStage } from '../components/AvatarEvo';
 import { DailyLog, InBodyRecord, PermanentStats, UserProfile } from '../types';
 import { RecentCondition } from './permanentStats';
+import { getLocalCoachReply } from './localCoach';
 
 const OR_MODELS = [
+  'meta-llama/llama-3.3-70b-instruct:free',
+  'mistralai/mistral-7b-instruct:free',
+  'google/gemma-3-12b-it:free',
+  'qwen/qwen3-8b:free',
   'deepseek/deepseek-chat-v3-0324:free',
   'qwen/qwen3-14b:free',
-  'qwen/qwen3-8b:free',
-  'meta-llama/llama-3.3-70b-instruct:free',
-  'google/gemma-3-12b-it:free',
-  'mistralai/mistral-7b-instruct:free',
   'deepseek/deepseek-r1:free',
 ];
 const OR_URL = 'https://openrouter.ai/api/v1/chat/completions';
@@ -23,7 +24,7 @@ function getApiKey(): string {
   return (process.env as any).EXPO_PUBLIC_OPENROUTER_API_KEY ?? '';
 }
 
-async function callGemini(system: string, userMessage: string, maxTokens = 400): Promise<string> {
+async function callGemini(system: string, userMessage: string, maxTokens = 400): Promise<string | null> {
   return callGeminiMessages(system, [{ role: 'user', content: userMessage }], maxTokens);
 }
 
@@ -31,7 +32,7 @@ async function callGeminiMessages(
   system: string,
   messages: Array<{ role: 'user' | 'assistant'; content: string }>,
   maxTokens = 600,
-): Promise<string> {
+): Promise<string | null> {
   const body = JSON.stringify({
     messages: [{ role: 'system', content: system }, ...messages],
     max_tokens: maxTokens,
@@ -43,20 +44,25 @@ async function callGeminiMessages(
   };
 
   for (const model of OR_MODELS) {
-    const res = await fetch(OR_URL, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ ...JSON.parse(body), model }),
-    });
-    if (res.status === 429 || res.status === 404 || res.status === 503) continue;
-    if (!res.ok) {
-      const err = await res.text();
-      throw new Error(`OpenRouter API error ${res.status}: ${err}`);
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 12000);
+      const res = await fetch(OR_URL, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ ...JSON.parse(body), model }),
+        signal: controller.signal,
+      });
+      clearTimeout(timer);
+      if (!res.ok) continue;
+      const data = await res.json();
+      const content = data.choices?.[0]?.message?.content;
+      if (content) return content;
+    } catch {
+      continue;
     }
-    const data = await res.json();
-    return data.choices?.[0]?.message?.content ?? '';
   }
-  throw new Error('서버가 바빠요. 1~2분 후 다시 눌러주세요.');
+  return null;
 }
 
 // ─── 컨텍스트 빌더 ────────────────────────────────────────
@@ -143,7 +149,9 @@ export function buildSystemPrompt(
   inbodyRecords: InBodyRecord[],
   conditionInfo?: RecentCondition,
 ): string {
-  return `HealthRPG AI 건강 코치. 반드시 한국어로만 답. 짧고 임팩트 있게. 수치 기반 칭찬. 목표(${GOAL_LABEL[profile.goal] ?? profile.goal}) 연결. RPG 언어 자연스럽게.
+  return `당신은 HealthRPG 한국어 건강 코치입니다.
+CRITICAL RULE: 반드시 한국어로만 대답하세요. 영어, 러시아어, 중국어 등 다른 언어는 절대 사용 금지.
+이모지 사용 금지. 짧고 임팩트 있게 답변. 수치 기반 칭찬. 목표(${GOAL_LABEL[profile.goal] ?? profile.goal}) 연결.
 
 ${buildUserContext(profile, permStats, recentLogs, inbodyRecords, conditionInfo)}`;
 }
@@ -221,7 +229,7 @@ export async function parseMealInput(description: string): Promise<ParsedMealIte
 
   const text = await callGemini(systemPrompt, description, 600);
 
-  const match = text.match(/\[[\s\S]*\]/);
+  const match = text?.match(/\[[\s\S]*\]/);
   if (!match) throw new Error('파싱 실패');
   return JSON.parse(match[0]) as ParsedMealItem[];
 }
@@ -275,9 +283,60 @@ export async function conductCheckIn(
 {"reply":"...","data":{...},"complete":false}`;
 
   const text = await callGeminiMessages(systemPrompt, conversation, 300);
-  const match = text.match(/\{[\s\S]*\}/);
+  const match = text?.match(/\{[\s\S]*\}/);
   if (!match) throw new Error('체크인 파싱 실패');
   return JSON.parse(match[0]) as CheckInTurn;
+}
+
+// ─── 주간 리포트 생성 ──────────────────────────────────────
+
+export async function generateWeeklyReport(
+  logs: DailyLog[],
+  profile: UserProfile | null,
+): Promise<string> {
+  if (logs.length < 3) {
+    return '이번 주 기록이 부족합니다. 매일 체크인하면 리포트가 생성됩니다.';
+  }
+
+  const avgScore = Math.round(logs.reduce((s, l) => s + l.conditionScore, 0) / logs.length);
+  const exerciseDays = logs.filter(l => {
+    const types = l.exercise?.types?.filter(t => t !== 'none') ?? [];
+    return types.length > 0 || (l.exercise?.type && l.exercise.type !== 'none');
+  }).length;
+  const avgSleep = Math.round(logs.reduce((s, l) => s + (l.sleep?.hours ?? 0), 0) / logs.length * 10) / 10;
+  const alcoholDays = logs.filter(l => l.alcohol?.consumed).length;
+
+  // 긍정적 평가 또는 개선 포인트
+  let evaluation = '';
+  if (avgScore >= 80) {
+    evaluation = `컨디션 점수 ${avgScore}점으로 이번 주 매우 훌륭했습니다. 지금 루틴을 유지하세요.`;
+  } else if (exerciseDays >= 4) {
+    evaluation = `운동을 ${exerciseDays}일이나 하셨네요. 꾸준한 운동 습관이 건강의 기반입니다.`;
+  } else if (alcoholDays >= 3) {
+    evaluation = `음주 일수(${alcoholDays}일)가 많습니다. 주 2일 이하로 줄이면 컨디션이 크게 개선됩니다.`;
+  } else if (avgSleep < 6.5) {
+    evaluation = `평균 수면이 ${avgSleep}시간으로 부족합니다. 7시간 이상 수면이 회복력에 핵심입니다.`;
+  } else if (exerciseDays <= 1) {
+    evaluation = `운동일이 ${exerciseDays}일로 적습니다. 이번 주는 하루 30분 걷기를 목표로 해보세요.`;
+  } else {
+    evaluation = `평균 ${avgScore}점으로 꾸준히 관리하고 있습니다. 좋은 루틴을 이어가세요.`;
+  }
+
+  // 다음 주 목표
+  let nextGoal = '';
+  if (alcoholDays >= 3) {
+    nextGoal = '다음 주는 음주를 주 1회 이하로 줄여보세요.';
+  } else if (exerciseDays <= 2) {
+    nextGoal = `다음 주는 운동 ${Math.min(exerciseDays + 2, 5)}일을 목표로 잡아보세요.`;
+  } else if (avgSleep < 7) {
+    nextGoal = '취침 시간을 30분 앞당겨 7시간 수면에 도전해보세요.';
+  } else if (avgScore < 70) {
+    nextGoal = '매일 체크인을 유지하고, 수면과 운동 중 한 가지를 개선해보세요.';
+  } else {
+    nextGoal = `현재 루틴을 유지하며 운동 강도를 조금 높여보세요.`;
+  }
+
+  return `[이번 주 요약] 평균 컨디션 ${avgScore}점, 운동 ${exerciseDays}일, 수면 ${avgSleep}h 평균.\n${evaluation}\n다음 주 목표: ${nextGoal}`;
 }
 
 // ─── 채팅 ─────────────────────────────────────────────────
@@ -297,6 +356,17 @@ export async function sendChatMessage(params: {
 }): Promise<string> {
   const { messages, profile, recentLogs, inbodyRecords, permStats, conditionInfo } = params;
 
+  const lastUserMessage = messages[messages.length - 1]?.content ?? '';
+
+  // 1. 먼저 로컬 코치 시도
+  const localReply = getLocalCoachReply(lastUserMessage, {
+    logs: recentLogs,
+    permStats,
+    profile,
+  });
+  if (localReply) return localReply;
+
+  // 2. OR API 시도
   const systemPrompt = buildSystemPrompt(profile, permStats, recentLogs, inbodyRecords, conditionInfo);
 
   const text = await callGeminiMessages(
@@ -305,5 +375,5 @@ export async function sendChatMessage(params: {
     600,
   );
 
-  return text || '응답을 받지 못했어요. 다시 시도해주세요.';
+  return text ?? '잠시 후 다시 시도해주세요.';
 }

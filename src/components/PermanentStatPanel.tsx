@@ -30,6 +30,13 @@ const TIER_COLOR: Record<EquipmentTier, string> = {
 
 const DECAY_THRESHOLD: EquipmentTier[] = ['none', 'common']; // 부식 경고 대상
 
+const SLOT_ICON: Record<string, keyof typeof Ionicons.glyphMap> = {
+  무기:   'shield-half-outline',
+  방어구: 'body-outline',
+  반지:   'ellipse-outline',
+  부적:   'sparkles-outline',
+};
+
 function EquipmentSlotRow({ item, slotName }: { item: EquipmentItem | null; slotName: string }) {
   const tier = item?.tier ?? 'none';
   const empty = tier === 'none';
@@ -38,13 +45,14 @@ function EquipmentSlotRow({ item, slotName }: { item: EquipmentItem | null; slot
   const bonusStr = item
     ? Object.entries(item.bonus).map(([k, v]) => `+${v} ${k.toUpperCase()}`).join(' ')
     : '';
+  const slotIcon = SLOT_ICON[slotName] ?? 'ellipse-outline';
 
   return (
     <View style={[s.eqRow, isDecayed && s.eqRowDecay]}>
-      <View style={s.eqEmojiWrap}>
-        <Text style={[s.eqEmoji, isDecayed && { opacity: 0.4 }]}>{empty ? '▫️' : item!.emoji}</Text>
+      <View style={[s.eqIconBox, { backgroundColor: empty ? 'rgba(255,255,255,0.04)' : tierColor + '18', borderColor: empty ? COLORS.border : tierColor + '44' }]}>
+        <Ionicons name={slotIcon} size={16} color={empty ? COLORS.textDisabled : isDecayed ? COLORS.warn : tierColor} />
         {isDecayed && !empty && (
-          <Text style={s.decayIcon}>🔧</Text>
+          <View style={s.decayDot} />
         )}
       </View>
       <View style={s.eqInfo}>
@@ -169,9 +177,17 @@ const s = StyleSheet.create({
   eqTitleSub: { color: COLORS.textDisabled, fontWeight: '400' },
   eqRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   eqRowDecay: { opacity: 0.85 },
-  eqEmojiWrap: { width: 32, alignItems: 'center', position: 'relative' },
-  eqEmoji: { fontSize: 24, textAlign: 'center' },
-  decayIcon: { fontSize: 10, position: 'absolute', bottom: -2, right: -2 },
+  eqIconBox: {
+    width: 34, height: 34, borderRadius: 9,
+    borderWidth: 1,
+    alignItems: 'center', justifyContent: 'center',
+    position: 'relative', flexShrink: 0,
+  },
+  decayDot: {
+    position: 'absolute', top: 2, right: 2,
+    width: 6, height: 6, borderRadius: 3,
+    backgroundColor: COLORS.warn,
+  },
   eqInfo: { flex: 1 },
   eqName: { fontSize: FONTS.xs, fontWeight: '700' },
   decayTag: { fontSize: FONTS.xxs - 1, color: COLORS.warn, fontWeight: '600' },

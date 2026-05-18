@@ -41,25 +41,24 @@ function MainTabs() {
         },
         tabBarIcon: ({ focused, color, size }) => {
           const icons: Record<string, keyof typeof Ionicons.glyphMap> = {
-            Home: focused ? 'home' : 'home-outline',
-            Input: focused ? 'create' : 'create-outline',
-            Calorie: focused ? 'restaurant' : 'restaurant-outline',
-            BloodSugar: focused ? 'water' : 'water-outline',
-            History: focused ? 'bar-chart' : 'bar-chart-outline',
-            Illness: focused ? 'medkit' : 'medkit-outline',
-            InBody: focused ? 'body' : 'body-outline',
+            Home:    focused ? 'home'        : 'home-outline',
+            Input:   focused ? 'create'      : 'create-outline',
+            Calorie: focused ? 'restaurant'  : 'restaurant-outline',
+            InBody:  focused ? 'body'        : 'body-outline',
+            History: focused ? 'bar-chart'   : 'bar-chart-outline',
           };
           return <Ionicons name={icons[route.name] ?? 'ellipse'} size={size - 1} color={color} />;
         },
       })}
     >
-      <Tab.Screen name="Home" component={HomeScreen} options={{ title: '홈' }} />
-      <Tab.Screen name="Input" component={InputScreen} options={{ title: '체크인' }} />
-      <Tab.Screen name="Calorie" component={CalorieScreen} options={{ title: '식단' }} />
-      <Tab.Screen name="BloodSugar" component={BloodSugarScreen} options={{ title: '혈당' }} />
-      <Tab.Screen name="InBody" component={InBodyScreen} options={{ title: '인바디' }} />
-      <Tab.Screen name="History" component={HistoryScreen} options={{ title: '기록' }} />
-      <Tab.Screen name="Illness" component={IllnessScreen} options={{ title: '컨디션' }} />
+      <Tab.Screen name="Home"       component={HomeScreen}       options={{ title: '홈' }} />
+      <Tab.Screen name="Input"      component={InputScreen}      options={{ title: '체크인' }} />
+      <Tab.Screen name="Calorie"    component={CalorieScreen}    options={{ title: '식단' }} />
+      <Tab.Screen name="InBody"     component={InBodyScreen}     options={{ title: '인바디' }} />
+      <Tab.Screen name="History"    component={HistoryScreen}    options={{ title: '기록' }} />
+      {/* 탭바 미노출 — 홈 빠른 이동 바에서 접근 */}
+      <Tab.Screen name="BloodSugar" component={BloodSugarScreen} options={{ title: '혈당',   tabBarButton: () => null }} />
+      <Tab.Screen name="Illness"    component={IllnessScreen}    options={{ title: '컨디션', tabBarButton: () => null }} />
     </Tab.Navigator>
   );
 }
@@ -116,10 +115,15 @@ export default function App() {
 const styles = StyleSheet.create({
   tabBar: {
     backgroundColor: COLORS.bgCard,
-    borderTopColor: COLORS.border,
-    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.08)',
+    borderTopWidth: 0.5,
     height: 88,
     paddingBottom: 24,
     paddingTop: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 16,
+    elevation: 16,
   },
 });

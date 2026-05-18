@@ -15,7 +15,7 @@ import { saveUserProfile } from '../utils/storage';
 
 type Nav = StackNavigationProp<RootStackParamList, 'Onboarding'>;
 
-const STEPS = ['intro', 'name', 'body', 'activity', 'goal', 'review'] as const;
+const STEPS = ['intro', 'name', 'body', 'activity', 'goal', 'target', 'review'] as const;
 
 export default function OnboardingScreen() {
   const navigation = useNavigation<Nav>();
@@ -31,6 +31,7 @@ export default function OnboardingScreen() {
   const [weight, setWeight] = useState('');
   const [activity, setActivity] = useState<ActivityLevel>('light');
   const [goal, setGoal] = useState<Goal>('lose');
+  const [targetWeight, setTargetWeight] = useState('');
 
   const targetCalories =
     age && height && weight
@@ -74,6 +75,7 @@ export default function OnboardingScreen() {
       name: name.trim(), gender, age: parseInt(age),
       heightCm: parseInt(height), weightKg: parseFloat(weight),
       activityLevel: activity, goal, targetCalories, birthDate,
+      targetWeightKg: targetWeight ? parseFloat(targetWeight) : undefined,
       createdAt: new Date().toISOString(),
     };
     await saveUserProfile(profile);
@@ -118,9 +120,13 @@ export default function OnboardingScreen() {
             bmi={bmi} />}
           {step === 3 && <ActivityStep activity={activity} setActivity={setActivity} />}
           {step === 4 && <GoalStep goal={goal} setGoal={setGoal} />}
-          {step === 5 && <ReviewStep
+          {step === 5 && <TargetStep
+            targetWeight={targetWeight} setTargetWeight={setTargetWeight}
+            currentWeight={weight} goal={goal} height={height} />}
+          {step === 6 && <ReviewStep
             name={name} age={age} height={height} weight={weight}
-            activity={activity} goal={goal} targetCalories={targetCalories} bmi={bmi} />}
+            activity={activity} goal={goal} targetCalories={targetCalories} bmi={bmi}
+            targetWeight={targetWeight} />}
 
         </ScrollView>
 
@@ -185,7 +191,7 @@ function FeatureRow({ icon, tint, tintBg, title, sub }: any) {
 function NameStep({ name, setName, birthYear, setBirthYear, birthMonth, setBirthMonth, birthDay, setBirthDay }: any) {
   return (
     <View style={s.stepContent}>
-      <Text style={s.stepEyebrow}>STEP 1 OF 5</Text>
+      <Text style={s.stepEyebrow}>STEP 1 OF 6</Text>
       <Text style={s.stepTitle}>이름과 생년월일을{'\n'}알려주세요</Text>
       <Text style={s.stepDesc}>이름은 캐릭터에 표시됩니다. 생일은 선택입니다.</Text>
 
@@ -214,7 +220,7 @@ function NameStep({ name, setName, birthYear, setBirthYear, birthMonth, setBirth
 function BodyStep({ gender, setGender, age, setAge, height, setHeight, weight, setWeight, bmi }: any) {
   return (
     <View style={s.stepContent}>
-      <Text style={s.stepEyebrow}>STEP 2 OF 5</Text>
+      <Text style={s.stepEyebrow}>STEP 2 OF 6</Text>
       <Text style={s.stepTitle}>신체 정보</Text>
       <Text style={s.stepDesc}>BMR(기초대사량) 계산에 쓰입니다. 정확할수록 추천이 정확해요.</Text>
 
@@ -265,7 +271,7 @@ function ActivityStep({ activity, setActivity }: any) {
   ];
   return (
     <View style={s.stepContent}>
-      <Text style={s.stepEyebrow}>STEP 3 OF 5</Text>
+      <Text style={s.stepEyebrow}>STEP 3 OF 6</Text>
       <Text style={s.stepTitle}>활동량을{'\n'}선택해주세요</Text>
       <Text style={s.stepDesc}>일주일 평균 활동 강도</Text>
 
@@ -290,7 +296,7 @@ function GoalStep({ goal, setGoal }: any) {
   ];
   return (
     <View style={s.stepContent}>
-      <Text style={s.stepEyebrow}>STEP 4 OF 5</Text>
+      <Text style={s.stepEyebrow}>STEP 4 OF 6</Text>
       <Text style={s.stepTitle}>목표를{'\n'}선택해주세요</Text>
       <Text style={s.stepDesc}>목표에 따라 일일 권장 칼로리가 자동 계산됩니다.</Text>
 
@@ -306,13 +312,73 @@ function GoalStep({ goal, setGoal }: any) {
   );
 }
 
-// ─── Step 5: Review ──────────────────────────────
-function ReviewStep({ name, age, height, weight, activity, goal, targetCalories, bmi }: any) {
-  const activityLabels: any = { sedentary: '거의 안 움직임', light: '가벼운 활동', moderate: '보통', active: '활발' };
-  const goalLabels: any = { lose: '체중 감량', maintain: '현재 유지', gain: '근육 증량' };
+// ─── Step 5: Target Weight ───────────────────────
+function TargetStep({ targetWeight, setTargetWeight, currentWeight, goal, height }: any) {
+  const targetBMI = targetWeight && height
+    ? calcBMI(parseFloat(targetWeight), parseInt(height))
+    : null;
+  const targetBMILabel = targetBMI !== null && isFinite(targetBMI)
+    ? getBMILabel(targetBMI)
+    : null;
+
+  if (goal === 'maintain') {
+    return (
+      <View style={s.stepContent}>
+        <Text style={s.stepEyebrow}>STEP 5 OF 6</Text>
+        <Text style={s.stepTitle}>목표 체중 설정</Text>
+        <Text style={s.stepDesc}>목표를 설정하면 진행 상황을 추적합니다 (선택)</Text>
+        <View style={s.maintainNotice}>
+          <Ionicons name="checkmark-circle" size={20} color={COLORS.good} />
+          <Text style={s.maintainNoticeText}>현재 유지를 선택했습니다. 현재 체중을 목표로 유지합니다.</Text>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={s.stepContent}>
-      <Text style={s.stepEyebrow}>STEP 5 OF 5 · REVIEW</Text>
+      <Text style={s.stepEyebrow}>STEP 5 OF 6</Text>
+      <Text style={s.stepTitle}>목표 체중 설정</Text>
+      <Text style={s.stepDesc}>목표를 설정하면 진행 상황을 추적합니다 (선택)</Text>
+
+      <View style={s.formGroup}>
+        <Text style={s.formLabel}>목표 체중</Text>
+        <TextInput
+          style={s.formInput}
+          value={targetWeight}
+          onChangeText={setTargetWeight}
+          keyboardType="numeric"
+          placeholder={currentWeight ? `${currentWeight}kg (현재 체중)` : '목표 체중 (kg)'}
+          placeholderTextColor={COLORS.textDisabled}
+        />
+      </View>
+
+      {targetBMILabel && targetBMI !== null && (
+        <View style={s.bmiCard}>
+          <Text style={s.bmiLabel}>목표 BMI</Text>
+          <Text style={s.bmiValue}>{targetBMI.toFixed(1)}</Text>
+          <Text style={[s.bmiCat, { color: targetBMILabel.color }]}>{targetBMILabel.label}</Text>
+        </View>
+      )}
+    </View>
+  );
+}
+
+// ─── Step 6: Review ──────────────────────────────
+function ReviewStep({ name, age, height, weight, activity, goal, targetCalories, bmi, targetWeight }: any) {
+  const activityLabels: any = { sedentary: '거의 안 움직임', light: '가벼운 활동', moderate: '보통', active: '활발' };
+  const goalLabels: any = { lose: '체중 감량', maintain: '현재 유지', gain: '근육 증량' };
+
+  const targetBMI = targetWeight && height
+    ? calcBMI(parseFloat(targetWeight), parseInt(height))
+    : null;
+  const targetBMIDisplay = targetBMI !== null && isFinite(targetBMI)
+    ? targetBMI.toFixed(1)
+    : null;
+
+  return (
+    <View style={s.stepContent}>
+      <Text style={s.stepEyebrow}>STEP 6 OF 6 · REVIEW</Text>
       <Text style={s.stepTitle}>이대로 시작할까요?</Text>
       <Text style={s.stepDesc}>나중에 프로필에서 언제든 수정할 수 있어요.</Text>
 
@@ -322,6 +388,11 @@ function ReviewStep({ name, age, height, weight, activity, goal, targetCalories,
         {bmi && <ReviewRow label="BMI" value={`${bmi.value.toFixed(1)} (${bmi.category})`} />}
         <ReviewRow label="활동량" value={activityLabels[activity]} />
         <ReviewRow label="목표" value={goalLabels[goal]} />
+        <ReviewRow
+          label="목표 체중"
+          value={targetWeight && targetBMIDisplay
+            ? `${targetWeight}kg (BMI ${targetBMIDisplay})`
+            : '설정 안 함'} />
       </View>
 
       <View style={s.targetCard}>
@@ -477,6 +548,14 @@ const s = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   bigOptionCheckActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+
+  maintainNotice: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 10,
+    backgroundColor: COLORS.goodGlow,
+    borderRadius: RADIUS.md, padding: SPACING.md, marginTop: SPACING.md,
+    borderWidth: 1, borderColor: COLORS.good,
+  },
+  maintainNoticeText: { flex: 1, fontSize: 14, color: COLORS.text, lineHeight: 20 },
 
   bmiCard: {
     flexDirection: 'row', alignItems: 'baseline', gap: 14,

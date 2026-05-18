@@ -98,14 +98,24 @@ export type AchievementId =
   | 'first_record'
   | 'streak_3'
   | 'streak_7'
+  | 'streak_14'
   | 'streak_30'
+  | 'streak_100'
   | 'score_90'
   | 'perfect_score'
   | 'no_alcohol_7'
+  | 'no_alcohol_30'
   | 'exercise_7'
+  | 'exercise_30'
+  | 'level_3'
   | 'level_5'
   | 'level_10'
-  | 'water_goal_7';
+  | 'level_12'
+  | 'water_goal_7'
+  | 'total_records_30'
+  | 'total_records_100'
+  | 'morning_bs_14'
+  | 'score_90_streak_3';
 
 export interface AchievementDef {
   id: AchievementId;
@@ -115,17 +125,27 @@ export interface AchievementDef {
 }
 
 export const ACHIEVEMENT_DEFS: Record<AchievementId, AchievementDef> = {
-  first_record:  { id: 'first_record',  name: '첫 발걸음',    desc: '첫 번째 일일 기록 완료',    emoji: '🎯' },
-  streak_3:      { id: 'streak_3',      name: '3일 전사',     desc: '3일 연속 기록 달성',        emoji: '🔥' },
-  streak_7:      { id: 'streak_7',      name: '일주일 영웅',  desc: '7일 연속 기록 달성',        emoji: '⚡' },
-  streak_30:     { id: 'streak_30',     name: '전설의 루틴',  desc: '30일 연속 기록 달성',       emoji: '👑' },
-  score_90:      { id: 'score_90',      name: '전설에 근접',  desc: '하루 90점 이상 달성',       emoji: '⚔️' },
-  perfect_score: { id: 'perfect_score', name: '완벽한 하루',  desc: '100점 만점 달성',           emoji: '🏆' },
-  no_alcohol_7:  { id: 'no_alcohol_7',  name: '금주 챌린지',  desc: '7일 연속 금주 달성',        emoji: '🧘' },
-  exercise_7:    { id: 'exercise_7',    name: '운동 중독자',  desc: '7일 연속 운동 기록',        emoji: '💪' },
-  level_5:       { id: 'level_5',       name: '용맹한 기사',  desc: '레벨 5 달성',               emoji: '🛡️' },
-  level_10:      { id: 'level_10',      name: '전설의 신',    desc: '레벨 10 달성',              emoji: '🌟' },
-  water_goal_7:  { id: 'water_goal_7',  name: '수분 충전',    desc: '7일 연속 물 목표 달성 (1.5L+)', emoji: '💧' },
+  first_record:      { id: 'first_record',      name: '첫 발걸음',       desc: '첫 번째 일일 기록 완료',           emoji: '🎯' },
+  streak_3:          { id: 'streak_3',           name: '3일 전사',        desc: '3일 연속 기록 달성',               emoji: '🔥' },
+  streak_7:          { id: 'streak_7',           name: '일주일 영웅',     desc: '7일 연속 기록 달성',               emoji: '⚡' },
+  streak_14:         { id: 'streak_14',          name: '2주 용사',        desc: '14일 연속 기록 달성',              emoji: '🗡️' },
+  streak_30:         { id: 'streak_30',          name: '전설의 루틴',     desc: '30일 연속 기록 달성',              emoji: '👑' },
+  streak_100:        { id: 'streak_100',         name: '불멸의 의지',     desc: '100일 연속 기록 달성',             emoji: '💎' },
+  score_90:          { id: 'score_90',           name: '전설에 근접',     desc: '하루 90점 이상 달성',              emoji: '⚔️' },
+  perfect_score:     { id: 'perfect_score',      name: '완벽한 하루',     desc: '100점 만점 달성',                  emoji: '🏆' },
+  no_alcohol_7:      { id: 'no_alcohol_7',       name: '금주 챌린지',     desc: '7일 연속 금주 달성',               emoji: '🧘' },
+  no_alcohol_30:     { id: 'no_alcohol_30',      name: '절제의 달인',     desc: '30일 연속 금주 달성',              emoji: '🌿' },
+  exercise_7:        { id: 'exercise_7',         name: '운동 중독자',     desc: '7일 연속 운동 기록',               emoji: '💪' },
+  exercise_30:       { id: 'exercise_30',        name: '운동 마스터',     desc: '30일 연속 운동 기록',              emoji: '🏋️' },
+  level_3:           { id: 'level_3',            name: '소형 전사',       desc: '레벨 3 달성',                      emoji: '⚔️' },
+  level_5:           { id: 'level_5',            name: '용맹한 기사',     desc: '레벨 5 달성',                      emoji: '🛡️' },
+  level_10:          { id: 'level_10',           name: '전설의 신',       desc: '레벨 10 달성',                     emoji: '🌟' },
+  level_12:          { id: 'level_12',           name: '우주의 수호자',   desc: '최고 레벨 12 달성',                emoji: '🌌' },
+  water_goal_7:      { id: 'water_goal_7',       name: '수분 충전',       desc: '7일 연속 물 목표 달성 (1.5L+)',    emoji: '💧' },
+  total_records_30:  { id: 'total_records_30',   name: '기록 30회',       desc: '누적 30일 기록 달성',              emoji: '📖' },
+  total_records_100: { id: 'total_records_100',  name: '기록 마스터',     desc: '누적 100일 기록 달성',             emoji: '📚' },
+  morning_bs_14:     { id: 'morning_bs_14',      name: '혈당 관리자',     desc: '14일 연속 공복혈당 기록',           emoji: '🩸' },
+  score_90_streak_3: { id: 'score_90_streak_3',  name: '황금 주간',       desc: '3일 연속 90점 이상 달성',          emoji: '✨' },
 };
 
 export interface UnlockedAchievement {
