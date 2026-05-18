@@ -352,6 +352,36 @@ function replyAlcohol(ctx: CoachContext): string {
   return msg;
 }
 
+function replyCapability(): string {
+  return `건강 코치 기능 안내:\n\n수면 분석 → "수면 어때?" 또는 "잠 분석해줘"\n운동 분석 → "운동 어떻게 됐어?"\n혈당 → "혈당 알려줘"\n스탯 → "스탯 보여줘"\n음주 → "술 현황 봐줘"\n컨디션 점수 → "점수 알려줘"\n종합 조언 → "코치해줘"\n식단 입력 → 🍴 버튼\n체크인 기록 → ✏️ 버튼\n\n수치 기반으로 분석해드려요. 궁금한 항목을 골라서 물어보세요!`;
+}
+
+function replyDailyPlan(ctx: CoachContext, when: 'today' | 'tomorrow' | 'later'): string {
+  const recent7 = getRecentLogs(ctx.logs, 7);
+  const exDays = exerciseDaysCount(recent7);
+  const avgSlp = avgSleepHours(recent7);
+  const avg = avgScore(recent7);
+  const low = lowestStat(ctx.permStats);
+
+  const label = when === 'today' ? '오늘' : when === 'tomorrow' ? '내일' : '이번 주';
+  const needExercise = exDays < 4;
+
+  let msg = `${label} 권장 루틴:\n\n`;
+  msg += `• 운동: ${needExercise ? `유산소 30분 이상 (현재 주 ${exDays}일 → 목표 5일)` : '근력 운동 또는 가벼운 회복 운동'}\n`;
+  msg += `• 수면: ${avgSlp && avgSlp < 7.5 ? `취침 30분 앞당기기 (현재 평균 ${avgSlp.toFixed(1)}h)` : '현재 수면 패턴 유지'}\n`;
+  msg += `• 체크인: ${label} 기록 빠짐없이 입력\n`;
+
+  if (low.value < 30) {
+    msg += `\n집중 포인트: ${formatStatLabel(low.key)} (${low.value.toFixed(1)}) 강화 필요`;
+  }
+
+  if (avg !== null) {
+    msg += `\n\n현재 평균 ${avg.toFixed(0)}점 — ${avg >= 85 ? '루틴 그대로 이어가세요 ⚔️' : '수면과 운동 챙기면 더 올릴 수 있어요!'}`;
+  }
+
+  return msg;
+}
+
 // ─── 메인 로컬 코치 함수 ────────────────────────────────────
 
 export function getLocalCoachReply(userMessage: string, ctx: CoachContext): string | null {
@@ -394,21 +424,36 @@ export function getLocalCoachReply(userMessage: string, ctx: CoachContext): stri
     return replyAlcohol(ctx);
   }
 
-  // 코칭·질문·명령 → 종합 조언
-  // (코치, 해줘, 뭘, 어떻게, 추천, 데이터 등 포함)
+  // 기능 소개 질문
+  if (/뭘.*해줄|해줄.*있|뭐.*할.*수|할.*수.*있|기능|도움.*줄/.test(msg)) {
+    return replyCapability();
+  }
+
+  // 시간 기반 플랜 (오늘/내일/모레)
+  if (/오늘|내일|모레|이번주|다음주/.test(msg)) {
+    const when = /내일/.test(msg) ? 'tomorrow' : /모레|이번주|다음주/.test(msg) ? 'later' : 'today';
+    return replyDailyPlan(ctx, when);
+  }
+
+  // 코칭·종합 조언 요청
   if (/코치|코칭|피드백|평가|조언|추천|분석|데이터/.test(msg) ||
-      /어때|어떻게|어떡|뭘|뭐가|뭐해야|무엇|어떤|뭐임/.test(msg) ||
+      /어때|어떻게|어떡|뭐가|뭐해야|어떤/.test(msg) ||
       /알려줘|말해줘|봐줘|해줘|해봐|도와줘|부탁/.test(msg) ||
-      /잘하|잘 하|잘하고|좋아지/.test(msg)) {
+      /잘하|잘하고|좋아지/.test(msg)) {
     return replyAdvice(ctx);
   }
 
-  // 짧은 미매칭 메시지 → 조언
-  if (msg.length <= 8) {
-    return replyAdvice(ctx);
+  // "뭘" 단독이면 capability, 다른 맥락이면 advice
+  if (/뭘/.test(msg)) {
+    return msg.length <= 6 ? replyCapability() : replyAdvice(ctx);
   }
 
-  // 긴 메시지 → OR API 시도
+  // 짧은 미매칭 (3자 이하) → 인사
+  if (msg.length <= 3) {
+    return replyGreeting(ctx);
+  }
+
+  // 나머지 → OR API 시도
   return null;
 }
 
