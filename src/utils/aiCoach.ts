@@ -3,16 +3,27 @@ import { DailyLog, InBodyRecord, PermanentStats, UserProfile } from '../types';
 import { RecentCondition } from './permanentStats';
 import { getLocalCoachReply } from './localCoach';
 
-const OR_MODELS = [
-  'meta-llama/llama-3.3-70b-instruct:free',
-  'mistralai/mistral-7b-instruct:free',
-  'google/gemma-3-12b-it:free',
-  'qwen/qwen3-8b:free',
-  'deepseek/deepseek-chat-v3-0324:free',
-  'qwen/qwen3-14b:free',
-  'deepseek/deepseek-r1:free',
+// 2026-05 기준 실제 동작하는 free 모델 목록
+// llama는 Venice 프로바이더 제외 (쓰레기 응답 버그)
+const OR_MODELS: Array<{ model: string; providers?: { ignore: string[] } }> = [
+  { model: 'meta-llama/llama-3.3-70b-instruct:free', providers: { ignore: ['Venice'] } },
+  { model: 'google/gemma-4-26b-a4b-it:free' },
+  { model: 'google/gemma-4-31b-it:free' },
+  { model: 'qwen/qwen3-next-80b-a3b-instruct:free' },
+  { model: 'openai/gpt-oss-20b:free' },
+  { model: 'deepseek/deepseek-v4-flash:free' },
+  { model: 'openai/gpt-oss-120b:free' },
 ];
 const OR_URL = 'https://openrouter.ai/api/v1/chat/completions';
+
+// 한글이 전혀 없거나 쓰레기 문자 비율이 높으면 reject
+function isValidResponse(text: string): boolean {
+  if (!text || text.length < 8) return false;
+  const korean = (text.match(/[가-힣]/g) ?? []).length;
+  const printable = (text.match(/[가-힣a-zA-Z0-9 .,!?\-\n:•·()%]/g) ?? []).length;
+  // 한글이 10% 이상이거나, 읽을 수 있는 문자 비율이 80% 이상
+  return korean / text.length >= 0.1 || printable / text.length >= 0.8;
+}
 
 function getApiKey(): string {
   const xorRaw = 'REPLACE_WITH_XOR';
@@ -43,21 +54,25 @@ async function callGeminiMessages(
     'HTTP-Referer': 'https://warren0867.github.io/health-rpg/',
   };
 
-  for (const model of OR_MODELS) {
+  const base = JSON.parse(body);
+
+  for (const { model, providers } of OR_MODELS) {
     try {
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 12000);
+      const timer = setTimeout(() => controller.abort(), 20000);
+      const payload: Record<string, unknown> = { ...base, model };
+      if (providers) payload.provider = providers;
       const res = await fetch(OR_URL, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ ...JSON.parse(body), model }),
+        body: JSON.stringify(payload),
         signal: controller.signal,
       });
       clearTimeout(timer);
       if (!res.ok) continue;
       const data = await res.json();
       const content = data.choices?.[0]?.message?.content;
-      if (content) return content;
+      if (content && isValidResponse(content)) return content;
     } catch {
       continue;
     }
