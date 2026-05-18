@@ -333,41 +333,59 @@ function replyAlcohol(ctx: CoachContext): string {
 // ─── 메인 로컬 코치 함수 ────────────────────────────────────
 
 export function getLocalCoachReply(userMessage: string, ctx: CoachContext): string | null {
-  const msg = userMessage.toLowerCase();
+  const msg = userMessage.toLowerCase().trim();
 
-  if (/안녕|hi|hello|처음|시작/.test(msg)) {
+  // 인사·짧은 메시지
+  if (/안녕|hi|hello|처음|시작|하이|ㅎㅇ|ㅎㅎ|반가|오|야|이봐/.test(msg) || msg.length <= 3) {
     return replyGreeting(ctx);
   }
 
-  if (/수면|잠|수면시간|sleep/.test(msg)) {
+  // 수면
+  if (/수면|잠|수면시간|sleep|자다|자고|못 잠|못잠|피곤/.test(msg)) {
     return replySleep(ctx);
   }
 
-  if (/운동|헬스|달리기|걷기|exercise/.test(msg)) {
+  // 운동
+  if (/운동|헬스|달리기|걷기|exercise|뛰|런|gym|헬스장|근육|근력|유산소/.test(msg)) {
     return replyExercise(ctx);
   }
 
-  if (/혈당|blood.?sugar|공복/.test(msg)) {
+  // 혈당
+  if (/혈당|blood.?sugar|공복|당뇨/.test(msg)) {
     return replyBloodSugar(ctx);
   }
 
-  if (/스탯|능력치|강해|stat|str|end|vit|agi|wis/.test(msg)) {
+  // 스탯
+  if (/스탯|능력치|강해|stat|str|end|vit|agi|wis|캐릭터|성장|레벨/.test(msg)) {
     return replyStats(ctx);
   }
 
-  if (/조언|어떻게|뭐가|뭐해야|어떡|추천|알려줘/.test(msg)) {
-    return replyAdvice(ctx);
-  }
-
-  if (/점수|컨디션|score|condition/.test(msg)) {
+  // 점수·컨디션
+  if (/점수|컨디션|score|condition|상태|몸 상태|몸상태/.test(msg)) {
     return replyScore(ctx);
   }
 
-  if (/음주|술|알코올|drink|alcohol/.test(msg)) {
+  // 음주
+  if (/음주|술|알코올|drink|alcohol|막걸리|소주|맥주/.test(msg)) {
     return replyAlcohol(ctx);
   }
 
-  // 매칭 없으면 null → OR API 사용
+  // 코칭·평가·피드백 요청 → 종합 조언
+  if (/코치|코칭|피드백|평가|어때|어때요|잘하|잘 하|조언|어떻게|뭐가|뭐해야|어떡|추천|알려줘|분석|봐줘|봐 줘|말해줘/.test(msg)) {
+    return replyAdvice(ctx);
+  }
+
+  // "해줘", "해봐", "알려줘" 같은 단독 명령 → 종합 조언
+  if (/^(해줘|해봐|해|알려줘|알려|봐줘|분석해|분석해줘|도와줘|도와|도움|부탁해|부탁)$/.test(msg.replace(/[!?~.,]/g, ''))) {
+    return replyAdvice(ctx);
+  }
+
+  // 매칭 없어도 짧은 메시지(한 단어 수준)는 조언 반환
+  if (msg.length <= 10) {
+    return replyAdvice(ctx);
+  }
+
+  // 긴 메시지 → OR API 시도
   return null;
 }
 

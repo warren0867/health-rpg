@@ -375,5 +375,9 @@ export async function sendChatMessage(params: {
     600,
   );
 
-  return text ?? '잠시 후 다시 시도해주세요.';
+  if (text) return text;
+
+  // OR API 실패 시 로컬 종합 조언 반환
+  return getLocalCoachReply('어때', { logs: recentLogs, permStats, profile })
+    ?? `${profile.name || '용사'}님, 지금 서버가 바빠요. 궁금한 점을 더 구체적으로 입력해주세요!\n예: "수면 분석해줘" / "운동 어때?" / "이번 주 점수 알려줘"`;
 }
