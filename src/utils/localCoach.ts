@@ -249,7 +249,29 @@ function replyAdvice(ctx: CoachContext): string {
 
   if (issues.length === 0) {
     const avg7 = avg !== null ? avg.toFixed(0) : '-';
-    return `훌륭해요! 평균 ${avg7}점으로 균형 잡힌 건강 관리를 하고 있어요 🎯\n\n다음 목표: 더 높은 점수를 위해 수면 질을 높이거나 운동 강도를 높여봐요. 캐릭터가 계속 성장 중이에요!`;
+    const { str, end, vit, agi, wis } = ctx.permStats;
+    const low = lowestStat(ctx.permStats);
+
+    let msg = `현재 상태 분석 🎯\n\n`;
+    if (avg !== null) msg += `• 평균 컨디션: ${avg7}점 (매우 좋음)\n`;
+    msg += `• 운동: 7일 중 ${exDays}일\n`;
+    if (avgSlp !== null) msg += `• 수면: 평균 ${avgSlp.toFixed(1)}시간\n\n`;
+
+    msg += `다음 단계 추천:\n`;
+    if (exDays < 5) msg += `• 운동 주 ${exDays}일 → 5일로 늘려보세요\n`;
+    else msg += `• 운동 강도를 조금 높여보세요 (고강도 1회 추가)\n`;
+    if (avgSlp !== null && avgSlp < 7.5) msg += `• 수면 ${avgSlp.toFixed(1)}h → 7.5h 목표\n`;
+    msg += `• ${formatStatLabel(low.key)} (${low.value.toFixed(1)}) 집중 개선\n`;
+    msg += `  → ${
+      low.key === 'str' ? '웨이트·수영으로 근력 자극' :
+      low.key === 'end' ? '달리기·사이클로 유산소 강화' :
+      low.key === 'vit' ? '수면 7h+ 와 규칙적 운동 유지' :
+      low.key === 'agi' ? '요가·필라테스로 유연성 강화' :
+      '꾸준한 기록 + 금주 일수 늘리기'
+    }\n\n`;
+    msg += `STR ${str.toFixed(1)} · END ${end.toFixed(1)} · VIT ${vit.toFixed(1)} · AGI ${agi.toFixed(1)} · WIS ${wis.toFixed(1)}\n`;
+    msg += `캐릭터가 계속 성장 중이에요! ⚔️`;
+    return msg;
   }
 
   // 우선순위 높은 것 먼저
@@ -334,56 +356,55 @@ function replyAlcohol(ctx: CoachContext): string {
 
 export function getLocalCoachReply(userMessage: string, ctx: CoachContext): string | null {
   const msg = userMessage.toLowerCase().trim();
+  const clean = msg.replace(/[!?~.,\s]/g, '');
 
-  // 인사·짧은 메시지 (야·오 제거 — 해야돼·앞으로 등 내부에서 오탐)
-  if (/안녕|하이|ㅎㅇ|ㅎㅎ|반가|hi|hello|처음|시작/.test(msg) ||
-      msg.length <= 3 ||
-      /^(야|오|이봐|헤이)$/.test(msg)) {
+  // 인사 — 패턴 기반만, 길이 체크 없음 (코치·해줘 등 짧은 명령어와 구분)
+  if (/^(안녕|안녕하세요|안녕하십니까|반갑습니다)/.test(msg) ||
+      /^(하이|ㅎㅇ|ㅎㅎ|반가|hi|hello|hey)$/.test(clean)) {
     return replyGreeting(ctx);
   }
 
   // 수면
-  if (/수면|잠|수면시간|sleep|자다|자고|못 잠|못잠|피곤/.test(msg)) {
+  if (/수면|잠|sleep|자다|자고|못잠|피곤/.test(msg)) {
     return replySleep(ctx);
   }
 
   // 운동
-  if (/운동|헬스|달리기|걷기|exercise|뛰|런|gym|헬스장|근육|근력|유산소/.test(msg)) {
+  if (/운동|헬스|달리기|걷기|exercise|gym|근육|근력|유산소/.test(msg)) {
     return replyExercise(ctx);
   }
 
   // 혈당
-  if (/혈당|blood.?sugar|공복|당뇨/.test(msg)) {
+  if (/혈당|공복혈당|blood.?sugar|당뇨/.test(msg)) {
     return replyBloodSugar(ctx);
   }
 
   // 스탯
-  if (/스탯|능력치|강해|stat|str|end|vit|agi|wis|캐릭터|성장|레벨/.test(msg)) {
+  if (/스탯|능력치|캐릭터|성장|레벨|stat|str|end|vit|agi|wis/.test(msg)) {
     return replyStats(ctx);
   }
 
   // 점수·컨디션
-  if (/점수|컨디션|score|condition|상태|몸 상태|몸상태/.test(msg)) {
+  if (/점수|컨디션|score|condition|몸상태|몸 상태/.test(msg)) {
     return replyScore(ctx);
   }
 
   // 음주
-  if (/음주|술|알코올|drink|alcohol|막걸리|소주|맥주/.test(msg)) {
+  if (/음주|술|알코올|drink|alcohol/.test(msg)) {
     return replyAlcohol(ctx);
   }
 
-  // 코칭·평가·피드백 요청 → 종합 조언
-  if (/코치|코칭|피드백|평가|어때|어때요|잘하|잘 하|조언|어떻게|뭐가|뭐해야|어떡|추천|알려줘|분석|봐줘|봐 줘|말해줘/.test(msg)) {
+  // 코칭·질문·명령 → 종합 조언
+  // (코치, 해줘, 뭘, 어떻게, 추천, 데이터 등 포함)
+  if (/코치|코칭|피드백|평가|조언|추천|분석|데이터/.test(msg) ||
+      /어때|어떻게|어떡|뭘|뭐가|뭐해야|무엇|어떤|뭐임/.test(msg) ||
+      /알려줘|말해줘|봐줘|해줘|해봐|도와줘|부탁/.test(msg) ||
+      /잘하|잘 하|잘하고|좋아지/.test(msg)) {
     return replyAdvice(ctx);
   }
 
-  // "해줘", "해봐", "알려줘" 같은 단독 명령 → 종합 조언
-  if (/^(해줘|해봐|해|알려줘|알려|봐줘|분석해|분석해줘|도와줘|도와|도움|부탁해|부탁)$/.test(msg.replace(/[!?~.,]/g, ''))) {
-    return replyAdvice(ctx);
-  }
-
-  // 매칭 없어도 짧은 메시지(한 단어 수준)는 조언 반환
-  if (msg.length <= 10) {
+  // 짧은 미매칭 메시지 → 조언
+  if (msg.length <= 8) {
     return replyAdvice(ctx);
   }
 
