@@ -1,8 +1,9 @@
 import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { COLORS, FONTS, RADIUS, SPACING } from '../constants/theme';
 import { BOSS_DEFS, WeeklyBossState } from '../utils/weeklyBoss';
 import { Ionicons } from '@expo/vector-icons';
+import PressableScale from './PressableScale';
 
 interface Props { bossState: WeeklyBossState; onClaimReward?: () => void; }
 
@@ -91,10 +92,10 @@ export default function WeeklyBossCard({ bossState, onClaimReward }: Props) {
 
       {/* 보상 버튼 */}
       {isVictory && !bossState.rewardClaimed && onClaimReward && (
-        <TouchableOpacity style={s.rewardBtn} onPress={onClaimReward} activeOpacity={0.8}>
+        <PressableScale style={s.rewardBtn} onPress={onClaimReward}>
           <Ionicons name="trophy" size={16} color="#000" />
           <Text style={s.rewardBtnTxt}>보상 수령  +200 XP  +100G</Text>
-        </TouchableOpacity>
+        </PressableScale>
       )}
       {isVictory && bossState.rewardClaimed && (
         <View style={s.claimedRow}>

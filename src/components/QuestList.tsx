@@ -1,7 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
-import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { Animated, StyleSheet, Text, View } from 'react-native';
 import { COLORS, FONTS, RADIUS, SPACING } from '../constants/theme';
+import PressableScale from './PressableScale';
 
 export interface Quest {
   label: string;
@@ -14,6 +15,52 @@ export interface Quest {
 
 interface Props {
   quests: Quest[];
+}
+
+/**
+ * 퀘스트 완료 시 "+XX XP" 텍스트가 위로 떠오르며 사라지는 서브컴포넌트
+ */
+function FloatingXP({ xp, done }: { xp: number; done: boolean }) {
+  const translateY = useRef(new Animated.Value(0)).current;
+  const opacity = useRef(new Animated.Value(0)).current;
+  const prevDoneRef = useRef(done);
+
+  useEffect(() => {
+    const wasDone = prevDoneRef.current;
+    prevDoneRef.current = done;
+
+    // false → true 로 바뀔 때만 애니메이션 트리거
+    if (!wasDone && done) {
+      translateY.setValue(0);
+      opacity.setValue(1);
+      Animated.parallel([
+        Animated.timing(translateY, {
+          toValue: -40,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+        Animated.timing(opacity, {
+          toValue: 0,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [done]);
+
+  return (
+    <Animated.Text
+      style={[
+        styles.floatingXP,
+        {
+          transform: [{ translateY }],
+          opacity,
+        },
+      ]}
+    >
+      +{xp} XP
+    </Animated.Text>
+  );
 }
 
 /**
@@ -52,13 +99,18 @@ export default function QuestList({ quests }: Props) {
       </View>
 
       {quests.map((q, i) => (
-        <TouchableOpacity
+        <PressableScale
           key={i}
           style={[styles.row, i === quests.length - 1 && styles.rowLast, q.done && styles.rowDone]}
           onPress={q.action}
-          activeOpacity={q.action ? 0.6 : 1}
           disabled={!q.action}
+          scale={q.action ? 0.93 : 1}
         >
+          {/* FloatingXP 오버레이 */}
+          <View style={styles.floatingXPContainer} pointerEvents="none">
+            <FloatingXP xp={q.xp} done={q.done} />
+          </View>
+
           <View style={[styles.checkbox, q.done && styles.checkboxDone]}>
             {q.done
               ? <Ionicons name="checkmark" size={13} color="#000" />
@@ -80,7 +132,7 @@ export default function QuestList({ quests }: Props) {
               </View>
             )}
           </View>
-        </TouchableOpacity>
+        </PressableScale>
       ))}
     </View>
   );
@@ -142,9 +194,26 @@ const styles = StyleSheet.create({
     gap: 12,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.borderSub,
+    position: 'relative',
   },
   rowLast: { borderBottomWidth: 0 },
   rowDone: { backgroundColor: 'rgba(16,185,129,0.03)' },
+  floatingXPContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
+  },
+  floatingXP: {
+    fontSize: 15,
+    fontFamily: 'monospace',
+    fontWeight: '700',
+    color: COLORS.amber,
+  },
   checkbox: {
     width: 24, height: 24, borderRadius: 8,
     borderWidth: 1.5, borderColor: COLORS.textDisabled,

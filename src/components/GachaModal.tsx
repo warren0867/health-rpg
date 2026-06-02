@@ -4,6 +4,7 @@ import {
   ActivityIndicator, Animated, Modal, ScrollView,
   StyleSheet, Text, TouchableOpacity, View,
 } from 'react-native';
+import PressableScale from './PressableScale';
 import { COLORS, FONTS, RADIUS, SPACING } from '../constants/theme';
 import {
   GACHA_RARITY_COLOR, GACHA_RARITY_LABEL,
@@ -459,11 +460,10 @@ export default function GachaModal({ visible, onClose, addXpFn, onInventoryChang
                 <Text style={s.rateNote}>◆ 10연 뽑기: 희귀 이상 1개 보장</Text>
               </View>
 
-              <TouchableOpacity
+              <PressableScale
                 style={[s.freePullBtn, !canFree && s.freePullBtnDone]}
                 onPress={handleFreePull}
                 disabled={!canFree || pulling}
-                activeOpacity={0.8}
               >
                 <View style={[s.freePullIconBox, !canFree && { opacity: 0.4 }]}>
                   <Ionicons name="gift" size={28} color={canFree ? COLORS.good : COLORS.textDisabled} />
@@ -481,10 +481,10 @@ export default function GachaModal({ visible, onClose, addXpFn, onInventoryChang
                     {canFree ? 'FREE' : 'DONE'}
                   </Text>
                 </View>
-              </TouchableOpacity>
+              </PressableScale>
 
               <View style={s.pullRow}>
-                <TouchableOpacity style={[s.pullBtn, pulling && { opacity: 0.5 }]} onPress={() => handlePull(1)} disabled={pulling} activeOpacity={0.8}>
+                <PressableScale style={[s.pullBtn, pulling && { opacity: 0.5 }]} onPress={() => handlePull(1)} disabled={pulling}>
                   {pulling ? <ActivityIndicator color="#000" /> : (
                     <>
                       <Ionicons name="sparkles" size={28} color="#000" />
@@ -492,8 +492,8 @@ export default function GachaModal({ visible, onClose, addXpFn, onInventoryChang
                       <Text style={s.pullCost}>{SINGLE_COST} G</Text>
                     </>
                   )}
-                </TouchableOpacity>
-                <TouchableOpacity style={[s.pullBtn, s.pullBtnTen, pulling && { opacity: 0.5 }]} onPress={() => handlePull(10)} disabled={pulling} activeOpacity={0.8}>
+                </PressableScale>
+                <PressableScale style={[s.pullBtn, s.pullBtnTen, pulling && { opacity: 0.5 }]} onPress={() => handlePull(10)} disabled={pulling}>
                   {pulling ? <ActivityIndicator color="#000" /> : (
                     <>
                       <Ionicons name="layers" size={28} color="#000" />
@@ -502,7 +502,7 @@ export default function GachaModal({ visible, onClose, addXpFn, onInventoryChang
                       <View style={s.savePill}><Text style={s.saveTxt}>10% 절약</Text></View>
                     </>
                   )}
-                </TouchableOpacity>
+                </PressableScale>
               </View>
 
               {results && (
@@ -512,11 +512,11 @@ export default function GachaModal({ visible, onClose, addXpFn, onInventoryChang
                     {results.map((r, i) => <ResultCard key={i} result={r} />)}
                   </View>
                   {hasScrollsInResult && (
-                    <TouchableOpacity style={s.goInventoryBtn} onPress={() => switchTab('inventory')} activeOpacity={0.8}>
+                    <PressableScale style={s.goInventoryBtn} onPress={() => switchTab('inventory')}>
                       <Ionicons name="bag-outline" size={16} color={COLORS.primary} />
                       <Text style={s.goInventoryTxt}>인벤토리에서 주문서 사용하기</Text>
                       <Ionicons name="arrow-forward" size={14} color={COLORS.primary} />
-                    </TouchableOpacity>
+                    </PressableScale>
                   )}
                 </View>
               )}
@@ -552,10 +552,10 @@ export default function GachaModal({ visible, onClose, addXpFn, onInventoryChang
                   </View>
                   <Text style={s.emptyTxt}>보유한 주문서가 없어요</Text>
                   <Text style={s.emptySub}>뽑기 탭에서 주문서를 획득하세요</Text>
-                  <TouchableOpacity style={s.emptyGoBtn} onPress={() => switchTab('pull')} activeOpacity={0.8}>
+                  <PressableScale style={s.emptyGoBtn} onPress={() => switchTab('pull')}>
                     <Text style={s.emptyGoBtnTxt}>뽑기하러 가기</Text>
                     <Ionicons name="arrow-forward" size={14} color="#000" />
-                  </TouchableOpacity>
+                  </PressableScale>
                 </View>
               ) : (
                 <>
@@ -639,11 +639,10 @@ export default function GachaModal({ visible, onClose, addXpFn, onInventoryChang
 
                   {/* 합성 실행 버튼 */}
                   {fuseMode && (
-                    <TouchableOpacity
+                    <PressableScale
                       style={[s.fuseBtn, selected.length === 3 && s.fuseBtnActive, fusing && { opacity: 0.6 }]}
                       onPress={handleFuse}
                       disabled={selected.length !== 3 || fusing}
-                      activeOpacity={0.85}
                     >
                       {fusing
                         ? <ActivityIndicator color="#000" />
@@ -654,7 +653,7 @@ export default function GachaModal({ visible, onClose, addXpFn, onInventoryChang
                             </Text>
                           </>
                       }
-                    </TouchableOpacity>
+                    </PressableScale>
                   )}
                 </>
               )}
@@ -677,9 +676,9 @@ export default function GachaModal({ visible, onClose, addXpFn, onInventoryChang
                   <Text style={[s.fuseResultRarity, { color: GACHA_RARITY_COLOR[fuseResult.rarity] }]}>{GACHA_RARITY_LABEL[fuseResult.rarity]}</Text>
                 </View>
                 <Text style={s.fuseResultStat}>{STAT_LABEL[fuseResult.stat]} +{fuseResult.bonus}  ·  {fuseResult.durationDays}일</Text>
-                <TouchableOpacity style={[s.fuseResultBtn, { backgroundColor: GACHA_RARITY_COLOR[fuseResult.rarity] }]} onPress={closeFuseResult} activeOpacity={0.8}>
+                <PressableScale style={[s.fuseResultBtn, { backgroundColor: GACHA_RARITY_COLOR[fuseResult.rarity] }]} onPress={closeFuseResult}>
                   <Text style={s.fuseResultBtnTxt}>인벤토리에 추가됨!</Text>
-                </TouchableOpacity>
+                </PressableScale>
               </View>
             </Animated.View>
           )}
@@ -701,10 +700,10 @@ export default function GachaModal({ visible, onClose, addXpFn, onInventoryChang
                   </View>
                   <Text style={s.emptyTxt}>활성 버프가 없어요</Text>
                   <Text style={s.emptySub}>인벤토리에서 주문서를 사용하면{'\n'}스탯이 강화됩니다</Text>
-                  <TouchableOpacity style={s.emptyGoBtn} onPress={() => switchTab('inventory')} activeOpacity={0.8}>
+                  <PressableScale style={s.emptyGoBtn} onPress={() => switchTab('inventory')}>
                     <Text style={s.emptyGoBtnTxt}>인벤토리 확인</Text>
                     <Ionicons name="arrow-forward" size={14} color="#000" />
-                  </TouchableOpacity>
+                  </PressableScale>
                 </View>
               ) : (
                 <>

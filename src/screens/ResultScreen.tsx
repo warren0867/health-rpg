@@ -54,6 +54,21 @@ export default function ResultScreen() {
   const xpBarAnim = useRef(new Animated.Value(0)).current;
   const levelUpScale = useRef(new Animated.Value(0)).current;
 
+  // 레벨업 모달 추가 애니메이션
+  const luPulse = useRef(new Animated.Value(0.6)).current;
+  const levelNumScale = useRef(new Animated.Value(0)).current;
+  const luBtnScale = useRef(new Animated.Value(1)).current;
+
+  // 파티클
+  const PARTICLE_COUNT = 6;
+  const particles = useRef(
+    Array.from({ length: PARTICLE_COUNT }, () => ({
+      x: new Animated.Value(0),
+      y: new Animated.Value(0),
+      opacity: new Animated.Value(0),
+    }))
+  ).current;
+
   useEffect(() => {
     Promise.all([getUserProfile(), getAllDailyLogs(), getInBodyRecords()]).then(([p, logs, inbody]) => {
       if (p) {
@@ -93,6 +108,45 @@ export default function ResultScreen() {
       Animated.spring(rankScale, { toValue: 1, tension: 50, friction: 7, delay: 200, useNativeDriver: true }),
     ]).start();
   }, []);
+
+  // 레벨업 모달 애니메이션
+  useEffect(() => {
+    if (levelUpModal) {
+      // 배경 펄스 (반복)
+      luPulse.setValue(0.6);
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(luPulse, { toValue: 1.0, duration: 700, useNativeDriver: true }),
+          Animated.timing(luPulse, { toValue: 0.6, duration: 700, useNativeDriver: true }),
+        ])
+      ).start();
+
+      // 레벨 숫자 바운스: 0 → 1.2 → 1.0
+      levelNumScale.setValue(0);
+      Animated.spring(levelNumScale, {
+        toValue: 1,
+        tension: 60,
+        friction: 5,
+        useNativeDriver: true,
+      }).start();
+
+      // 파티클
+      particles.forEach((p, i) => {
+        const angle = (i / PARTICLE_COUNT) * Math.PI * 2;
+        const dist = 60 + Math.random() * 40;
+        p.x.setValue(0);
+        p.y.setValue(0);
+        p.opacity.setValue(1);
+        Animated.parallel([
+          Animated.timing(p.x, { toValue: Math.cos(angle) * dist, duration: 800, useNativeDriver: true }),
+          Animated.timing(p.y, { toValue: Math.sin(angle) * dist, duration: 800, useNativeDriver: true }),
+          Animated.timing(p.opacity, { toValue: 0, duration: 800, useNativeDriver: true }),
+        ]).start();
+      });
+    } else {
+      luPulse.stopAnimation();
+    }
+  }, [levelUpModal]);
 
   const handleShare = () => {
     const text = [
@@ -283,17 +337,56 @@ export default function ResultScreen() {
         <Modal transparent animationType="fade">
           <View style={s.luOverlay}>
             <Animated.View style={[s.luSheet, { transform: [{ scale: levelUpScale }] }]}>
-              <View style={s.luGlow} pointerEvents="none" />
-              <Text style={s.luEyebrow}>LEVEL UP</Text>
-              <Text style={s.luLevel}>LV {levelUpModal.newLevel}</Text>
-              <Text style={s.luTitle}>{levelUpModal.title}</Text>
-              <TouchableOpacity
-                style={s.luBtn}
-                onPress={() => setLevelUpModal(null)}
-                activeOpacity={0.8}
+              {/* 펄스 배경 */}
+              <Animated.View
+                style={[s.luGlow, { opacity: luPulse }]}
+                pointerEvents="none"
+              />
+
+              {/* 파티클 컨테이너 */}
+              <View style={s.luParticleWrap} pointerEvents="none">
+                {particles.map((p, i) => (
+                  <Animated.Text
+                    key={i}
+                    style={[
+                      s.luParticle,
+                      {
+                        opacity: p.opacity,
+                        transform: [{ translateX: p.x }, { translateY: p.y }],
+                      },
+                    ]}
+                  >
+                    {i % 2 === 0 ? '✦' : '★'}
+                  </Animated.Text>
+                ))}
+              </View>
+
+              <Text style={s.luEyebrow}>LEVEL UP!</Text>
+
+              {/* 레벨 숫자 바운스 */}
+              <Animated.Text
+                style={[s.luLevel, { transform: [{ scale: levelNumScale }] }]}
               >
-                <Text style={s.luBtnText}>확인</Text>
-              </TouchableOpacity>
+                LV {levelUpModal.newLevel}
+              </Animated.Text>
+
+              <Text style={s.luTitle}>{levelUpModal.title}</Text>
+
+              {/* 닫기 버튼 scale 피드백 */}
+              <Animated.View style={{ transform: [{ scale: luBtnScale }] }}>
+                <TouchableOpacity
+                  style={s.luBtn}
+                  onPress={() => {
+                    Animated.sequence([
+                      Animated.timing(luBtnScale, { toValue: 0.95, duration: 80, useNativeDriver: true }),
+                      Animated.timing(luBtnScale, { toValue: 1, duration: 80, useNativeDriver: true }),
+                    ]).start(() => setLevelUpModal(null));
+                  }}
+                  activeOpacity={1}
+                >
+                  <Text style={s.luBtnText}>확인</Text>
+                </TouchableOpacity>
+              </Animated.View>
             </Animated.View>
           </View>
         </Modal>
@@ -503,15 +596,30 @@ const s = StyleSheet.create({
     borderRadius: RADIUS.xl, padding: SPACING.xl,
     alignItems: 'center', minWidth: 280,
     borderWidth: 1.5, borderColor: COLORS.amber,
-    overflow: 'hidden',
+    overflow: 'visible',
   },
   luGlow: {
     position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
     backgroundColor: COLORS.amberGlow,
+    borderRadius: RADIUS.xl,
+  },
+  luParticleWrap: {
+    position: 'absolute',
+    top: '50%',
+    left: '50%',
+    width: 0,
+    height: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  luParticle: {
+    position: 'absolute',
+    fontSize: 18,
+    color: COLORS.amber,
   },
   luEyebrow: {
-    fontSize: 12, color: COLORS.amber, fontFamily: 'monospace',
-    letterSpacing: 4, fontWeight: '800', textTransform: 'uppercase',
+    fontSize: 13, color: COLORS.amber, fontFamily: 'monospace',
+    letterSpacing: 4, fontWeight: '900', textTransform: 'uppercase',
   },
   luLevel: {
     fontSize: 64, color: COLORS.amber, fontWeight: '800',

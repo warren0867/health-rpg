@@ -23,8 +23,9 @@ const GAME_SEC    = 30;
 const BOSS_MAX_HP = 600;
 const MAX_SHIELDS = 3;
 
-type OrbType   = 'normal' | 'rare' | 'legendary';
-type GamePhase = 'ready' | 'playing' | 'result';
+type OrbType        = 'normal' | 'rare' | 'legendary';
+type GamePhase      = 'ready' | 'playing' | 'result';
+type FallingItemType = 'power' | 'time' | 'bomb';
 
 const ORB_CFG: Record<OrbType, {
   color: string; inner: string; size: number;
@@ -34,6 +35,14 @@ const ORB_CFG: Record<OrbType, {
   rare:      { color: '#A78BFA',      inner: 'rgba(167,139,250,0.4)', size: 64, damage: 28, weight: 27, lifetimeMs: 3100 },
   legendary: { color: COLORS.amber,   inner: 'rgba(245,158,11,0.45)', size: 76, damage: 52, weight: 11, lifetimeMs: 2500 },
 };
+
+// ─── 콤보 배율 계산 ──────────────────────────────────────────
+function getComboMultiplier(combo: number): number {
+  if (combo >= 10) return 3.0;
+  if (combo >= 5)  return 2.0;
+  if (combo >= 3)  return 1.5;
+  return 1.0;
+}
 
 interface OrbData {
   id: string;
@@ -47,6 +56,14 @@ interface OrbData {
   scale:   Animated.Value;
   opacity: Animated.Value;
   pulse:   Animated.Value;
+}
+
+interface FallingItem {
+  id: string;
+  type: FallingItemType;
+  x: number;
+  y: Animated.Value;
+  opacity: Animated.Value;
 }
 
 interface Props {
@@ -77,6 +94,27 @@ function makeOrb(areaW: number, areaH: number): OrbData {
   };
 }
 
+// ─── 낙하 아이템 생성 ────────────────────────────────────────
+const FALLING_CFG: Record<FallingItemType, { emoji: string; color: string; label: string }> = {
+  power: { emoji: '⚡', color: '#F59E0B', label: 'POWER UP' },
+  time:  { emoji: '⏱', color: '#22D3EE', label: '+5 SEC'   },
+  bomb:  { emoji: '💣', color: '#EF4444', label: 'DANGER!'  },
+};
+
+function makeFallingItem(areaW: number): FallingItem {
+  const types: FallingItemType[] = ['power', 'time', 'bomb'];
+  const type = types[Math.floor(Math.random() * types.length)];
+  const itemSize = 50;
+  const margin = itemSize / 2 + 10;
+  return {
+    id: `fi-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    type,
+    x: margin + Math.random() * (areaW - margin * 2),
+    y: new Animated.Value(-60),
+    opacity: new Animated.Value(1),
+  };
+}
+
 // ─── 메인 컴포넌트 ────────────────────────────────────────────
 export default function MiniGameModal({ visible, onClose, bossState, addXpFn, onGoldEarned }: Props) {
   const boss = bossState ? (BOSS_DEFS[bossState.bossId] ?? BOSS_DEFS[0]) : BOSS_DEFS[0];
@@ -85,18 +123,25 @@ export default function MiniGameModal({ visible, onClose, bossState, addXpFn, on
   const areaSizeRef = useRef({ w: SW, h: 320 });
 
   // ── 렌더 상태 ──
-  const [phase,      setPhase]      = useState<GamePhase>('ready');
-  const [timeLeft,   setTimeLeft]   = useState(GAME_SEC);
-  const [orbs,       setOrbs]       = useState<OrbData[]>([]);
-  const [dmgDealt,   setDmgDealt]   = useState(0);
-  const [combo,      setCombo]      = useState(0);
-  const [maxCombo,   setMaxCombo]   = useState(0);
-  const [shields,    setShields]    = useState(MAX_SHIELDS);
-  const [bossHp,     setBossHp]     = useState(BOSS_MAX_HP);
-  const [earnedGold, setEarnedGold] = useState(0);
-  const [earnedXp,   setEarnedXp]   = useState(0);
-  const [flashKey,   setFlashKey]   = useState(0);
-  const [dmgPops,    setDmgPops]    = useState<{ id: number; val: number; x: number; y: number }[]>([]);
+  const [phase,         setPhase]         = useState<GamePhase>('ready');
+  const [timeLeft,      setTimeLeft]       = useState(GAME_SEC);
+  const [orbs,          setOrbs]           = useState<OrbData[]>([]);
+  const [dmgDealt,      setDmgDealt]       = useState(0);
+  const [combo,         setCombo]          = useState(0);
+  const [maxCombo,      setMaxCombo]       = useState(0);
+  const [shields,       setShields]        = useState(MAX_SHIELDS);
+  const [bossHp,        setBossHp]         = useState(BOSS_MAX_HP);
+  const [earnedGold,    setEarnedGold]     = useState(0);
+  const [earnedXp,      setEarnedXp]       = useState(0);
+  const [flashKey,      setFlashKey]       = useState(0);
+  const [dmgPops,       setDmgPops]        = useState<{ id: number; val: number; x: number; y: number }[]>([]);
+  const [fallingItems,  setFallingItems]   = useState<FallingItem[]>([]);
+  const [powerupActive, setPowerupActive]  = useState(false);
+  const [comboMessage,  setComboMessage]   = useState<string | null>(null);
+
+  // powerup 만료 ref
+  const powerupUntilRef = useRef<number>(0);
+  const powerupActiveRef = useRef(false);
 
   // ── 애니메이션 ──
   const containerAnim  = useRef(new Animated.Value(0)).current;
@@ -106,6 +151,10 @@ export default function MiniGameModal({ visible, onClose, bossState, addXpFn, on
   const timerBarAnim   = useRef(new Animated.Value(1)).current;
   const resultAnim     = useRef(new Animated.Value(0)).current;
   const bossRageAnim   = useRef(new Animated.Value(0)).current;
+  const shakeAnim      = useRef(new Animated.Value(0)).current;
+  const hitFlashAnim   = useRef(new Animated.Value(0)).current;  // 피격 플래시 (HP바 위)
+  const comboMsgY      = useRef(new Animated.Value(0)).current;
+  const comboMsgOpacity = useRef(new Animated.Value(0)).current;
 
   // ── ref 기반 게임 상태 (stale closure 방지) ──
   const phaseRef   = useRef<GamePhase>('ready');
@@ -116,7 +165,9 @@ export default function MiniGameModal({ visible, onClose, bossState, addXpFn, on
   const endingRef  = useRef(false);
   const timerRef   = useRef<ReturnType<typeof setInterval>>();
   const spawnRef   = useRef<ReturnType<typeof setTimeout>>();
+  const fallingSpawnRef = useRef<ReturnType<typeof setTimeout>>();
   const expiryMap  = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  const timeLeftRef = useRef(GAME_SEC);
 
   // ── 보스 rage 루프 (HP 30% 이하) ──
   useEffect(() => {
@@ -148,18 +199,22 @@ export default function MiniGameModal({ visible, onClose, bossState, addXpFn, on
   function stopAll() {
     clearInterval(timerRef.current);
     clearTimeout(spawnRef.current);
+    clearTimeout(fallingSpawnRef.current);
     expiryMap.current.forEach(t => clearTimeout(t));
     expiryMap.current.clear();
   }
 
   function resetAll() {
     stopAll();
-    phaseRef.current  = 'ready';
-    dmgRef.current    = 0;
-    comboRef.current  = 0;
-    shieldRef.current = MAX_SHIELDS;
-    bossHpRef.current = BOSS_MAX_HP;
-    endingRef.current = false;
+    phaseRef.current    = 'ready';
+    dmgRef.current      = 0;
+    comboRef.current    = 0;
+    shieldRef.current   = MAX_SHIELDS;
+    bossHpRef.current   = BOSS_MAX_HP;
+    endingRef.current   = false;
+    powerupActiveRef.current = false;
+    powerupUntilRef.current  = 0;
+    timeLeftRef.current = GAME_SEC;
     setPhase('ready');
     setTimeLeft(GAME_SEC);
     setOrbs([]);
@@ -171,11 +226,18 @@ export default function MiniGameModal({ visible, onClose, bossState, addXpFn, on
     setEarnedGold(0);
     setEarnedXp(0);
     setDmgPops([]);
+    setFallingItems([]);
+    setPowerupActive(false);
+    setComboMessage(null);
     timerBarAnim.setValue(1);
     bossShake.setValue(0);
     comboScale.setValue(1);
     screenFlash.setValue(0);
     resultAnim.setValue(0);
+    shakeAnim.setValue(0);
+    hitFlashAnim.setValue(0);
+    comboMsgY.setValue(0);
+    comboMsgOpacity.setValue(0);
   }
 
   function startGame() {
@@ -189,13 +251,21 @@ export default function MiniGameModal({ visible, onClose, bossState, addXpFn, on
     let t = GAME_SEC;
     timerRef.current = setInterval(() => {
       t--;
+      timeLeftRef.current = t;
       setTimeLeft(t);
+      // powerup 만료 체크
+      if (powerupActiveRef.current && Date.now() >= powerupUntilRef.current) {
+        powerupActiveRef.current = false;
+        setPowerupActive(false);
+      }
       if (t <= 0) { clearInterval(timerRef.current); triggerEnd(); }
     }, 1000);
 
     // 즉시 첫 오브 스폰
     doSpawn();
     scheduleNext();
+    // 낙하 아이템 스케줄
+    scheduleFallingItem();
   }
 
   function scheduleNext() {
@@ -206,6 +276,68 @@ export default function MiniGameModal({ visible, onClose, bossState, addXpFn, on
       doSpawn();
       scheduleNext();
     }, delay);
+  }
+
+  // ── 낙하 아이템 스케줄 ──────────────────────────────────
+  function scheduleFallingItem() {
+    if (phaseRef.current !== 'playing') return;
+    const delay = (5000 + Math.random() * 3000); // 5~8초
+    fallingSpawnRef.current = setTimeout(() => {
+      if (phaseRef.current !== 'playing') return;
+      doSpawnFallingItem();
+      scheduleFallingItem();
+    }, delay);
+  }
+
+  function doSpawnFallingItem() {
+    const { w, h } = areaSizeRef.current;
+    const item = makeFallingItem(w);
+
+    // 3초에 걸쳐 하강
+    Animated.timing(item.y, {
+      toValue: h + 80,
+      duration: 3000,
+      useNativeDriver: true,
+    }).start(({ finished }) => {
+      if (finished) {
+        // 화면 하단 도달 시 자동 소멸 (bomb 포함 모두 제거)
+        setFallingItems(prev => prev.filter(fi => fi.id !== item.id));
+      }
+    });
+
+    setFallingItems(prev => [...prev, item]);
+  }
+
+  function tapFallingItem(item: FallingItem) {
+    if (phaseRef.current !== 'playing') return;
+
+    // 아이템 즉시 제거
+    item.y.stopAnimation();
+    Animated.timing(item.opacity, { toValue: 0, duration: 150, useNativeDriver: true }).start();
+    setFallingItems(prev => prev.filter(fi => fi.id !== item.id));
+
+    if (item.type === 'power') {
+      // 10초간 데미지 ×2
+      powerupActiveRef.current = true;
+      powerupUntilRef.current  = Date.now() + 10000;
+      setPowerupActive(true);
+    } else if (item.type === 'time') {
+      // +5초 추가
+      timeLeftRef.current = timeLeftRef.current + 5;
+      setTimeLeft(prev => prev + 5);
+    } else if (item.type === 'bomb') {
+      // 데미지 -30 (획득 손해)
+      const penalty = 30;
+      dmgRef.current    = Math.max(0, dmgRef.current - penalty);
+      bossHpRef.current = Math.min(BOSS_MAX_HP, bossHpRef.current + penalty);
+      setDmgDealt(dmgRef.current);
+      setBossHp(bossHpRef.current);
+      // 폭탄 피격 플래시
+      Animated.sequence([
+        Animated.timing(screenFlash, { toValue: 0.5, duration: 80, useNativeDriver: true }),
+        Animated.timing(screenFlash, { toValue: 0,   duration: 300, useNativeDriver: true }),
+      ]).start();
+    }
   }
 
   function doSpawn() {
@@ -242,6 +374,31 @@ export default function MiniGameModal({ visible, onClose, bossState, addXpFn, on
     expiryMap.current.set(orb.id, expiry);
   }
 
+  // ── 화면 흔들기 ─────────────────────────────────────────
+  function triggerScreenShake() {
+    const seq: Animated.CompositeAnimation[] = [];
+    for (let i = 0; i < 4; i++) {
+      const dx = (Math.random() - 0.5) * 12; // ±6px
+      seq.push(Animated.timing(shakeAnim, { toValue: dx, duration: 40, useNativeDriver: true }));
+    }
+    seq.push(Animated.timing(shakeAnim, { toValue: 0, duration: 60, useNativeDriver: true }));
+    Animated.sequence(seq).start();
+  }
+
+  // ── 콤보 메시지 팝업 ─────────────────────────────────────
+  function showComboMessage(msg: string) {
+    setComboMessage(msg);
+    comboMsgY.setValue(0);
+    comboMsgOpacity.setValue(1);
+    Animated.parallel([
+      Animated.timing(comboMsgY,      { toValue: -60, duration: 900, useNativeDriver: true }),
+      Animated.sequence([
+        Animated.delay(400),
+        Animated.timing(comboMsgOpacity, { toValue: 0, duration: 500, useNativeDriver: true }),
+      ]),
+    ]).start(() => setComboMessage(null));
+  }
+
   function tapOrb(orb: OrbData) {
     if (phaseRef.current !== 'playing') return;
 
@@ -253,8 +410,9 @@ export default function MiniGameModal({ visible, onClose, bossState, addXpFn, on
     setCombo(c);
     setMaxCombo(prev => Math.max(prev, c));
 
-    const mult = c >= 10 ? 2.0 : c >= 5 ? 1.5 : c >= 3 ? 1.25 : 1;
-    const dmg  = Math.round(orb.damage * mult);
+    const comboMult = getComboMultiplier(c);
+    const powerMult = powerupActiveRef.current ? 2.0 : 1.0;
+    const dmg  = Math.round(orb.damage * comboMult * powerMult);
 
     dmgRef.current    += dmg;
     bossHpRef.current  = Math.max(0, bossHpRef.current - dmg);
@@ -282,6 +440,13 @@ export default function MiniGameModal({ visible, onClose, bossState, addXpFn, on
       ]).start();
     }
 
+    // 콤보 메시지
+    if (c === 5) {
+      showComboMessage('NICE!');
+    } else if (c === 10) {
+      showComboMessage('AMAZING!');
+    }
+
     // 화면 플래시 (타격)
     const flashColor = orb.type === 'legendary' ? 0.25 : orb.type === 'rare' ? 0.12 : 0.06;
     setFlashKey(k => k + 1);
@@ -289,6 +454,17 @@ export default function MiniGameModal({ visible, onClose, bossState, addXpFn, on
       Animated.timing(screenFlash, { toValue: flashColor, duration: 50, useNativeDriver: true }),
       Animated.timing(screenFlash, { toValue: 0,          duration: 180, useNativeDriver: true }),
     ]).start();
+
+    // 피격 플래시 (HP바 위 빨간 오버레이)
+    Animated.sequence([
+      Animated.timing(hitFlashAnim, { toValue: 1, duration: 40, useNativeDriver: true }),
+      Animated.timing(hitFlashAnim, { toValue: 0, duration: 220, useNativeDriver: true }),
+    ]).start();
+
+    // 화면 흔들기 (보스 HP 50% 이하)
+    if (bossHpRef.current <= BOSS_MAX_HP * 0.5) {
+      triggerScreenShake();
+    }
 
     // 오브 제거 애니
     Animated.parallel([
@@ -299,12 +475,22 @@ export default function MiniGameModal({ visible, onClose, bossState, addXpFn, on
     if (bossHpRef.current <= 0) triggerEnd(true);
   }
 
+  // ── 빈 화면 탭 → 콤보 리셋 ─────────────────────────────
+  function handleGameAreaTap() {
+    if (phaseRef.current !== 'playing') return;
+    if (comboRef.current > 0) {
+      comboRef.current = 0;
+      setCombo(0);
+    }
+  }
+
   function triggerEnd(bossKilled = false) {
     if (endingRef.current) return;
     endingRef.current = true;
     phaseRef.current = 'result';
     stopAll();
     setOrbs([]);
+    setFallingItems([]);
     setPhase('result');
 
     const perfect = shieldRef.current === MAX_SHIELDS;
@@ -332,12 +518,18 @@ export default function MiniGameModal({ visible, onClose, bossState, addXpFn, on
   const hpColor     = hpPct > 0.5 ? COLORS.good : hpPct > 0.25 ? COLORS.warn : COLORS.bad;
   const timerColor  = timeLeft <= 10 ? COLORS.bad : timeLeft <= 20 ? COLORS.warn : COLORS.primary;
   const isRage      = hpPct < 0.3 && phase === 'playing';
+  const comboMult   = getComboMultiplier(combo);
+  const showComboIndicator = combo >= 3;
 
   return (
     <Modal visible={visible} animationType="none" transparent statusBarTranslucent onRequestClose={handleClose}>
       <View style={s.overlay}>
+        {/* 전체 게임 View를 Animated.View로 감싸 화면 흔들기 적용 */}
         <Animated.View style={[s.container, {
-          transform: [{ translateY: containerAnim.interpolate({ inputRange: [0, 1], outputRange: [80, 0] }) }],
+          transform: [
+            { translateY: containerAnim.interpolate({ inputRange: [0, 1], outputRange: [80, 0] }) },
+            { translateX: shakeAnim },
+          ],
           opacity: containerAnim,
         }]}>
 
@@ -354,6 +546,12 @@ export default function MiniGameModal({ visible, onClose, bossState, addXpFn, on
                   <Text style={[s.timerSec, { color: timerColor }]}>초</Text>
                 </View>
               )}
+              {/* 파워업 활성 표시 */}
+              {powerupActive && phase === 'playing' && (
+                <View style={s.powerupPill}>
+                  <Text style={s.powerupPillTxt}>⚡ ×2</Text>
+                </View>
+              )}
             </View>
             <View style={{ width: 36 }} />
           </View>
@@ -365,6 +563,21 @@ export default function MiniGameModal({ visible, onClose, bossState, addXpFn, on
               backgroundColor: timerColor,
             }]} />
           </View>
+
+          {/* ── 콤보 인디케이터 (상단) ── */}
+          {phase === 'playing' && (
+            <Animated.View style={[s.comboIndicator, {
+              opacity: showComboIndicator ? 1 : 0,
+              transform: [{ scale: comboScale }],
+            }]}>
+              <Text style={[s.comboIndicatorText, {
+                color:      combo >= 10 ? COLORS.amber : '#A78BFA',
+                textShadowColor: combo >= 10 ? COLORS.amber + '80' : '#A78BFA80',
+              }]}>
+                COMBO ×{comboMult.toFixed(1)}
+              </Text>
+            </Animated.View>
+          )}
 
           {/* ── 보스 패널 ── */}
           <Animated.View style={[s.bossPanel, {
@@ -385,9 +598,15 @@ export default function MiniGameModal({ visible, onClose, bossState, addXpFn, on
                   <Text style={[s.bossName, { color: boss.color }]}>{boss.name}</Text>
                   {isRage && <View style={s.ragePill}><Text style={s.rageTxt}>분노!</Text></View>}
                 </View>
+                {/* HP 바 + 피격 플래시 오버레이 */}
                 <View style={s.hpBarRow}>
                   <View style={s.hpTrack}>
                     <Animated.View style={[s.hpFill, { width: `${hpPct * 100}%`, backgroundColor: hpColor }]} />
+                    {/* 피격 플래시: 반투명 빨간 오버레이 */}
+                    <Animated.View
+                      style={[StyleSheet.absoluteFill, s.hpHitFlash, { opacity: hitFlashAnim }]}
+                      pointerEvents="none"
+                    />
                   </View>
                   <Text style={[s.hpNum, { color: hpColor }]}>{bossHp}</Text>
                 </View>
@@ -425,44 +644,63 @@ export default function MiniGameModal({ visible, onClose, bossState, addXpFn, on
           </Animated.View>
 
           {/* ── 게임 영역 ── */}
-          <View style={s.gameArea} onLayout={onGameAreaLayout}>
+          <TouchableWithoutFeedback onPress={handleGameAreaTap}>
+            <View style={s.gameArea} onLayout={onGameAreaLayout}>
 
-            {/* ready 오버레이 */}
-            {phase === 'ready' && (
-              <View style={s.readyOverlay}>
-                <Text style={s.readyBossEmoji}>{boss.emoji}</Text>
-                <Text style={[s.readyTitle, { color: boss.color }]}>도전!</Text>
-                <Text style={s.readyBossName}>{boss.name}</Text>
-                <View style={s.readyRules}>
-                  <RuleRow icon="radio-button-on" color={COLORS.primary}  text="오브를 탭해 데미지 입히기" />
-                  <RuleRow icon="trending-up"     color={COLORS.amber}    text="콤보 연결로 배율 최대 ×2.0" />
-                  <RuleRow icon="shield"          color={COLORS.good}     text="실드 소진 전 격파 = 보너스" />
-                  <RuleRow icon="star"            color="#A78BFA"         text="전설 오브 = 52 데미지!" />
+              {/* ready 오버레이 */}
+              {phase === 'ready' && (
+                <View style={s.readyOverlay}>
+                  <Text style={s.readyBossEmoji}>{boss.emoji}</Text>
+                  <Text style={[s.readyTitle, { color: boss.color }]}>도전!</Text>
+                  <Text style={s.readyBossName}>{boss.name}</Text>
+                  <View style={s.readyRules}>
+                    <RuleRow icon="radio-button-on" color={COLORS.primary}  text="오브를 탭해 데미지 입히기" />
+                    <RuleRow icon="trending-up"     color={COLORS.amber}    text="콤보 연결로 배율 최대 ×3.0" />
+                    <RuleRow icon="shield"          color={COLORS.good}     text="실드 소진 전 격파 = 보너스" />
+                    <RuleRow icon="star"            color="#A78BFA"         text="전설 오브 = 52 데미지!" />
+                  </View>
+                  <TouchableOpacity style={[s.startBtn, { backgroundColor: boss.color }]} onPress={startGame} activeOpacity={0.85}>
+                    <Text style={s.startBtnTxt}>전투 시작</Text>
+                    <Ionicons name="flash" size={18} color="#000" />
+                  </TouchableOpacity>
                 </View>
-                <TouchableOpacity style={[s.startBtn, { backgroundColor: boss.color }]} onPress={startGame} activeOpacity={0.85}>
-                  <Text style={s.startBtnTxt}>전투 시작</Text>
-                  <Ionicons name="flash" size={18} color="#000" />
-                </TouchableOpacity>
-              </View>
-            )}
+              )}
 
-            {/* 오브 */}
-            {orbs.map(orb => (
-              <OrbView key={orb.id} orb={orb} onTap={() => tapOrb(orb)} />
-            ))}
+              {/* 오브 */}
+              {orbs.map(orb => (
+                <OrbView key={orb.id} orb={orb} onTap={() => tapOrb(orb)} />
+              ))}
 
-            {/* 데미지 팝업 */}
-            {dmgPops.map(p => (
-              <DmgPop key={p.id} value={p.val} x={p.x} y={p.y} />
-            ))}
+              {/* 낙하 아이템 */}
+              {fallingItems.map(item => (
+                <FallingItemView key={item.id} item={item} onTap={() => tapFallingItem(item)} />
+              ))}
 
-            {/* 화면 플래시 */}
-            <Animated.View
-              key={flashKey}
-              style={[StyleSheet.absoluteFill, s.screenFlash, { opacity: screenFlash }]}
-              pointerEvents="none"
-            />
-          </View>
+              {/* 데미지 팝업 */}
+              {dmgPops.map(p => (
+                <DmgPop key={p.id} value={p.val} x={p.x} y={p.y} />
+              ))}
+
+              {/* 콤보 메시지 팝업 */}
+              {comboMessage !== null && (
+                <Animated.Text style={[s.comboMsgText, {
+                  transform: [{ translateY: comboMsgY }],
+                  opacity: comboMsgOpacity,
+                  color: combo >= 10 ? COLORS.amber : '#A78BFA',
+                  textShadowColor: combo >= 10 ? COLORS.amber + '80' : '#A78BFA80',
+                }]}>
+                  {comboMessage}
+                </Animated.Text>
+              )}
+
+              {/* 화면 플래시 */}
+              <Animated.View
+                key={flashKey}
+                style={[StyleSheet.absoluteFill, s.screenFlash, { opacity: screenFlash }]}
+                pointerEvents="none"
+              />
+            </View>
+          </TouchableWithoutFeedback>
 
           {/* ── 결과 오버레이 ── */}
           {phase === 'result' && (
@@ -538,6 +776,28 @@ function OrbView({ orb, onTap }: { orb: OrbData; onTap: () => void }) {
               {orb.type === 'legendary' ? '전설' : '희귀'}
             </Text>
           )}
+        </View>
+      </TouchableWithoutFeedback>
+    </Animated.View>
+  );
+}
+
+// ─── 낙하 아이템 뷰 ─────────────────────────────────────────
+function FallingItemView({ item, onTap }: { item: FallingItem; onTap: () => void }) {
+  const cfg = FALLING_CFG[item.type];
+  return (
+    <Animated.View style={[s.fallingItem, {
+      left: item.x - 25,
+      transform: [{ translateY: item.y }],
+      opacity: item.opacity,
+      borderColor: cfg.color + '90',
+      backgroundColor: cfg.color + '22',
+      shadowColor: cfg.color,
+    }]}>
+      <TouchableWithoutFeedback onPress={onTap}>
+        <View style={s.fallingItemInner}>
+          <Text style={s.fallingItemEmoji}>{cfg.emoji}</Text>
+          <Text style={[s.fallingItemLabel, { color: cfg.color }]}>{cfg.label}</Text>
         </View>
       </TouchableWithoutFeedback>
     </Animated.View>
@@ -624,8 +884,40 @@ const s = StyleSheet.create({
   timerNum: { fontSize: FONTS.md, fontWeight: '900', fontFamily: 'monospace' },
   timerSec: { fontSize: FONTS.xxs, fontWeight: '700' },
 
+  // 파워업 표시 pill
+  powerupPill: {
+    backgroundColor: '#F59E0B28',
+    borderRadius: RADIUS.full,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderWidth: 1,
+    borderColor: '#F59E0B70',
+  },
+  powerupPillTxt: {
+    fontSize: FONTS.xxs,
+    color: '#F59E0B',
+    fontWeight: '900',
+    fontFamily: 'monospace',
+    letterSpacing: 0.5,
+  },
+
   timerTrack: { height: 2, backgroundColor: 'rgba(255,255,255,0.04)' },
   timerFill:  { height: '100%' },
+
+  // 콤보 인디케이터 (상단 바)
+  comboIndicator: {
+    alignItems: 'center',
+    paddingVertical: 4,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+  },
+  comboIndicatorText: {
+    fontSize: FONTS.sm,
+    fontWeight: '900',
+    fontFamily: 'monospace',
+    letterSpacing: 2,
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 8,
+  },
 
   // 보스 패널
   bossPanel: {
@@ -649,6 +941,10 @@ const s = StyleSheet.create({
   hpBarRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   hpTrack: { flex: 1, height: 7, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: RADIUS.full, overflow: 'hidden' },
   hpFill:  { height: '100%', borderRadius: RADIUS.full },
+  hpHitFlash: {
+    backgroundColor: 'rgba(239,68,68,0.7)',
+    borderRadius: RADIUS.full,
+  },
   hpNum: { fontSize: FONTS.xxs, fontFamily: 'monospace', fontWeight: '800', minWidth: 32, textAlign: 'right' },
   shieldCol: { alignItems: 'center', gap: 4 },
   shieldLabel: { fontSize: 8, color: COLORS.textDisabled, fontFamily: 'monospace', letterSpacing: 1 },
@@ -701,6 +997,35 @@ const s = StyleSheet.create({
     fontSize: 9, fontWeight: '900', fontFamily: 'monospace', letterSpacing: 0.3,
   },
 
+  // 낙하 아이템
+  fallingItem: {
+    position: 'absolute',
+    top: 0,
+    width: 50,
+    height: 60,
+    borderRadius: RADIUS.md,
+    borderWidth: 1.5,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.9,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  fallingItemInner: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 2,
+  },
+  fallingItemEmoji: {
+    fontSize: 22,
+  },
+  fallingItemLabel: {
+    fontSize: 7,
+    fontWeight: '900',
+    fontFamily: 'monospace',
+    letterSpacing: 0.3,
+  },
+
   // 데미지 팝
   dmgPop: {
     position: 'absolute',
@@ -710,6 +1035,23 @@ const s = StyleSheet.create({
     textShadowColor: 'rgba(0,0,0,0.6)',
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 4,
+  },
+
+  // 콤보 메시지 팝업
+  comboMsgText: {
+    position: 'absolute',
+    alignSelf: 'center',
+    left: 0,
+    right: 0,
+    textAlign: 'center',
+    top: '45%',
+    fontSize: FONTS.xxl,
+    fontWeight: '900',
+    fontFamily: 'monospace',
+    letterSpacing: 3,
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 12,
+    zIndex: 100,
   },
 
   // Ready 오버레이
