@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
-import React, { useState } from 'react';
-import { Image, Modal, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View, ViewStyle } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { Animated, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View, ViewStyle } from 'react-native';
 import { COLORS, FONTS, RADIUS, SPACING } from '../constants/theme';
 import { EMPTY_PERMANENT_STATS, PermanentStats } from '../types';
 import { RecentCondition } from '../utils/permanentStats';
@@ -26,20 +26,18 @@ interface Props {
 
 const pixelated: any = Platform.select({ web: { imageRendering: 'pixelated' }, default: {} });
 
+// ─── EVO 진화 모달 ────────────────────────────────────────────
 function EvoModal({ visible, totalGained, onClose }: { visible: boolean; totalGained: number; onClose: () => void }) {
   const cur = getEvoStage(totalGained);
   const next = getNextEvoStage(totalGained);
   const toNext = next ? Math.max(0, next.threshold - totalGained) : 0;
-  const pct = next
-    ? Math.min(100, ((totalGained - cur.threshold) / (next.threshold - cur.threshold)) * 100)
-    : 100;
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <TouchableOpacity style={em.backdrop} activeOpacity={1} onPress={onClose}>
         <TouchableOpacity activeOpacity={1} style={em.sheet}>
           <Text style={em.title}>EVO 진화 단계</Text>
-          <Text style={em.sub}>누적 성장 포인트: <Text style={{ color: COLORS.primary }}>{totalGained.toFixed(1)}p</Text></Text>
+          <Text style={em.sub}>누적 성장: <Text style={{ color: COLORS.primary }}>{totalGained.toFixed(1)}p</Text>{next ? `  ·  다음까지 ${toNext.toFixed(1)}p` : ''}</Text>
 
           <ScrollView style={{ maxHeight: 420 }} showsVerticalScrollIndicator={false}>
             {EVO_STAGES.map((s, i) => {
@@ -67,9 +65,6 @@ function EvoModal({ visible, totalGained, onClose }: { visible: boolean; totalGa
                         <View style={[em.barFill, { width: `${stagePct}%`, backgroundColor: s.textColor }]} />
                       </View>
                     )}
-                    {isCurrent && next_ && (
-                      <Text style={[em.toNext, { color: COLORS.textMuted }]}>다음까지 {toNext.toFixed(1)}p</Text>
-                    )}
                   </View>
                 </View>
               );
@@ -85,18 +80,21 @@ function EvoModal({ visible, totalGained, onClose }: { visible: boolean; totalGa
   );
 }
 
+// ─── 메인 히어로 배너 ────────────────────────────────────────
 export default function CharacterCard({
   name, score, rank, level, levelTitle,
   xpCurrent, xpNeeded, todayXp, permStats, conditionInfo, statusEffects, onEditName,
 }: Props) {
   const [evoModalVisible, setEvoModalVisible] = useState(false);
   const rankColor = rank?.color ?? COLORS.textMuted;
-  const rankGlow = rank?.glow ?? COLORS.primaryGlow;
   const xpPct = Math.min(100, Math.round((xpCurrent / xpNeeded) * 100));
   const ps = permStats ?? EMPTY_PERMANENT_STATS;
   const evo = getEvoStage(ps.totalGained);
   const nextEvo = getNextEvoStage(ps.totalGained);
   const toNext = nextEvo ? Math.max(0, nextEvo.threshold - ps.totalGained) : 0;
+  const evoPct = nextEvo
+    ? Math.min(100, ((ps.totalGained - evo.threshold) / (nextEvo.threshold - evo.threshold)) * 100)
+    : 100;
 
   const cond = conditionInfo;
   const condColor =
@@ -105,176 +103,345 @@ export default function CharacterCard({
     cond.score >= 40 ? COLORS.amber :
     COLORS.bad;
 
-  const trendIcon =
-    !cond ? 'remove-outline' :
-    cond.trend === 'up' ? 'trending-up-outline' :
-    cond.trend === 'down' ? 'trending-down-outline' :
-    'remove-outline';
+  // ─── 캐릭터 호흡 애니메이션 (살아있는 느낌) ───
+  const breath = useRef(new Animated.Value(0)).current;
+  const shine = useRef(new Animated.Value(-1)).current;
 
-  const condBarPct = cond ? Math.round(cond.score) : 0;
+  useEffect(() => {
+    // 호흡 — 미세하게 위아래
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(breath, { toValue: 1, duration: 2200, useNativeDriver: true }),
+        Animated.timing(breath, { toValue: 0, duration: 2200, useNativeDriver: true }),
+      ])
+    ).start();
+    // 샤인 스윕 — 5초마다 카드 위로 한번
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(shine, { toValue: 1, duration: 1400, useNativeDriver: true }),
+        Animated.delay(3600),
+        Animated.timing(shine, { toValue: -1, duration: 0, useNativeDriver: true }),
+      ])
+    ).start();
+  }, []);
+
+  const breathY = breath.interpolate({ inputRange: [0, 1], outputRange: [0, -3] });
+  const shineX = shine.interpolate({ inputRange: [-1, 1], outputRange: [-260, 320] });
+
+  // 등급 라벨 (S/A/B/C/D/F)
+  const rankLetter = rank?.rank ?? '–';
+  const rankLabelText = rank?.label ?? '기록 없음';
 
   return (
-    <View style={[styles.card, { borderColor: rankColor + '33' } as ViewStyle]}>
+    <View style={[styles.outer, { borderColor: rankColor + '55' } as ViewStyle]}>
       <EvoModal visible={evoModalVisible} totalGained={ps.totalGained} onClose={() => setEvoModalVisible(false)} />
-      {/* 등급 컬러 글로우 (배경) */}
-      <View style={[styles.glow, { backgroundColor: rankGlow }]} pointerEvents="none" />
 
-      <View style={styles.row}>
-        <View style={styles.left}>
-          {/* 아바타 — conditionPct 연동 */}
-          <AvatarEvo stats={ps} size={60} conditionPct={cond?.score} />
+      {/* === 배경 그라데이션 (3겹 페이크) === */}
+      <View style={[styles.bgBase, { backgroundColor: rankColor + '14' }]} pointerEvents="none" />
+      <View style={[styles.bgRadial, { backgroundColor: rankColor + '22' }]} pointerEvents="none" />
+      <View style={styles.bgVignette} pointerEvents="none" />
 
-          <View style={styles.charInfo}>
-            <TouchableOpacity onPress={onEditName} style={styles.nameRow} activeOpacity={0.7}>
-              <Text style={styles.name}>{name || '용사'}</Text>
-              <Ionicons name="create-outline" size={14} color={COLORS.textDisabled} />
-            </TouchableOpacity>
+      {/* === 데코 별/도형 === */}
+      <View pointerEvents="none" style={styles.decoCluster}>
+        <View style={[styles.decoStar, { backgroundColor: rankColor + '55', top: 18, left: 18 }]} />
+        <View style={[styles.decoStar, { backgroundColor: rankColor + '33', top: 38, left: 44, width: 3, height: 3 }]} />
+        <View style={[styles.decoDot, { backgroundColor: rankColor + '44', top: 110, left: 32 }]} />
+        <View style={[styles.decoStar, { backgroundColor: rankColor + '66', top: 24, right: 110, width: 5, height: 5 }]} />
+        <View style={[styles.decoDot, { backgroundColor: COLORS.amber + '66', top: 60, right: 130 }]} />
+      </View>
 
-            {/* EVO 등급 뱃지 — 탭으로 진화 단계 모달 */}
-            <TouchableOpacity
-              onPress={() => setEvoModalVisible(true)}
-              style={[styles.rankPill, { backgroundColor: evo.bgColor, borderColor: evo.borderColor }]}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.evoStage, { color: evo.textColor }]}>EVO {evo.stage}</Text>
-              <Text style={[styles.rankLabel, { color: evo.textColor }]}>{evo.label}</Text>
-              <Ionicons name="chevron-forward" size={10} color={evo.textColor} style={{ opacity: 0.7 }} />
-            </TouchableOpacity>
+      {/* === 샤인 스윕 === */}
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          styles.shine,
+          { transform: [{ translateX: shineX }, { rotate: '-18deg' }] },
+        ]}
+      />
 
-            {/* 상태이상 뱃지 */}
-            {statusEffects && statusEffects.length > 0 && (
-              <View style={styles.effectRow}>
-                {statusEffects.map(ef => (
-                  <View
-                    key={ef.id}
-                    style={[styles.effectBadge, { backgroundColor: ef.color + '22', borderColor: ef.color + '55' }]}
-                  >
-                    <Text style={styles.effectEmoji}>{ef.emoji}</Text>
-                    <Text style={[styles.effectName, { color: ef.color }]}>{ef.name}</Text>
-                  </View>
-                ))}
-              </View>
-            )}
-
-            {/* 컨디션 상태 행 */}
-            {cond && (
-              <View style={styles.condRow}>
-                <Ionicons name={trendIcon as any} size={11} color={condColor} />
-                <Text style={[styles.condLabel, { color: condColor }]}>{cond.label}</Text>
-                {cond.daysInactive >= 3 && (
-                  <View style={[styles.inactiveBadge, { borderColor: COLORS.bad + '66' }]}>
-                    <Text style={styles.inactiveText}>{cond.daysInactive}d 미기록</Text>
-                  </View>
-                )}
-              </View>
-            )}
-
-            {/* 컨디션 바 */}
-            {cond && (
-              <View style={styles.condTrack}>
-                <View style={[styles.condFill, { width: `${condBarPct}%`, backgroundColor: condColor }]} />
-              </View>
-            )}
-
-            {/* 다음 진화 (컨디션 바가 있으면 숨김 — 공간 절약) */}
-            {!cond && nextEvo && (
-              <Text style={styles.nextEvo}>다음 진화까지 {toNext.toFixed(1)}</Text>
-            )}
+      {/* === 상단 라벨 줄 (이름 · EVO · 컨디션) === */}
+      <View style={styles.topRow}>
+        <Pressable onPress={onEditName} style={styles.nameWrap}>
+          <Text style={styles.eyebrow}>VITAL QUEST  ·  HERO</Text>
+          <View style={styles.nameLine}>
+            <Text style={styles.name} numberOfLines={1}>{name || '용사'}</Text>
+            <Ionicons name="create-outline" size={14} color={COLORS.textDisabled} />
           </View>
-        </View>
+          <Text style={styles.subTitle}>Lv {level}  ·  {levelTitle}</Text>
+        </Pressable>
 
-        <View style={styles.right}>
-          <Text style={[styles.score, { color: rankColor }]}>{score ?? '--'}</Text>
-          <Text style={styles.scoreLabel}>SCORE</Text>
-          {/* 다음 진화 — 컨디션 바 있을 때 이쪽에 작게 */}
-          {cond && nextEvo && (
-            <Text style={styles.nextEvoSmall}>EVO{evo.stage + 1} ↑ {toNext.toFixed(0)}</Text>
+        {/* 등급 큰 글자 (S/A/B/C/D/F) */}
+        <View style={[styles.rankBig, { borderColor: rankColor + '88', backgroundColor: rankColor + '18' }]}>
+          <Text style={[styles.rankBigLetter, { color: rankColor }]}>{rankLetter}</Text>
+          <Text style={[styles.rankBigLabel, { color: rankColor + 'CC' }]}>{rankLabelText}</Text>
+        </View>
+      </View>
+
+      {/* === 메인 캐릭터 영역 === */}
+      <View style={styles.mainBlock}>
+        {/* 좌측 - 캐릭터 + 베이스 글로우 */}
+        <Pressable onPress={() => setEvoModalVisible(true)} style={styles.charBlock}>
+          {/* 캐릭터 베이스 글로우 */}
+          <View style={[styles.charPedestal, { backgroundColor: rankColor + '22' }]} />
+          <View style={[styles.charPedestal2, { borderColor: rankColor + '44' }]} />
+
+          <Animated.View style={{ transform: [{ translateY: breathY }] }}>
+            <AvatarEvo stats={ps} size={92} conditionPct={cond?.score} />
+          </Animated.View>
+
+          {/* EVO 뱃지 */}
+          <View style={[styles.evoChip, { backgroundColor: evo.bgColor, borderColor: evo.borderColor }]}>
+            <Text style={[styles.evoChipNum, { color: evo.textColor }]}>EVO {evo.stage}</Text>
+            <Text style={[styles.evoChipLabel, { color: evo.textColor }]}>{evo.label}</Text>
+          </View>
+        </Pressable>
+
+        {/* 우측 - 스코어 + 컨디션 */}
+        <View style={styles.scoreBlock}>
+          <Text style={styles.scoreLabelTop}>오늘의 컨디션</Text>
+          <View style={styles.scoreLine}>
+            <Text style={[styles.scoreBig, { color: rankColor }]} adjustsFontSizeToFit numberOfLines={1}>
+              {score ?? '--'}
+            </Text>
+            <Text style={styles.scoreUnit}>/ 100</Text>
+          </View>
+
+          {/* 컨디션 미니바 + 추세 */}
+          {cond ? (
+            <View style={styles.condInline}>
+              <View style={styles.condTrack}>
+                <View style={[styles.condFill, { width: `${Math.min(100, cond.score)}%`, backgroundColor: condColor }]} />
+              </View>
+              <View style={styles.condMeta}>
+                <Ionicons
+                  name={
+                    cond.trend === 'up' ? 'trending-up' :
+                    cond.trend === 'down' ? 'trending-down' : 'remove'
+                  }
+                  size={11}
+                  color={condColor}
+                />
+                <Text style={[styles.condText, { color: condColor }]}>{cond.label}</Text>
+              </View>
+            </View>
+          ) : (
+            <Text style={styles.scoreSub}>첫 체크인을 시작해주세요</Text>
           )}
         </View>
       </View>
 
-      {/* XP 바 */}
+      {/* === 상태이상 배지 줄 === */}
+      {statusEffects && statusEffects.length > 0 && (
+        <View style={styles.effectRow}>
+          {statusEffects.map(ef => (
+            <View
+              key={ef.id}
+              style={[styles.effectBadge, { backgroundColor: ef.color + '22', borderColor: ef.color + '55' }]}
+            >
+              <Text style={styles.effectEmoji}>{ef.emoji}</Text>
+              <Text style={[styles.effectName, { color: ef.color }]}>{ef.name}</Text>
+            </View>
+          ))}
+        </View>
+      )}
+
+      {/* === EXP 바 (게임 풍 두꺼운 바) === */}
       <View style={styles.xpBlock}>
-        <View style={styles.xpRow}>
-          <Text style={styles.xpLevel}>
-            <Text style={styles.xpLevelDim}>LV </Text>
-            {level} · {levelTitle}
-          </Text>
-          <Text style={styles.xpNum}>
+        <View style={styles.xpHeader}>
+          <View style={styles.xpHeaderLeft}>
+            <View style={styles.xpDot} />
+            <Text style={styles.xpHeaderText}>EXP</Text>
             {todayXp != null && todayXp > 0 && (
-              <Text style={styles.xpGain}>+{todayXp} XP </Text>
+              <View style={styles.xpGainPill}>
+                <Text style={styles.xpGainTxt}>+{todayXp}</Text>
+              </View>
             )}
-            <Text style={styles.xpDim}>{xpCurrent} / {xpNeeded}</Text>
+          </View>
+          <Text style={styles.xpNumbers}>
+            <Text style={styles.xpCur}>{xpCurrent.toLocaleString()}</Text>
+            <Text style={styles.xpDim}> / {xpNeeded.toLocaleString()}</Text>
           </Text>
         </View>
         <View style={styles.xpTrack}>
-          <View style={[styles.xpFill, { width: `${xpPct}%`, backgroundColor: rankColor }]} />
+          <View style={[styles.xpFill, { width: `${xpPct}%`, backgroundColor: COLORS.amber }]}>
+            <View style={styles.xpFillShine} pointerEvents="none" />
+          </View>
         </View>
       </View>
+
+      {/* === EVO 진행 바 (게임 풍 작은 푸터) === */}
+      {nextEvo && (
+        <TouchableOpacity activeOpacity={0.8} onPress={() => setEvoModalVisible(true)} style={styles.evoFooter}>
+          <View style={styles.evoFooterLeft}>
+            <Ionicons name="sparkles" size={11} color={evo.textColor} />
+            <Text style={[styles.evoFooterText, { color: evo.textColor }]}>다음 진화</Text>
+            <Text style={styles.evoFooterSep}>·</Text>
+            <Text style={styles.evoFooterRemain}>EVO {nextEvo.stage} {nextEvo.label}</Text>
+          </View>
+          <Text style={styles.evoFooterPct}>{evoPct.toFixed(0)}%  +{toNext.toFixed(0)}p</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  card: {
-    backgroundColor: COLORS.bgCard,
-    borderRadius: RADIUS.lg,
-    padding: SPACING.md + 4,
+  outer: {
     marginHorizontal: SPACING.md,
     marginBottom: SPACING.md,
+    borderRadius: RADIUS.xl,
+    backgroundColor: COLORS.bgCard,
     borderWidth: 1.5,
     overflow: 'hidden',
     position: 'relative',
+    padding: SPACING.md,
+    paddingTop: SPACING.md - 2,
+    paddingBottom: SPACING.sm + 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.35,
+    shadowRadius: 16,
+    elevation: 8,
   },
-  glow: {
-    position: 'absolute', top: 0, right: 0, left: 0, bottom: 0,
+
+  // ── 배경 레이어 ──
+  bgBase: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+  bgRadial: {
+    position: 'absolute',
+    top: -40, right: -60,
+    width: 220, height: 220,
+    borderRadius: 110,
+    opacity: 0.9,
+  },
+  bgVignette: {
+    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.18)',
+  },
+
+  // ── 데코 ──
+  decoCluster: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+  decoStar: { position: 'absolute', width: 4, height: 4, transform: [{ rotate: '45deg' }] },
+  decoDot:  { position: 'absolute', width: 5, height: 5, borderRadius: 3 },
+
+  // ── 샤인 스윕 ──
+  shine: {
+    position: 'absolute',
+    top: -50, left: 0,
+    width: 100, height: 320,
+    backgroundColor: COLORS.shimmer,
     opacity: 0.5,
   },
-  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  left: { flexDirection: 'row', alignItems: 'center', gap: 14, flex: 1 },
-  charInfo: { flex: 1 },
-  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
-  name: { color: COLORS.text, fontSize: FONTS.xl - 2, fontWeight: '800', letterSpacing: -0.5 },
-  rankPill: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingVertical: 5, paddingRight: 12, paddingLeft: 5,
-    borderRadius: RADIUS.full, borderWidth: 1, alignSelf: 'flex-start',
-    marginBottom: 5,
+
+  // ── 상단 라벨 줄 ──
+  topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: SPACING.sm },
+  nameWrap: { flex: 1, paddingRight: 10 },
+  eyebrow: { fontSize: 9, color: COLORS.textDisabled, fontFamily: 'monospace', letterSpacing: 2.2, fontWeight: '800', marginBottom: 4 },
+  nameLine: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
+  name: { color: COLORS.text, fontSize: FONTS.xl, fontWeight: '900', letterSpacing: -0.8, flexShrink: 1 },
+  subTitle: { color: COLORS.textMuted, fontSize: FONTS.xxs, fontFamily: 'monospace', letterSpacing: 0.5, fontWeight: '700' },
+
+  // ── 등급 큰 패치 ──
+  rankBig: {
+    width: 78, paddingVertical: 8,
+    borderRadius: RADIUS.md,
+    borderWidth: 1.5,
+    alignItems: 'center', justifyContent: 'center',
   },
-  rankLabel: { fontSize: FONTS.xs, fontWeight: '800' },
-  evoStage: {
-    fontFamily: 'monospace',
-    fontSize: FONTS.xxs, fontWeight: '900', letterSpacing: 0.8,
-    paddingHorizontal: 6, paddingVertical: 2,
+  rankBigLetter: { fontSize: 36, fontWeight: '900', fontFamily: 'monospace', lineHeight: 38, letterSpacing: -2 },
+  rankBigLabel: { fontSize: 9, fontWeight: '800', fontFamily: 'monospace', letterSpacing: 0.5, marginTop: 2 },
+
+  // ── 메인 블럭 ──
+  mainBlock: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md, marginBottom: SPACING.sm + 2 },
+
+  // ── 캐릭터 ──
+  charBlock: {
+    width: 110, height: 130,
+    alignItems: 'center', justifyContent: 'center',
+    position: 'relative',
   },
-  effectRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 5, marginBottom: 5 },
-  effectBadge: {
-    flexDirection: 'row', alignItems: 'center', gap: 3,
-    borderWidth: 1, borderRadius: RADIUS.full,
-    paddingHorizontal: 7, paddingVertical: 2,
+  charPedestal: {
+    position: 'absolute',
+    bottom: 6,
+    width: 92, height: 14,
+    borderRadius: 46,
+    opacity: 0.7,
+    transform: [{ scaleY: 0.5 }],
   },
-  effectEmoji: { fontSize: 10 },
-  effectName: { fontSize: 9, fontWeight: '700', fontFamily: 'monospace' },
-  condRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 },
-  condLabel: { fontSize: FONTS.xxs, fontWeight: '700', fontFamily: 'monospace' },
-  inactiveBadge: { borderWidth: 1, borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1, marginLeft: 2 },
-  inactiveText: { fontSize: FONTS.xxs - 2, color: COLORS.bad, fontWeight: '700', fontFamily: 'monospace' },
-  condTrack: { height: 4, backgroundColor: 'rgba(255,255,255,0.07)', borderRadius: RADIUS.full, overflow: 'hidden', width: '100%' },
+  charPedestal2: {
+    position: 'absolute',
+    bottom: 16, alignSelf: 'center',
+    width: 102, height: 102,
+    borderRadius: 51,
+    borderWidth: 1.5,
+    opacity: 0.4,
+  },
+  evoChip: {
+    position: 'absolute',
+    bottom: -2,
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    borderRadius: RADIUS.full,
+    borderWidth: 1,
+    paddingHorizontal: 8, paddingVertical: 3,
+  },
+  evoChipNum: { fontSize: 9, fontWeight: '900', fontFamily: 'monospace', letterSpacing: 0.5 },
+  evoChipLabel: { fontSize: 9, fontWeight: '800', fontFamily: 'monospace' },
+
+  // ── 스코어 우측 ──
+  scoreBlock: { flex: 1, justifyContent: 'center', gap: 4 },
+  scoreLabelTop: { fontSize: 9, color: COLORS.textMuted, fontFamily: 'monospace', letterSpacing: 1.8, fontWeight: '800' },
+  scoreLine: { flexDirection: 'row', alignItems: 'baseline', gap: 4 },
+  scoreBig: { fontSize: 64, fontWeight: '900', fontFamily: 'monospace', lineHeight: 64, letterSpacing: -3 },
+  scoreUnit: { fontSize: FONTS.sm, color: COLORS.textMuted, fontFamily: 'monospace', fontWeight: '700' },
+  scoreSub: { fontSize: FONTS.xxs, color: COLORS.textMuted, fontFamily: 'monospace', marginTop: 4 },
+  condInline: { gap: 5, marginTop: 2 },
+  condTrack: { height: 6, backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: RADIUS.full, overflow: 'hidden' },
   condFill: { height: '100%', borderRadius: RADIUS.full },
-  nextEvo: { color: COLORS.textMuted, fontSize: FONTS.xxs - 1, marginTop: 2, fontFamily: 'monospace' },
-  right: { alignItems: 'flex-end' },
-  score: { fontSize: 52, fontWeight: '900', fontFamily: 'monospace', lineHeight: 54, letterSpacing: -2 },
-  scoreLabel: { fontSize: 10, color: COLORS.textDisabled, fontFamily: 'monospace', letterSpacing: 2.5, fontWeight: '700', marginTop: 2 },
-  nextEvoSmall: { fontSize: FONTS.xxs - 2, color: COLORS.textDisabled, fontFamily: 'monospace', marginTop: 4, letterSpacing: 0.5 },
-  xpBlock: { marginTop: SPACING.md, paddingTop: SPACING.md, borderTopWidth: 1, borderTopColor: COLORS.border },
-  xpRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  xpLevel: { fontSize: FONTS.xs, color: COLORS.text, fontWeight: '700', fontFamily: 'monospace' },
-  xpLevelDim: { color: COLORS.textMuted, fontWeight: '500' },
-  xpNum: { fontSize: FONTS.xxs, fontFamily: 'monospace' },
-  xpGain: { color: COLORS.amber, fontWeight: '800' },
+  condMeta: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  condText: { fontSize: 11, fontWeight: '800', fontFamily: 'monospace', letterSpacing: 0.3 },
+
+  // ── 상태이상 ──
+  effectRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 },
+  effectBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    borderWidth: 1, borderRadius: RADIUS.full,
+    paddingHorizontal: 9, paddingVertical: 3,
+  },
+  effectEmoji: { fontSize: 11 },
+  effectName: { fontSize: 10, fontWeight: '800', fontFamily: 'monospace' },
+
+  // ── XP 바 ──
+  xpBlock: { gap: 6 },
+  xpHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  xpHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  xpDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: COLORS.amber },
+  xpHeaderText: { color: COLORS.amber, fontSize: 10, fontWeight: '900', fontFamily: 'monospace', letterSpacing: 1.5 },
+  xpGainPill: {
+    backgroundColor: COLORS.amberGlow,
+    borderWidth: 1, borderColor: COLORS.amberLine,
+    borderRadius: RADIUS.full,
+    paddingHorizontal: 7, paddingVertical: 1,
+    marginLeft: 4,
+  },
+  xpGainTxt: { color: COLORS.amber, fontSize: 9, fontWeight: '900', fontFamily: 'monospace' },
+  xpNumbers: { fontSize: 11, fontFamily: 'monospace', fontWeight: '700' },
+  xpCur: { color: COLORS.text },
   xpDim: { color: COLORS.textMuted },
-  xpTrack: { height: 10, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: RADIUS.full, overflow: 'hidden' },
-  xpFill: { height: '100%', borderRadius: RADIUS.full },
+  xpTrack: { height: 11, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: RADIUS.full, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,255,255,0.04)' },
+  xpFill: { height: '100%', borderRadius: RADIUS.full, position: 'relative', overflow: 'hidden' },
+  xpFillShine: { position: 'absolute', top: 0, left: 0, right: 0, height: 4, backgroundColor: 'rgba(255,255,255,0.30)' },
+
+  // ── EVO 푸터 ──
+  evoFooter: {
+    marginTop: 8,
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingTop: 8,
+    borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.06)',
+  },
+  evoFooterLeft: { flexDirection: 'row', alignItems: 'center', gap: 5, flex: 1 },
+  evoFooterText: { fontSize: 10, fontWeight: '800', fontFamily: 'monospace', letterSpacing: 0.5 },
+  evoFooterSep: { fontSize: 10, color: COLORS.textDisabled },
+  evoFooterRemain: { fontSize: 10, color: COLORS.textSub, fontFamily: 'monospace', fontWeight: '700' },
+  evoFooterPct: { fontSize: 10, color: COLORS.textMuted, fontFamily: 'monospace', fontWeight: '800' },
 });
 
 const em = StyleSheet.create({
@@ -301,7 +468,6 @@ const em = StyleSheet.create({
   threshold: { fontSize: FONTS.xxs - 1, fontFamily: 'monospace', marginBottom: 4 },
   barTrack: { height: 3, backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: RADIUS.full, overflow: 'hidden', marginBottom: 2 },
   barFill: { height: '100%', borderRadius: RADIUS.full },
-  toNext: { fontSize: FONTS.xxs - 1, fontFamily: 'monospace' },
   closeBtn: {
     marginTop: SPACING.md, backgroundColor: COLORS.bgInput,
     borderRadius: RADIUS.md, paddingVertical: 10, alignItems: 'center',

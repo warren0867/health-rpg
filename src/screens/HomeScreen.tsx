@@ -16,6 +16,7 @@ import PermanentStatPanel from '../components/PermanentStatPanel';
 import SkillPanel from '../components/SkillPanel';
 import QuestList, { Quest } from '../components/QuestList';
 import StatGrid from '../components/StatGrid';
+import TopStatusBar from '../components/TopStatusBar';
 import WeeklyBossCard from '../components/WeeklyBossCard';
 import { COLORS, FONTS, RADIUS, SPACING, getRank } from '../constants/theme';
 import { useRefresh } from '../context/RefreshContext';
@@ -219,22 +220,30 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={s.safe} edges={['top']}>
+      {/* 배경 비네트 (전체 화면 위 살짝 톤 다운) */}
+      <View style={s.bgVignetteTop} pointerEvents="none" />
+      <View style={s.bgVignetteBot} pointerEvents="none" />
+
       <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
 
-        {/* ── 헤더 ── */}
-        <View style={s.header}>
-          <View>
-            <Text style={s.eyebrow}>{getDateLabel(today)}{streak > 1 ? `  ·  ${streak}일 연속` : ''}</Text>
-            <Text style={s.title}>
-              {greeting}, <Text style={s.titleAccent}>{profile?.name ?? '용사'}</Text>님
-            </Text>
-          </View>
-          <TouchableOpacity style={s.iconBtn} onPress={async () => { const ns = await getNotifSettings(); setNotifSettings(ns); setShowNotifModal(true); }}>
-            <Ionicons name="notifications-outline" size={20} color={COLORS.textSub} />
-          </TouchableOpacity>
+        {/* ── 상단 상태 바 (날짜·스트릭 / 골드·레벨·알림) ── */}
+        <TopStatusBar
+          gold={gachaInv?.gold ?? 0}
+          streak={streak}
+          level={xpProgress?.level ?? 1}
+          dateLabel={getDateLabel(today)}
+          onPressNotif={async () => { const ns = await getNotifSettings(); setNotifSettings(ns); setShowNotifModal(true); }}
+          onPressGold={() => { setGachaInitialTab('pull'); setShowGacha(true); }}
+        />
+
+        {/* ── 인사 (히어로 위 작게) ── */}
+        <View style={s.greetingWrap}>
+          <Text style={s.greetingMain}>
+            {greeting}, <Text style={s.greetingAccent}>{profile?.name ?? '용사'}</Text>님
+          </Text>
         </View>
 
-        {/* ── 캐릭터 카드 (RPG 정체성, 절제된 형태) ── */}
+        {/* ── 캐릭터 히어로 배너 ── */}
         <CharacterCard
           name={profile?.name ?? '용사'}
           score={score}
@@ -342,20 +351,23 @@ export default function HomeScreen() {
           </>
         )}
 
-        {/* ── 빠른 이동 ── */}
-        <View style={s.quickRow}>
+        {/* ── 빠른 이동 (게임 풍 큰 아이콘) ── */}
+        <SectionLabel>빠른 이동</SectionLabel>
+        <View style={s.quickGrid}>
           {([
-            { icon: 'create-outline',     label: '체크인', color: COLORS.amber,   press: () => navigation.navigate('Input') },
-            { icon: 'restaurant-outline', label: '식단',   color: COLORS.primary, press: () => navigation.navigate('Calorie') },
-            { icon: 'water-outline',      label: '혈당',   color: COLORS.info,    press: () => navigation.navigate('BloodSugar') },
-            { icon: 'body-outline',       label: '인바디', color: COLORS.good,    press: () => navigation.navigate('InBody') },
-            { icon: 'bar-chart-outline',  label: '기록',   color: COLORS.purple,  press: () => navigation.navigate('History') },
+            { icon: 'create',     label: '체크인', color: COLORS.amber,   press: () => navigation.navigate('Input') },
+            { icon: 'restaurant', label: '식단',   color: COLORS.primary, press: () => navigation.navigate('Calorie') },
+            { icon: 'water',      label: '혈당',   color: COLORS.info,    press: () => navigation.navigate('BloodSugar') },
+            { icon: 'body',       label: '인바디', color: COLORS.good,    press: () => navigation.navigate('InBody') },
+            { icon: 'bar-chart',  label: '기록',   color: COLORS.purple,  press: () => navigation.navigate('History') },
           ] as const).map(({ icon, label, color, press }) => (
-            <TouchableOpacity key={label} style={s.quickItem} onPress={press} activeOpacity={0.7}>
-              <View style={[s.quickIcon, { backgroundColor: color + '25' }]}>
-                <Ionicons name={icon} size={22} color={color} />
+            <TouchableOpacity key={label} style={s.quickTile} onPress={press} activeOpacity={0.7}>
+              <View style={[s.quickTileBg, { backgroundColor: color + '14' }]} pointerEvents="none" />
+              <View style={[s.quickTileBorder, { borderColor: color + '40' }]} pointerEvents="none" />
+              <View style={[s.quickIcon, { backgroundColor: color + '22', borderColor: color + '55' }]}>
+                <Ionicons name={icon} size={20} color={color} />
               </View>
-              <Text style={s.quickLabel}>{label}</Text>
+              <Text style={[s.quickLabel, { color: COLORS.text }]}>{label}</Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -558,17 +570,25 @@ function NotifToggleRow({ label, sub, value, onToggle }: { label: string; sub?: 
   );
 }
 
-function SectionLabel({ children }: { children: React.ReactNode }) {
+function SectionLabel({ children, accent }: { children: React.ReactNode; accent?: string }) {
+  const c = accent ?? COLORS.primary;
   return (
     <View style={s.sectionLabelWrap}>
-      <View style={s.sectionLabelLine} />
+      <View style={[s.sectionLabelBar, { backgroundColor: c }]} />
+      <View style={[s.sectionLabelDot, { backgroundColor: c + '88' }]} />
       <Text style={s.sectionLabel}>{children}</Text>
+      <View style={s.sectionLine} />
     </View>
   );
 }
 
 function AppListSection({ children }: { children: React.ReactNode }) {
-  return <View style={s.listSection}>{children}</View>;
+  return (
+    <View style={s.listSection}>
+      <View style={s.listSectionShine} pointerEvents="none" />
+      {children}
+    </View>
+  );
 }
 
 function AppListRow({ icon, color, title, sub, badge, last, onPress }: {
@@ -577,15 +597,19 @@ function AppListRow({ icon, color, title, sub, badge, last, onPress }: {
 }) {
   return (
     <TouchableOpacity style={[s.listRow, last && s.listRowLast]} onPress={onPress} activeOpacity={0.6}>
-      <View style={[s.listIconBox, { backgroundColor: color + '20' }]}>
-        <Ionicons name={icon} size={20} color={color} />
+      <View style={[s.listIconBox, { backgroundColor: color + '22', borderColor: color + '55' }]}>
+        <Ionicons name={icon} size={19} color={color} />
       </View>
       <View style={s.listText}>
         <Text style={s.listTitle}>{title}</Text>
         {sub && <Text style={s.listSub}>{sub}</Text>}
       </View>
-      {!!badge && <Text style={s.listBadge}>{badge}</Text>}
-      <Ionicons name="chevron-forward" size={16} color={COLORS.textDisabled} />
+      {!!badge && (
+        <View style={[s.listBadgePill, { borderColor: color + '40', backgroundColor: color + '12' }]}>
+          <Text style={[s.listBadgeText, { color: color }]}>{badge}</Text>
+        </View>
+      )}
+      <Ionicons name="chevron-forward" size={15} color={COLORS.textDisabled} />
     </TouchableOpacity>
   );
 }
@@ -599,68 +623,81 @@ function getDateLabel(today: string) {
 // ─── 스타일 ─────────────────────────────────────────
 const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: COLORS.bg },
-  scroll: { paddingTop: SPACING.sm, paddingBottom: SPACING.xl },
+  scroll: { paddingTop: 0, paddingBottom: SPACING.xl },
 
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-end',
-    paddingHorizontal: SPACING.md + 4,
-    paddingVertical: SPACING.sm,
-    marginBottom: SPACING.sm,
+  // 배경 비네트
+  bgVignetteTop: {
+    position: 'absolute', top: 0, left: 0, right: 0, height: 160,
+    backgroundColor: COLORS.inkDeep, opacity: 0.6,
   },
-  eyebrow: {
-    fontSize: FONTS.xxs,
-    color: COLORS.textMuted,
-    fontFamily: 'monospace',
-    letterSpacing: 1.2,
-    marginBottom: 4,
+  bgVignetteBot: {
+    position: 'absolute', bottom: 0, left: 0, right: 0, height: 200,
+    backgroundColor: COLORS.inkDeep, opacity: 0.4,
   },
-  title: { fontSize: FONTS.xl - 2, fontWeight: '800', color: COLORS.text, letterSpacing: -0.5 },
-  titleAccent: { color: COLORS.primary },
-  iconBtn: {
-    width: 40, height: 40, borderRadius: 12,
-    backgroundColor: COLORS.bgCard,
-    borderWidth: 1, borderColor: COLORS.border,
-    alignItems: 'center', justifyContent: 'center',
+
+  // 인사
+  greetingWrap: {
+    paddingHorizontal: SPACING.md,
+    paddingBottom: SPACING.sm + 2,
   },
+  greetingMain: {
+    fontSize: FONTS.lg,
+    fontWeight: '800',
+    color: COLORS.textSub,
+    letterSpacing: -0.4,
+  },
+  greetingAccent: { color: COLORS.text, fontWeight: '900' },
 
   illnessBanner: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     backgroundColor: COLORS.badGlow,
     borderRadius: RADIUS.md, padding: SPACING.md - 2,
     marginHorizontal: SPACING.md, marginBottom: SPACING.md,
-    borderWidth: 1, borderColor: 'rgba(239,68,68,0.30)',
+    borderWidth: 1.5, borderColor: 'rgba(239,68,68,0.45)',
+    shadowColor: COLORS.bad,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    elevation: 4,
   },
   illnessIconBox: {
-    width: 36, height: 36, borderRadius: 10,
-    backgroundColor: 'rgba(239,68,68,0.18)',
+    width: 40, height: 40, borderRadius: 11,
+    backgroundColor: 'rgba(239,68,68,0.22)',
+    borderWidth: 1, borderColor: 'rgba(239,68,68,0.5)',
     alignItems: 'center', justifyContent: 'center',
   },
-  illnessTitle: { color: COLORS.bad, fontSize: FONTS.sm, fontWeight: '700' },
-  illnessSub: { color: COLORS.textMuted, fontSize: FONTS.xxs, marginTop: 2 },
+  illnessTitle: { color: COLORS.bad, fontSize: FONTS.sm, fontWeight: '900' },
+  illnessSub: { color: COLORS.textSub, fontSize: FONTS.xxs, marginTop: 2, fontFamily: 'monospace' },
 
   sectionLabelWrap: {
-    paddingHorizontal: SPACING.md + 4,
-    paddingTop: SPACING.md,
-    paddingBottom: SPACING.sm,
+    paddingHorizontal: SPACING.md,
+    paddingTop: SPACING.md - 2,
+    paddingBottom: SPACING.sm + 2,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
   },
-  sectionLabelLine: {
-    width: 3,
-    height: 12,
+  sectionLabelBar: {
+    width: 4,
+    height: 14,
     borderRadius: 2,
-    backgroundColor: COLORS.primary,
+  },
+  sectionLabelDot: {
+    width: 4, height: 4, borderRadius: 2,
+    marginLeft: -2,
   },
   sectionLabel: {
     fontSize: FONTS.xxs,
-    color: COLORS.textSub,
+    color: COLORS.text,
     fontFamily: 'monospace',
-    letterSpacing: 2,
+    letterSpacing: 2.5,
     textTransform: 'uppercase',
-    fontWeight: '800',
+    fontWeight: '900',
+  },
+  sectionLine: {
+    flex: 1, height: 1,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    marginLeft: 4,
   },
 
   emptyCard: {
@@ -696,31 +733,45 @@ const s = StyleSheet.create({
     marginBottom: SPACING.md,
   },
 
-  // ── 빠른 이동 ──
-  quickRow: {
+  // ── 빠른 이동 (게임 풍 5칸 그리드) ──
+  quickGrid: {
     flexDirection: 'row',
     paddingHorizontal: SPACING.md,
-    paddingVertical: 4,
+    paddingVertical: 2,
     marginBottom: SPACING.md,
-    justifyContent: 'space-between',
+    gap: 7,
   },
-  quickItem: {
+  quickTile: {
     flex: 1,
-    alignItems: 'center',
-    gap: 6,
+    aspectRatio: 0.85,
+    backgroundColor: COLORS.bgCard,
+    borderRadius: RADIUS.md,
+    alignItems: 'center', justifyContent: 'center',
+    gap: 8,
+    position: 'relative',
+    overflow: 'hidden',
+    paddingVertical: 8,
+  },
+  quickTileBg: {
+    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+  },
+  quickTileBorder: {
+    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
   },
   quickIcon: {
-    width: 52, height: 52, borderRadius: 16,
+    width: 38, height: 38, borderRadius: 11,
+    borderWidth: 1,
     alignItems: 'center', justifyContent: 'center',
   },
   quickLabel: {
-    fontSize: FONTS.xxs,
-    color: COLORS.textSub,
-    fontWeight: '600',
+    fontSize: 11,
+    fontWeight: '800',
     letterSpacing: 0.2,
   },
 
-  // ── iOS 설정 스타일 리스트 ──
+  // ── 프리미엄 리스트 카드 ──
   listSection: {
     backgroundColor: COLORS.bgCard,
     borderRadius: RADIUS.lg,
@@ -729,26 +780,46 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
     overflow: 'hidden',
+    position: 'relative',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  listSectionShine: {
+    position: 'absolute', top: 0, left: 0, right: 0, height: 1,
+    backgroundColor: COLORS.glassTop,
   },
   listRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: SPACING.md,
-    paddingVertical: 13,
-    gap: 12,
+    paddingHorizontal: SPACING.md - 2,
+    paddingVertical: 12,
+    gap: 11,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.borderSub,
   },
   listRowLast: { borderBottomWidth: 0 },
   listIconBox: {
-    width: 38, height: 38, borderRadius: 10,
+    width: 38, height: 38, borderRadius: 11,
+    borderWidth: 1,
     alignItems: 'center', justifyContent: 'center',
     flexShrink: 0,
   },
   listText: { flex: 1 },
-  listTitle: { color: COLORS.text, fontSize: FONTS.sm, fontWeight: '700' },
-  listSub: { color: COLORS.textMuted, fontSize: FONTS.xxs, marginTop: 1, fontFamily: 'monospace' },
-  listBadge: { color: COLORS.textMuted, fontSize: FONTS.xs, fontFamily: 'monospace', fontWeight: '700', marginRight: 4 },
+  listTitle: { color: COLORS.text, fontSize: FONTS.sm, fontWeight: '800', letterSpacing: -0.2 },
+  listSub: { color: COLORS.textMuted, fontSize: FONTS.xxs, marginTop: 2, fontFamily: 'monospace' },
+
+  listBadgePill: {
+    borderWidth: 1,
+    borderRadius: RADIUS.full,
+    paddingHorizontal: 9, paddingVertical: 3,
+    marginRight: 2,
+  },
+  listBadgeText: {
+    fontSize: 10, fontWeight: '900', fontFamily: 'monospace', letterSpacing: 0.3,
+  },
 
 
   // Modal
