@@ -17,90 +17,52 @@ export default function DailyRings({ calorie, water, quest }: Props) {
 
   return (
     <View style={s.row}>
-      <MetricTile
-        icon="flame"
+      <Tile
+        icon="flame-outline"
         color={COLORS.primary}
         value={calorie.current > 0 ? calorie.current.toLocaleString() : '0'}
         unit="kcal"
         label="칼로리"
         pct={calPct}
-        sub={`${calorie.goal.toLocaleString()}`}
       />
-      <MetricTile
-        icon="water"
+      <Tile
+        icon="water-outline"
         color={COLORS.info}
         value={waterL}
         unit="L"
         label="수분"
         pct={waterPct}
-        sub={`${(water.goalMl / 1000).toFixed(1)}L`}
       />
-      <MetricTile
-        icon="checkmark-circle"
+      <Tile
+        icon="checkmark-circle-outline"
         color={COLORS.amber}
-        value={String(quest.done)}
-        unit={`/${quest.total}`}
+        value={`${quest.done}/${quest.total}`}
+        unit=""
         label="퀘스트"
         pct={questPct}
-        sub={questPct >= 100 ? 'CLEAR!' : `${questPct}%`}
       />
     </View>
   );
 }
 
-function MetricTile({ icon, color, value, unit, label, pct, sub }: {
-  icon: any; color: string; value: string; unit: string;
-  label: string; pct: number; sub: string;
+function Tile({ icon, color, value, unit, label, pct }: {
+  icon: any; color: string; value: string; unit: string; label: string; pct: number;
 }) {
   const done = pct >= 100;
   return (
-    <View style={[s.tile, { borderColor: color + (done ? '88' : '33') }]}>
-      {/* 그라데이션 배경 (3겹 페이크) */}
-      <View style={[s.bgBottom, { backgroundColor: color + '14' }]} pointerEvents="none" />
-      <View style={[s.bgGlow, { backgroundColor: color + '22' }]} pointerEvents="none" />
-      <View style={s.bgTopShine} pointerEvents="none" />
-
-      {/* 상단: 아이콘 + 라벨 */}
-      <View style={s.tileHeader}>
-        <View style={[s.iconBox, { backgroundColor: color + '28', borderColor: color + '55' }]}>
-          <Ionicons name={icon} size={13} color={color} />
-        </View>
-        <Text style={[s.tileLabel, { color: color + 'CC' }]}>{label}</Text>
+    <View style={s.tile}>
+      <View style={s.tileTop}>
+        <Ionicons name={icon} size={13} color={done ? color : COLORS.textMuted} />
+        <Text style={s.tileLabel}>{label}</Text>
       </View>
-
-      {/* 큰 숫자 */}
       <View style={s.tileValueRow}>
-        <Text style={[s.tileValue, { color: done ? color : COLORS.text }]} numberOfLines={1} adjustsFontSizeToFit>
+        <Text style={[s.tileValue, done && { color }]} numberOfLines={1} adjustsFontSizeToFit>
           {value}
         </Text>
-        <Text style={s.tileUnit}>{unit}</Text>
+        {!!unit && <Text style={s.tileUnit}>{unit}</Text>}
       </View>
-
-      {/* 진행 바 */}
       <View style={s.tileBarTrack}>
-        <View
-          style={[
-            s.tileBarFill,
-            {
-              width: `${pct}%` as any,
-              backgroundColor: done ? color : color,
-            },
-          ]}
-        >
-          <View style={s.tileBarShine} pointerEvents="none" />
-        </View>
-      </View>
-
-      {/* 서브 */}
-      <View style={s.tileFooter}>
-        <Ionicons
-          name={done ? 'checkmark-circle' : 'arrow-up-circle-outline'}
-          size={10}
-          color={done ? color : COLORS.textDisabled}
-        />
-        <Text style={[s.tileSub, { color: done ? color : COLORS.textDisabled }]} numberOfLines={1}>
-          {sub}
-        </Text>
+        <View style={[s.tileBarFill, { width: `${pct}%` as any, backgroundColor: color }]} />
       </View>
     </View>
   );
@@ -110,59 +72,33 @@ const s = StyleSheet.create({
   row: {
     flexDirection: 'row',
     paddingHorizontal: SPACING.md,
-    gap: 9,
+    gap: 10,
     marginBottom: SPACING.md,
   },
   tile: {
     flex: 1,
     backgroundColor: COLORS.bgCard,
-    borderRadius: RADIUS.md + 2,
-    padding: 11,
-    paddingBottom: 10,
+    borderRadius: RADIUS.md,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
     borderWidth: 1,
-    overflow: 'hidden',
-    position: 'relative',
-    gap: 7,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 3,
+    borderColor: COLORS.border,
+    gap: 8,
   },
-  bgBottom: { position: 'absolute', bottom: 0, left: 0, right: 0, height: '60%' },
-  bgGlow: {
-    position: 'absolute', top: -28, right: -28,
-    width: 76, height: 76, borderRadius: 38,
-    opacity: 0.7,
+  tileTop: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  tileLabel: {
+    fontSize: 11, color: COLORS.textMuted,
+    fontWeight: '600', letterSpacing: 0.2,
   },
-  bgTopShine: {
-    position: 'absolute', top: 0, left: 0, right: 0, height: 1.5,
-    backgroundColor: COLORS.glassTop,
+  tileValueRow: { flexDirection: 'row', alignItems: 'baseline', gap: 3 },
+  tileValue: {
+    fontSize: 20, fontWeight: '800', color: COLORS.text,
+    fontFamily: 'monospace', letterSpacing: -0.8,
   },
-
-  tileHeader: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  iconBox: {
-    width: 22, height: 22, borderRadius: 7,
-    borderWidth: 1,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  tileLabel: { fontSize: 10, fontFamily: 'monospace', fontWeight: '800', letterSpacing: 0.5 },
-
-  tileValueRow: { flexDirection: 'row', alignItems: 'baseline', gap: 2, minHeight: 28 },
-  tileValue: { fontSize: FONTS.xl, fontWeight: '900', fontFamily: 'monospace', letterSpacing: -1.2 },
-  tileUnit: { fontSize: 10, fontFamily: 'monospace', fontWeight: '700', color: COLORS.textMuted, paddingBottom: 2 },
-
+  tileUnit: { fontSize: 11, color: COLORS.textMuted, fontFamily: 'monospace', fontWeight: '600' },
   tileBarTrack: {
-    height: 6, backgroundColor: 'rgba(255,255,255,0.06)',
-    borderRadius: RADIUS.full, overflow: 'hidden',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.04)',
+    height: 3, backgroundColor: 'rgba(255,255,255,0.06)',
+    borderRadius: 2, overflow: 'hidden',
   },
-  tileBarFill: { height: '100%', borderRadius: RADIUS.full, position: 'relative', overflow: 'hidden' },
-  tileBarShine: {
-    position: 'absolute', top: 0, left: 0, right: 0, height: 2,
-    backgroundColor: 'rgba(255,255,255,0.35)',
-  },
-
-  tileFooter: { flexDirection: 'row', alignItems: 'center', gap: 3 },
-  tileSub: { fontSize: 10, fontFamily: 'monospace', fontWeight: '800', letterSpacing: 0.3 },
+  tileBarFill: { height: '100%', borderRadius: 2 },
 });
