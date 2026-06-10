@@ -7,8 +7,9 @@ import {
   Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import CharacterCard from '../components/CharacterCard';
+import DailyChest from '../components/DailyChest';
 import DailyRings from '../components/DailyRings';
+import HeroStage from '../components/HeroStage';
 import GachaModal from '../components/GachaModal';
 import BrickBreakerModal from '../components/BrickBreakerModal';
 import MiniGameModal from '../components/MiniGameModal';
@@ -38,6 +39,7 @@ import { WeeklyBossState, claimBossReward, updateWeeklyBoss } from '../utils/wee
 import { GachaBonus, GachaInventory, ACHIEVEMENT_DEFS, UnlockedAchievement } from '../types';
 import { addGold, getGachaInventory } from '../utils/gacha';
 import { NotifSettings, getNotifSettings, saveNotifSettings, scheduleAllNotifications, requestPermissions } from '../utils/notifications';
+import { ChestReward, isChestClaimedToday } from '../utils/dailyChest';
 
 /**
  * 홈 화면 — Vital Quest 디자인 v1
@@ -77,6 +79,8 @@ export default function HomeScreen() {
   const [gachaInitialTab, setGachaInitialTab] = useState<'pull' | 'inventory' | 'bonus'>('pull');
   const [showMiniGame, setShowMiniGame] = useState(false);
   const [showBrickBreaker, setShowBrickBreaker] = useState(false);
+  const [chestClaimed, setChestClaimed] = useState(true);
+  const [charTab, setCharTab] = useState<'stats' | 'skills' | 'today'>('stats');
 
   // 모달
   const [recentAchievements, setRecentAchievements] = useState<UnlockedAchievement[]>([]);
@@ -134,6 +138,7 @@ export default function HomeScreen() {
     setGachaInv(gacha);
     const allAch = await getUnlockedAchievements();
     setRecentAchievements([...allAch].sort((a, b) => b.unlockedAt.localeCompare(a.unlockedAt)).slice(0, 3));
+    setChestClaimed(await isChestClaimedToday());
 
     setLoading(false);
   }, [today]);
@@ -173,6 +178,14 @@ export default function HomeScreen() {
       Alert.alert('보스 처치!', `보상 획득!\n⚔️ +${xp} XP\n🪙 +${gold} 골드\n\n골드로 마법 뽑기를 해보세요!`);
       load();
     }
+  };
+
+  const handleChestClaimed = async (r: ChestReward) => {
+    await addGold(r.gold);
+    const xp = await addXP(r.xp);
+    setChestClaimed(true);
+    setXpProgress(getXPProgress(xp.totalXP));
+    setGachaInv(await getGachaInventory());
   };
 
   const handleAddWater = async () => {
@@ -241,8 +254,8 @@ export default function HomeScreen() {
           {greeting}, {profile?.name ?? '용사'}님
         </Text>
 
-        {/* ── 캐릭터 히어로 배너 ── */}
-        <CharacterCard
+        {/* ── 캐릭터 히어로 스테이지 ── */}
+        <HeroStage
           name={profile?.name ?? '용사'}
           score={score}
           rank={rank as any}
@@ -254,6 +267,9 @@ export default function HomeScreen() {
           permStats={permStats}
           conditionInfo={conditionInfo ?? undefined}
           statusEffects={statusEffects}
+          streak={streak}
+          questsLeft={quests.filter(q => !q.done).length}
+          hasIllness={!!currentIllness}
           onEditName={() => {
             setEditName(profile?.name ?? '');
             setEditWeight(String(profile?.weightKg ?? ''));
@@ -261,6 +277,11 @@ export default function HomeScreen() {
             setShowProfileModal(true);
           }}
         />
+
+        {/* ── 일일 보상 상자 (하루 한 번) ── */}
+        {!chestClaimed && (
+          <DailyChest streak={streak} onClaimed={handleChestClaimed} />
+        )}
 
         {/* ── 앓는 중 배너 (조건부) ── */}
         {currentIllness && (
@@ -280,6 +301,16 @@ export default function HomeScreen() {
           </TouchableOpacity>
         )}
 
+        {/* ── 오늘의 퀘스트 (메인 루프 — 최상단 배치) ── */}
+        <QuestList quests={quests} />
+
+        {/* ── 데일리 링 ── */}
+        <DailyRings
+          calorie={{ current: foodSummary.calories, goal: targetCal }}
+          water={{ currentMl: waterMl, goalMl: WATER_GOAL }}
+          quest={{ done: quests.filter(q => q.done).length, total: quests.length }}
+        />
+
         {/* ── 주간 보스전 ── */}
         {bossState && (
           <>
@@ -291,43 +322,47 @@ export default function HomeScreen() {
           </>
         )}
 
-        {/* ── 데일리 링 ── */}
-        <DailyRings
-          calorie={{ current: foodSummary.calories, goal: targetCal }}
-          water={{ currentMl: waterMl, goalMl: WATER_GOAL }}
-          quest={{ done: quests.filter(q => q.done).length, total: quests.length }}
-        />
-
-        {/* ── 영구 능력치 (누적 성장) ── */}
-        <SectionLabel>영구 능력치</SectionLabel>
-        <PermanentStatPanel stats={permStats} activeBonuses={gachaInv?.activeBonuses ?? []} />
-
-        {/* ── 패시브 스킬 ── */}
-        <SectionLabel>패시브 스킬</SectionLabel>
-        <SkillPanel level={xpProgress?.level ?? 1} />
-
-        {/* ── 오늘의 컨디션 (일일 변동) ── */}
-        {stats ? (
-          <>
-            <SectionLabel>오늘의 컨디션</SectionLabel>
-            <StatGrid stats={stats} />
-          </>
-        ) : (
-          <TouchableOpacity style={s.emptyCard} onPress={() => navigation.navigate('Input')}>
-            <View style={s.emptyIconBox}>
-              <Ionicons name="add-circle-outline" size={28} color={COLORS.primary} />
-            </View>
-            <Text style={s.emptyTitle}>오늘 첫 체크인을 시작해주세요</Text>
-            <Text style={s.emptySub}>수면·운동·음주를 기록하면 스탯이 생성돼요</Text>
-            <View style={s.emptyBtn}>
-              <Text style={s.emptyBtnText}>체크인 시작</Text>
-              <Ionicons name="arrow-forward" size={14} color="#000" />
-            </View>
-          </TouchableOpacity>
+        {/* ── 내 캐릭터 (능력치 / 스킬 / 오늘 — 탭으로 묶음) ── */}
+        <SectionLabel>내 캐릭터</SectionLabel>
+        <View style={s.segmentRow}>
+          {([
+            { key: 'stats',  label: '능력치' },
+            { key: 'skills', label: '스킬' },
+            { key: 'today',  label: '오늘' },
+          ] as const).map(t => (
+            <TouchableOpacity
+              key={t.key}
+              style={[s.segmentBtn, charTab === t.key && s.segmentBtnActive]}
+              onPress={() => setCharTab(t.key)}
+              activeOpacity={0.7}
+            >
+              <Text style={[s.segmentText, charTab === t.key && s.segmentTextActive]}>{t.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+        {charTab === 'stats' && (
+          <PermanentStatPanel stats={permStats} activeBonuses={gachaInv?.activeBonuses ?? []} />
         )}
-
-        {/* ── 오늘의 퀘스트 ── */}
-        <QuestList quests={quests} />
+        {charTab === 'skills' && (
+          <SkillPanel level={xpProgress?.level ?? 1} />
+        )}
+        {charTab === 'today' && (
+          stats ? (
+            <StatGrid stats={stats} />
+          ) : (
+            <TouchableOpacity style={s.emptyCard} onPress={() => navigation.navigate('Input')}>
+              <View style={s.emptyIconBox}>
+                <Ionicons name="add-circle-outline" size={28} color={COLORS.primary} />
+              </View>
+              <Text style={s.emptyTitle}>오늘 첫 체크인을 시작해주세요</Text>
+              <Text style={s.emptySub}>수면·운동·음주를 기록하면 스탯이 생성돼요</Text>
+              <View style={s.emptyBtn}>
+                <Text style={s.emptyBtnText}>체크인 시작</Text>
+                <Ionicons name="arrow-forward" size={14} color="#000" />
+              </View>
+            </TouchableOpacity>
+          )
+        )}
 
         {/* ── 최근 업적 ── */}
         {recentAchievements.length > 0 && (
@@ -633,6 +668,28 @@ const s = StyleSheet.create({
   },
   illnessTitle: { color: COLORS.bad, fontSize: FONTS.sm, fontWeight: '700' },
   illnessSub: { color: COLORS.textMuted, fontSize: FONTS.xxs, marginTop: 2 },
+
+  // 내 캐릭터 세그먼트 탭
+  segmentRow: {
+    flexDirection: 'row',
+    marginHorizontal: SPACING.md,
+    marginBottom: SPACING.sm + 2,
+    backgroundColor: COLORS.bgCard,
+    borderRadius: RADIUS.full,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: 3,
+    gap: 3,
+  },
+  segmentBtn: {
+    flex: 1,
+    paddingVertical: 7,
+    borderRadius: RADIUS.full,
+    alignItems: 'center',
+  },
+  segmentBtnActive: { backgroundColor: COLORS.bgHighlight },
+  segmentText: { fontSize: FONTS.xs, color: COLORS.textMuted, fontWeight: '600' },
+  segmentTextActive: { color: COLORS.text, fontWeight: '800' },
 
   // 미니멀 — 단순 텍스트 라벨
   sectionLabel: {

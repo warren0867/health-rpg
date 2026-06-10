@@ -26,7 +26,7 @@ interface Props {
 
 const pixelated: any = Platform.select({ web: { imageRendering: 'pixelated' }, default: {} });
 
-function EvoModal({ visible, totalGained, onClose }: { visible: boolean; totalGained: number; onClose: () => void }) {
+export function EvoModal({ visible, totalGained, onClose }: { visible: boolean; totalGained: number; onClose: () => void }) {
   const cur = getEvoStage(totalGained);
   const next = getNextEvoStage(totalGained);
   const toNext = next ? Math.max(0, next.threshold - totalGained) : 0;
@@ -160,7 +160,7 @@ export default function CharacterCard({
           <Text style={[styles.condText, { color: condColor }]}>{cond.label}</Text>
           <View style={styles.condDivider} />
           <Text style={styles.evoText}>EVO {evo.stage}  {evo.label}</Text>
-          {cond.trend !== 'flat' && (
+          {cond.trend !== 'stable' && (
             <Ionicons
               name={cond.trend === 'up' ? 'trending-up' : 'trending-down'}
               size={11}
