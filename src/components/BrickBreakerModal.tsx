@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Animated,
@@ -17,7 +18,8 @@ import { addXP } from '../utils/storage';
 // ── 게임 상수 ────────────────────────────────────────────────
 const TICK_MS    = 16;
 const BALL_R     = 8;
-const BALL_SPD   = 6.2;
+const BALL_SPD   = 6.0;       // 기본 속도 (벽돌 깰수록 증가)
+const SPD_GROWTH = 0.012;     // 벽돌 1개당 속도 증가율 (최대 +50%)
 const PADDLE_W   = 92;
 const PADDLE_H   = 13;
 const COLS       = 7;
@@ -26,8 +28,42 @@ const BRICK_H    = 22;
 const BRICK_GAP  = 5;
 const BRICK_TOP  = 52;
 const SIDE_PAD   = 10;
-const MAX_LIVES  = 3;
-const PAD_BOTTOM = 44; // paddle top from area bottom
+const MAX_LIVES  = 4;
+const START_LIVES = 3;
+const PAD_BOTTOM = 44;        // paddle top from area bottom
+
+// ── 아이템 (파워업) ──────────────────────────────────────────
+const DROP_CHANCE = 0.32;     // 벽돌 파괴 시 드랍 확률
+const DROP_SPD    = 2.4;      // 아이템 낙하 속도
+const DROP_SIZE   = 26;
+const MAX_BALLS   = 6;
+const WIDE_MULT   = 1.5;      // 패들 확장 배율
+
+type DropKind = 'wide' | 'multi' | 'slow' | 'fast' | 'gold' | 'life';
+
+const DROP_CFG: Record<DropKind, {
+  icon: keyof typeof Ionicons.glyphMap; color: string; label: string; weight: number;
+  durationFrames?: number;  // 시간제 효과만
+}> = {
+  wide:  { icon: 'resize',          color: '#10B981', label: '패들 확장',   weight: 26, durationFrames: 750 },
+  multi: { icon: 'copy',            color: '#14B8A6', label: '멀티볼',      weight: 20 },
+  slow:  { icon: 'hourglass',       color: '#3B82F6', label: '슬로우',      weight: 18, durationFrames: 600 },
+  fast:  { icon: 'flash',           color: '#EF4444', label: '가속 (함정)', weight: 14, durationFrames: 600 },
+  gold:  { icon: 'server',          color: '#F59E0B', label: '+15 골드',    weight: 16 },
+  life:  { icon: 'heart',           color: '#F472B6', label: '+1 목숨',     weight: 6 },
+};
+
+function rollDrop(): DropKind | null {
+  if (Math.random() > DROP_CHANCE) return null;
+  const entries = Object.entries(DROP_CFG) as [DropKind, typeof DROP_CFG[DropKind]][];
+  const total = entries.reduce((s, [, c]) => s + c.weight, 0);
+  let r = Math.random() * total;
+  for (const [kind, c] of entries) {
+    r -= c.weight;
+    if (r <= 0) return kind;
+  }
+  return null;
+}
 
 const ROW_CFG: { color: string; hp: number; glow: string }[] = [
   { color: COLORS.amber,   hp: 3, glow: 'rgba(245,158,11,0.55)' },
@@ -44,16 +80,22 @@ interface Brick {
   alive: boolean;
 }
 
+interface Ball { x: number; y: number; vx: number; vy: number; }
+interface Drop { x: number; y: number; kind: DropKind; }
+interface Effect { kind: 'wide' | 'slow' | 'fast'; framesLeft: number; }
+
 type Phase = 'ready' | 'idle' | 'playing' | 'cleared' | 'dead';
 
 interface G {
   phase: Phase;
-  bx: number; by: number;  // ball center
-  vx: number; vy: number;  // ball velocity (px/frame)
+  balls: Ball[];
+  drops: Drop[];
+  effects: Effect[];
   px: number;              // paddle center X
   paddleY: number;         // paddle top Y
   lives: number;
   bricksHit: number;
+  goldBonus: number;       // 골드 아이템으로 모은 보너스
   bricks: Brick[];
   areaW: number; areaH: number;
   earnedGold: number; earnedXp: number;
@@ -80,14 +122,26 @@ function makeG(areaW: number, areaH: number): G {
   const px = areaW / 2;
   return {
     phase: 'ready',
-    bx: px, by: paddleY - BALL_R - 2,
-    vx: 0, vy: 0,
+    balls: [{ x: px, y: paddleY - BALL_R - 2, vx: 0, vy: 0 }],
+    drops: [], effects: [],
     px, paddleY,
-    lives: MAX_LIVES, bricksHit: 0,
+    lives: START_LIVES, bricksHit: 0, goldBonus: 0,
     bricks: makeBricks(areaW),
     areaW, areaH,
     earnedGold: 0, earnedXp: 0,
   };
+}
+
+// ── 파생값 ─────────────────────────────────────────────────
+function paddleWidth(g: G): number {
+  return g.effects.some(e => e.kind === 'wide') ? PADDLE_W * WIDE_MULT : PADDLE_W;
+}
+
+function targetSpeed(g: G): number {
+  let spd = BALL_SPD * (1 + Math.min(0.5, g.bricksHit * SPD_GROWTH));
+  if (g.effects.some(e => e.kind === 'slow')) spd *= 0.72;
+  if (g.effects.some(e => e.kind === 'fast')) spd *= 1.32;
+  return spd;
 }
 
 // ── Props ──────────────────────────────────────────────────
@@ -104,20 +158,13 @@ export default function BrickBreakerModal({ visible, onClose, addXpFn, onGoldEar
   const tickRef  = useRef<ReturnType<typeof setInterval>>();
   const endedRef = useRef(false);
   const [tick, setTick] = useState(0);
+  const [toast, setToast] = useState<{ label: string; color: string } | null>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const containerAnim = useRef(new Animated.Value(0)).current;
   const resultAnim    = useRef(new Animated.Value(0)).current;
-  const ballGlow      = useRef(new Animated.Value(1)).current;
 
-  // 볼 글로우 pulse
-  useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(ballGlow, { toValue: 1.6, duration: 500, useNativeDriver: true }),
-        Animated.timing(ballGlow, { toValue: 0.8, duration: 500, useNativeDriver: true }),
-      ])
-    ).start();
-  }, []);
+  useEffect(() => () => { if (toastTimer.current) clearTimeout(toastTimer.current); }, []);
 
   useEffect(() => {
     if (visible) {
@@ -164,93 +211,176 @@ export default function BrickBreakerModal({ visible, onClose, addXpFn, onGoldEar
     startTick();
   }
 
+  function showToast(kind: DropKind) {
+    const cfg = DROP_CFG[kind];
+    setToast({ label: cfg.label, color: cfg.color });
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(null), 1300);
+  }
+
+  // ── 아이템 적용 ──────────────────────────────────────────
+  function applyDrop(g: G, kind: DropKind) {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    showToast(kind);
+    switch (kind) {
+      case 'wide':
+      case 'slow':
+      case 'fast': {
+        const dur = DROP_CFG[kind].durationFrames ?? 600;
+        // 같은 효과는 시간 갱신
+        g.effects = g.effects.filter(e => e.kind !== kind);
+        g.effects.push({ kind, framesLeft: dur });
+        break;
+      }
+      case 'multi': {
+        const newBalls: Ball[] = [];
+        for (const b of g.balls) {
+          if (g.balls.length + newBalls.length >= MAX_BALLS) break;
+          const spd = Math.max(2, Math.hypot(b.vx, b.vy)) || targetSpeed(g);
+          const baseAngle = Math.atan2(b.vx, -b.vy);
+          for (const off of [-0.55, 0.55]) {
+            if (g.balls.length + newBalls.length >= MAX_BALLS) break;
+            const a = baseAngle + off;
+            newBalls.push({ x: b.x, y: b.y, vx: spd * Math.sin(a), vy: -Math.abs(spd * Math.cos(a)) });
+          }
+        }
+        g.balls = [...g.balls, ...newBalls];
+        break;
+      }
+      case 'gold':
+        g.goldBonus += 15;
+        break;
+      case 'life':
+        g.lives = Math.min(MAX_LIVES, g.lives + 1);
+        break;
+    }
+  }
+
   // ── 물리 업데이트 ────────────────────────────────────────
   function physics() {
     const g = gRef.current;
     if (!g || g.phase !== 'playing') return;
 
-    let { bx, by, vx, vy, px, paddleY, areaW, areaH, lives, bricksHit } = g;
-    const bricks = g.bricks.slice();
+    // 얕은 복사 후 변형 (이번 프레임 작업본)
+    const w: G = { ...g, balls: g.balls.map(b => ({ ...b })), drops: g.drops.slice(), effects: g.effects.map(e => ({ ...e })), bricks: g.bricks.slice() };
+    const { paddleY, areaW, areaH } = w;
+    const padW = paddleWidth(w);
+    const spd = targetSpeed(w);
 
-    // 공 이동
-    bx += vx;
-    by += vy;
+    // ── 효과 시간 경과 ──
+    w.effects = w.effects.map(e => ({ ...e, framesLeft: e.framesLeft - 1 })).filter(e => e.framesLeft > 0);
 
-    // 벽 반사
-    if (bx - BALL_R <= 0)     { vx =  Math.abs(vx); bx = BALL_R; }
-    if (bx + BALL_R >= areaW) { vx = -Math.abs(vx); bx = areaW - BALL_R; }
-    if (by - BALL_R <= 0)     { vy =  Math.abs(vy); by = BALL_R; }
+    // ── 공 이동/충돌 ──
+    const survivors: Ball[] = [];
+    for (const ball of w.balls) {
+      let { x, y, vx, vy } = ball;
+      x += vx; y += vy;
 
-    // 패들 반사 (공이 아래로 내려갈 때만)
-    if (vy > 0) {
-      const padL = px - PADDLE_W / 2;
-      const padR = px + PADDLE_W / 2;
-      if (
-        bx >= padL - BALL_R && bx <= padR + BALL_R &&
-        by + BALL_R >= paddleY && by - BALL_R <= paddleY + PADDLE_H
-      ) {
-        const hit = Math.max(-1, Math.min(1, (bx - px) / (PADDLE_W / 2)));
-        const angle = hit * (55 * Math.PI / 180);
-        vx = BALL_SPD * Math.sin(angle);
-        vy = -Math.abs(BALL_SPD * Math.cos(angle));
-        by = paddleY - BALL_R - 1;
+      // 벽 반사
+      if (x - BALL_R <= 0)     { vx =  Math.abs(vx); x = BALL_R; }
+      if (x + BALL_R >= areaW) { vx = -Math.abs(vx); x = areaW - BALL_R; }
+      if (y - BALL_R <= 0)     { vy =  Math.abs(vy); y = BALL_R; }
+
+      // 패들 반사 (공이 아래로 내려갈 때만)
+      if (vy > 0) {
+        const padL = w.px - padW / 2;
+        const padR = w.px + padW / 2;
+        if (
+          x >= padL - BALL_R && x <= padR + BALL_R &&
+          y + BALL_R >= paddleY && y - BALL_R <= paddleY + PADDLE_H
+        ) {
+          const hit = Math.max(-1, Math.min(1, (x - w.px) / (padW / 2)));
+          const angle = hit * (55 * Math.PI / 180);
+          vx = spd * Math.sin(angle);
+          vy = -Math.abs(spd * Math.cos(angle));
+          y = paddleY - BALL_R - 1;
+        }
+      }
+
+      // 벽돌 충돌 (공 하나당 한 프레임에 하나만)
+      for (let i = 0; i < w.bricks.length; i++) {
+        const b = w.bricks[i];
+        if (!b.alive) continue;
+        const bl = x - BALL_R, br = x + BALL_R;
+        const bt = y - BALL_R, bb = y + BALL_R;
+        if (br > b.x && bl < b.x + b.w && bb > b.y && bt < b.y + b.h) {
+          const oL = br - b.x,         oR = (b.x + b.w) - bl;
+          const oT = bb - b.y,         oB = (b.y + b.h) - bt;
+          const mn = Math.min(oL, oR, oT, oB);
+          if (mn === oL || mn === oR) vx = -vx;
+          else                        vy = -vy;
+          const newHp = b.hp - 1;
+          w.bricks[i] = { ...b, hp: newHp, alive: newHp > 0 };
+          if (newHp <= 0) {
+            w.bricksHit++;
+            // 아이템 드랍
+            const kind = rollDrop();
+            if (kind) w.drops.push({ x: b.x + b.w / 2, y: b.y + b.h / 2, kind });
+          }
+          break;
+        }
+      }
+
+      // 속도 정규화 (진행도/효과 반영)
+      const mag = Math.hypot(vx, vy);
+      if (mag > 0.1) { vx = (vx / mag) * spd; vy = (vy / mag) * spd; }
+
+      // 낙사 체크
+      if (y - BALL_R <= areaH) survivors.push({ x, y, vx, vy });
+    }
+    w.balls = survivors;
+
+    // ── 아이템 낙하/획득 ──
+    const padL = w.px - padW / 2;
+    const padR = w.px + padW / 2;
+    const remainingDrops: Drop[] = [];
+    for (const d of w.drops) {
+      const ny = d.y + DROP_SPD;
+      const caught =
+        ny + DROP_SIZE / 2 >= paddleY && ny - DROP_SIZE / 2 <= paddleY + PADDLE_H &&
+        d.x >= padL - DROP_SIZE / 2 && d.x <= padR + DROP_SIZE / 2;
+      if (caught) {
+        applyDrop(w, d.kind);
+      } else if (ny - DROP_SIZE / 2 <= areaH) {
+        remainingDrops.push({ ...d, y: ny });
       }
     }
+    w.drops = remainingDrops;
 
-    // 벽돌 충돌 (한 프레임에 하나만)
-    let hitOne = false;
-    for (let i = 0; i < bricks.length && !hitOne; i++) {
-      const b = bricks[i];
-      if (!b.alive) continue;
-      const bl = bx - BALL_R, br = bx + BALL_R;
-      const bt = by - BALL_R, bb = by + BALL_R;
-      if (br > b.x && bl < b.x + b.w && bb > b.y && bt < b.y + b.h) {
-        const oL = br - b.x,         oR = (b.x + b.w) - bl;
-        const oT = bb - b.y,         oB = (b.y + b.h) - bt;
-        const mn = Math.min(oL, oR, oT, oB);
-        if (mn === oL || mn === oR) vx = -vx;
-        else                        vy = -vy;
-        const newHp = b.hp - 1;
-        bricks[i] = { ...b, hp: newHp, alive: newHp > 0 };
-        if (newHp <= 0) bricksHit++;
-        hitOne = true;
-      }
-    }
-
-    // 공 낙사
-    let phase: Phase = g.phase;
-    let earnedGold = g.earnedGold;
-    let earnedXp   = g.earnedXp;
-
-    if (by - BALL_R > areaH) {
-      lives--;
-      if (lives <= 0) {
-        earnedGold = Math.max(5, bricksHit * 3);
-        earnedXp   = Math.max(10, bricksHit * 2 + 10);
-        gRef.current = { ...g, bx, by, vx, vy, bricks, lives: 0, bricksHit, phase: 'dead', earnedGold, earnedXp };
-        doEnd(false, earnedGold, earnedXp);
+    // ── 모든 공 낙사 → 목숨 차감 ──
+    if (w.balls.length === 0) {
+      w.lives--;
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+      if (w.lives <= 0) {
+        w.earnedGold = Math.max(5, w.bricksHit * 3) + w.goldBonus;
+        w.earnedXp   = Math.max(10, w.bricksHit * 2 + 10);
+        w.phase = 'dead';
+        gRef.current = w;
+        doEnd(w.earnedGold, w.earnedXp);
         return;
-      } else {
-        phase = 'idle';
-        bx = px; by = paddleY - BALL_R - 2;
-        vx = 0;  vy = 0;
       }
+      // 리스폰: 효과/아이템 초기화, 공 1개로
+      w.phase = 'idle';
+      w.effects = [];
+      w.drops = [];
+      w.balls = [{ x: w.px, y: paddleY - BALL_R - 2, vx: 0, vy: 0 }];
     }
 
-    // 클리어 체크
-    if (bricks.every(b => !b.alive)) {
-      earnedGold = bricksHit * 4 + 60;
-      earnedXp   = bricksHit * 3 + 100;
-      gRef.current = { ...g, bx, by, vx, vy, bricks, lives, bricksHit, phase: 'cleared', earnedGold, earnedXp };
-      doEnd(true, earnedGold, earnedXp);
+    // ── 클리어 체크 ──
+    if (w.bricks.every(b => !b.alive)) {
+      w.earnedGold = w.bricksHit * 4 + 60 + w.goldBonus;
+      w.earnedXp   = w.bricksHit * 3 + 100;
+      w.phase = 'cleared';
+      gRef.current = w;
+      doEnd(w.earnedGold, w.earnedXp);
       return;
     }
 
-    gRef.current = { ...g, bx, by, vx, vy, bricks, lives, bricksHit, phase };
+    gRef.current = w;
     setTick(t => t + 1);
   }
 
-  function doEnd(cleared: boolean, gold: number, xp: number) {
+  function doEnd(gold: number, xp: number) {
     if (endedRef.current) return;
     endedRef.current = true;
     stopTick();
@@ -265,9 +395,10 @@ export default function BrickBreakerModal({ visible, onClose, addXpFn, onGoldEar
   function handleMove(e: GestureResponderEvent) {
     const g = gRef.current;
     if (!g || (g.phase !== 'playing' && g.phase !== 'idle')) return;
-    const newPx = Math.max(PADDLE_W / 2, Math.min(g.areaW - PADDLE_W / 2, e.nativeEvent.locationX));
+    const padW = paddleWidth(g);
+    const newPx = Math.max(padW / 2, Math.min(g.areaW - padW / 2, e.nativeEvent.locationX));
     if (g.phase === 'idle') {
-      gRef.current = { ...g, px: newPx, bx: newPx, by: g.paddleY - BALL_R - 2 };
+      gRef.current = { ...g, px: newPx, balls: [{ x: newPx, y: g.paddleY - BALL_R - 2, vx: 0, vy: 0 }] };
       setTick(t => t + 1);
     } else {
       gRef.current = { ...g, px: newPx };
@@ -278,10 +409,14 @@ export default function BrickBreakerModal({ visible, onClose, addXpFn, onGoldEar
     const g = gRef.current;
     if (!g || g.phase !== 'idle') return;
     const angle = (Math.random() * 0.6 - 0.3);
+    const spd = targetSpeed(g);
     gRef.current = {
       ...g, phase: 'playing',
-      vx: BALL_SPD * Math.sin(angle),
-      vy: -Math.abs(BALL_SPD * Math.cos(angle)),
+      balls: g.balls.map(b => ({
+        ...b,
+        vx: spd * Math.sin(angle),
+        vy: -Math.abs(spd * Math.cos(angle)),
+      })),
     };
     setTick(t => t + 1);
   }
@@ -295,6 +430,8 @@ export default function BrickBreakerModal({ visible, onClose, addXpFn, onGoldEar
   // ── 렌더 ─────────────────────────────────────────────────
   const g = gRef.current;
   const isResult = g?.phase === 'cleared' || g?.phase === 'dead';
+  const padW = g ? paddleWidth(g) : PADDLE_W;
+  const wideActive = g?.effects.some(e => e.kind === 'wide');
 
   return (
     <Modal visible={visible} animationType="none" transparent statusBarTranslucent onRequestClose={handleClose}>
@@ -321,24 +458,36 @@ export default function BrickBreakerModal({ visible, onClose, addXpFn, onGoldEar
                 <View style={s.livesRow}>
                   {Array.from({ length: MAX_LIVES }).map((_, i) => (
                     <Ionicons key={i} name={i < g.lives ? 'heart' : 'heart-outline'}
-                      size={18} color={i < g.lives ? '#EF4444' : COLORS.textDisabled} />
+                      size={16} color={i < g.lives ? '#EF4444' : COLORS.textDisabled} />
                   ))}
                 </View>
               </View>
 
               <View style={s.hudCenter}>
-                <View style={[s.phasePill, {
-                  backgroundColor: g.phase === 'playing' ? COLORS.primaryGlow : 'rgba(15,23,42,0.05)',
-                  borderColor: g.phase === 'playing' ? COLORS.primary + '60' : COLORS.border,
-                }]}>
-                  <Text style={[s.phaseTxt, { color: g.phase === 'playing' ? COLORS.primary : COLORS.textDisabled }]}>
-                    {g.phase === 'ready'   ? 'READY'
-                    : g.phase === 'idle'   ? 'TAP!'
-                    : g.phase === 'playing' ? 'IN GAME'
-                    : g.phase === 'cleared' ? 'CLEAR!'
-                    : 'GAME OVER'}
-                  </Text>
-                </View>
+                {/* 활성 효과 */}
+                {g.effects.length > 0 ? (
+                  <View style={s.effectRow}>
+                    {g.effects.map(e => (
+                      <View key={e.kind} style={[s.effectPill, { borderColor: DROP_CFG[e.kind].color + '66', backgroundColor: DROP_CFG[e.kind].color + '1A' }]}>
+                        <Ionicons name={DROP_CFG[e.kind].icon} size={10} color={DROP_CFG[e.kind].color} />
+                        <Text style={[s.effectPillTxt, { color: DROP_CFG[e.kind].color }]}>{Math.ceil(e.framesLeft * TICK_MS / 1000)}s</Text>
+                      </View>
+                    ))}
+                  </View>
+                ) : (
+                  <View style={[s.phasePill, {
+                    backgroundColor: g.phase === 'playing' ? COLORS.primaryGlow : 'rgba(15,23,42,0.05)',
+                    borderColor: g.phase === 'playing' ? COLORS.primary + '60' : COLORS.border,
+                  }]}>
+                    <Text style={[s.phaseTxt, { color: g.phase === 'playing' ? COLORS.primary : COLORS.textDisabled }]}>
+                      {g.phase === 'ready'   ? 'READY'
+                      : g.phase === 'idle'   ? 'TAP!'
+                      : g.phase === 'playing' ? `BALL x${g.balls.length}`
+                      : g.phase === 'cleared' ? 'CLEAR!'
+                      : 'GAME OVER'}
+                    </Text>
+                  </View>
+                )}
               </View>
 
               <View style={s.hudScore}>
@@ -369,25 +518,50 @@ export default function BrickBreakerModal({ visible, onClose, addXpFn, onGoldEar
                 {/* 벽돌들 */}
                 {g.bricks.map((b, i) => b.alive && <BrickView key={i} brick={b} />)}
 
-                {/* 공 */}
-                <Animated.View style={[s.ball, {
-                  left: g.bx - BALL_R,
-                  top:  g.by - BALL_R,
-                  shadowOpacity: ballGlow.interpolate({ inputRange: [0.8, 1.6], outputRange: [0.6, 1] }),
-                  shadowRadius:  ballGlow.interpolate({ inputRange: [0.8, 1.6], outputRange: [6, 16] }),
-                }]} />
+                {/* 낙하 아이템 */}
+                {g.drops.map((d, i) => (
+                  <View key={`d${i}`} style={[s.drop, {
+                    left: d.x - DROP_SIZE / 2,
+                    top:  d.y - DROP_SIZE / 2,
+                    backgroundColor: DROP_CFG[d.kind].color,
+                    shadowColor: DROP_CFG[d.kind].color,
+                  }]}>
+                    <Ionicons name={DROP_CFG[d.kind].icon} size={14} color="#FFFFFF" />
+                  </View>
+                ))}
+
+                {/* 공들 */}
+                {g.balls.map((b, i) => (
+                  <View key={`b${i}`} style={[s.ball, {
+                    left: b.x - BALL_R,
+                    top:  b.y - BALL_R,
+                  }]} />
+                ))}
 
                 {/* 패들 */}
                 <View style={[s.paddle, {
-                  left: g.px - PADDLE_W / 2,
+                  width: padW,
+                  left: g.px - padW / 2,
                   top:  g.paddleY,
+                  backgroundColor: wideActive ? 'rgba(16,185,129,0.9)' : 'rgba(34,211,238,0.85)',
+                  shadowColor: wideActive ? '#10B981' : COLORS.primary,
                 }]} />
 
                 {/* 패들 글로우 라인 */}
                 <View style={[s.paddleGlow, {
-                  left: g.px - PADDLE_W / 2 + 8,
+                  width: padW - 16,
+                  left: g.px - padW / 2 + 8,
                   top:  g.paddleY - 1,
                 }]} />
+
+                {/* 아이템 획득 토스트 */}
+                {toast && g.phase === 'playing' && (
+                  <View style={s.toastWrap} pointerEvents="none">
+                    <View style={[s.toastPill, { backgroundColor: toast.color }]}>
+                      <Text style={s.toastTxt}>{toast.label}</Text>
+                    </View>
+                  </View>
+                )}
 
                 {/* READY 오버레이 */}
                 {g.phase === 'ready' && (
@@ -397,10 +571,11 @@ export default function BrickBreakerModal({ visible, onClose, addXpFn, onGoldEar
                     <Text style={s.readySub}>모든 벽돌을 파괴하라</Text>
 
                     <View style={s.readyRuleBox}>
-                      <RuleRow icon="hand-left-outline"   color={COLORS.primary} text="손가락으로 패들 이동" />
-                      <RuleRow icon="radio-button-on"     color={COLORS.amber}   text="손 떼면 공 발사 (IDLE 상태)" />
-                      <RuleRow icon="heart"               color="#EF4444"        text="목숨 3개 — 공을 놓치지 마세요" />
-                      <RuleRow icon="cube-outline"        color="#A78BFA"        text="황금·보라 벽돌은 여러 번 쳐야 파괴" />
+                      <RuleRow icon="hand-left-outline"   color={COLORS.primary} text="손가락으로 패들 이동 · 손 떼면 발사" />
+                      <RuleRow icon="gift"                color={COLORS.good}    text="벽돌에서 아이템 드랍 — 패들로 받기" />
+                      <RuleRow icon="copy"                color="#14B8A6"        text="멀티볼·패들 확장·슬로우·+1 목숨" />
+                      <RuleRow icon="flash"               color="#EF4444"        text="빨간 번개는 가속 함정 — 피하세요!" />
+                      <RuleRow icon="speedometer"         color={COLORS.amber}   text="벽돌을 깰수록 공이 빨라집니다" />
                     </View>
 
                     <TouchableOpacity style={s.startBtn} onPress={startGame} activeOpacity={0.85}>
@@ -434,6 +609,7 @@ export default function BrickBreakerModal({ visible, onClose, addXpFn, onGoldEar
                 </Text>
                 <Text style={s.resultSub}>
                   벽돌 파괴  {g.bricksHit} / {ROWS * COLS}개
+                  {g.goldBonus > 0 ? `  ·  보너스 +${g.goldBonus}G` : ''}
                 </Text>
 
                 <View style={s.statsRow}>
@@ -553,16 +729,24 @@ const s = StyleSheet.create({
     paddingBottom: SPACING.sm,
   },
   hudLives: { alignItems: 'flex-start', gap: 4 },
-  hudCenter: { alignItems: 'center' },
+  hudCenter: { alignItems: 'center', flex: 1 },
   hudScore: { alignItems: 'flex-end', gap: 4 },
   hudLabel: { fontSize: 9, color: COLORS.textDisabled, fontFamily: 'monospace', letterSpacing: 1.5, fontWeight: '800' },
-  livesRow: { flexDirection: 'row', gap: 4 },
+  livesRow: { flexDirection: 'row', gap: 3 },
   phasePill: {
     paddingHorizontal: 12, paddingVertical: 4,
     borderRadius: RADIUS.full, borderWidth: 1,
   },
   phaseTxt: { fontSize: 9, fontFamily: 'monospace', fontWeight: '900', letterSpacing: 1 },
   hudScoreNum: { fontSize: FONTS.sm, fontWeight: '900', fontFamily: 'monospace' },
+
+  effectRow: { flexDirection: 'row', gap: 4 },
+  effectPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 3,
+    paddingHorizontal: 7, paddingVertical: 3,
+    borderRadius: RADIUS.full, borderWidth: 1,
+  },
+  effectPillTxt: { fontSize: 9, fontFamily: 'monospace', fontWeight: '900' },
 
   divider: { height: 1, backgroundColor: COLORS.border },
 
@@ -586,10 +770,8 @@ const s = StyleSheet.create({
   },
   paddle: {
     position: 'absolute',
-    width: PADDLE_W, height: PADDLE_H,
+    height: PADDLE_H,
     borderRadius: PADDLE_H / 2,
-    backgroundColor: 'rgba(34,211,238,0.85)',
-    shadowColor: COLORS.primary,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.9,
     shadowRadius: 14,
@@ -597,10 +779,32 @@ const s = StyleSheet.create({
   },
   paddleGlow: {
     position: 'absolute',
-    width: PADDLE_W - 16, height: 2,
+    height: 2,
     borderRadius: 1,
     backgroundColor: 'rgba(255,255,255,0.55)',
   },
+
+  drop: {
+    position: 'absolute',
+    width: DROP_SIZE, height: DROP_SIZE,
+    borderRadius: 8,
+    alignItems: 'center', justifyContent: 'center',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+
+  toastWrap: {
+    position: 'absolute',
+    top: '38%', left: 0, right: 0,
+    alignItems: 'center',
+  },
+  toastPill: {
+    paddingHorizontal: 16, paddingVertical: 7,
+    borderRadius: RADIUS.full,
+  },
+  toastTxt: { fontSize: FONTS.xs, fontWeight: '900', color: '#FFFFFF' },
 
   brick: {
     position: 'absolute',

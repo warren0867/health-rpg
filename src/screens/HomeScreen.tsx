@@ -9,6 +9,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import CharacterSheetModal from '../components/CharacterSheetModal';
 import DailyChest from '../components/DailyChest';
+import Game2048Modal from '../components/Game2048Modal';
 import HeroStage from '../components/HeroStage';
 import GachaModal from '../components/GachaModal';
 import BrickBreakerModal from '../components/BrickBreakerModal';
@@ -76,6 +77,7 @@ export default function HomeScreen() {
   const [gachaInitialTab, setGachaInitialTab] = useState<'pull' | 'inventory' | 'bonus'>('pull');
   const [showMiniGame, setShowMiniGame] = useState(false);
   const [showBrickBreaker, setShowBrickBreaker] = useState(false);
+  const [show2048, setShow2048] = useState(false);
   const [chestClaimed, setChestClaimed] = useState(true);
   const [showCharSheet, setShowCharSheet] = useState(false);
 
@@ -302,9 +304,10 @@ export default function HomeScreen() {
             { icon: 'water',               label: '혈당',    color: COLORS.info,    press: () => navigation.navigate('BloodSugar') },
             { icon: 'medkit',              label: '컨디션',  color: '#F472B6',      press: () => navigation.navigate('Illness') },
             { icon: 'chatbubble-ellipses', label: 'AI 코치', color: COLORS.primary, press: () => navigation.navigate('Coach') },
+            { icon: 'flask',               label: '뽑기',    color: COLORS.purple,  press: () => { setGachaInitialTab('pull'); setShowGacha(true); } },
             { icon: 'skull',               label: '보스전',  color: COLORS.bad,     press: () => setShowMiniGame(true) },
             { icon: 'game-controller',     label: '벽돌깨기', color: COLORS.amber,  press: () => setShowBrickBreaker(true) },
-            { icon: 'flask',               label: '뽑기',    color: COLORS.purple,  press: () => { setGachaInitialTab('pull'); setShowGacha(true); } },
+            { icon: 'grid',                label: '2048',    color: '#0EA5E9',      press: () => setShow2048(true) },
           ] as const).map(({ icon, label, color, press }) => (
             <TouchableOpacity key={label} style={s.tile} onPress={press} activeOpacity={0.7}>
               <View style={[s.tileIcon, { backgroundColor: color }]}>
@@ -356,6 +359,14 @@ export default function HomeScreen() {
       <BrickBreakerModal
         visible={showBrickBreaker}
         onClose={() => setShowBrickBreaker(false)}
+        addXpFn={addXP}
+        onGoldEarned={() => { getGachaInventory().then(setGachaInv); }}
+      />
+
+      {/* ── 2048 합성 모달 ── */}
+      <Game2048Modal
+        visible={show2048}
+        onClose={() => setShow2048(false)}
         addXpFn={addXP}
         onGoldEarned={() => { getGachaInventory().then(setGachaInv); }}
       />
@@ -575,12 +586,12 @@ const s = StyleSheet.create({
     rowGap: 14,
   },
   tile: {
-    width: '33.33%',
+    width: '25%',
     alignItems: 'center',
     gap: 7,
   },
   tileIcon: {
-    width: 56, height: 56, borderRadius: 18,
+    width: 52, height: 52, borderRadius: 17,
     alignItems: 'center', justifyContent: 'center',
     shadowColor: '#0F172A',
     shadowOffset: { width: 0, height: 4 },

@@ -937,16 +937,18 @@ const c = StyleSheet.create({
 
   btnGroup: { flexDirection: 'row', gap: 10, marginBottom: SPACING.sm },
   saveOnlyBtn: {
-    flex: 0, paddingHorizontal: 20, backgroundColor: COLORS.bgCard, borderRadius: RADIUS.lg,
-    paddingVertical: 16, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border,
+    flex: 0, paddingHorizontal: 16, backgroundColor: COLORS.bgCard, borderRadius: RADIUS.md,
+    paddingVertical: 12, alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: COLORS.border,
   },
-  saveOnlyText: { color: COLORS.textSub, fontSize: FONTS.sm, fontWeight: '700' },
+  saveOnlyText: { color: COLORS.textSub, fontSize: FONTS.xs, fontWeight: '700' },
   submitBtn: {
-    flex: 1, backgroundColor: COLORS.purple, borderRadius: RADIUS.lg, paddingVertical: 16,
-    alignItems: 'center', shadowColor: COLORS.purple, shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.5, shadowRadius: 16, elevation: 8,
+    flex: 1, backgroundColor: COLORS.purple, borderRadius: RADIUS.md, paddingVertical: 12,
+    alignItems: 'center', justifyContent: 'center',
+    shadowColor: COLORS.purple, shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.22, shadowRadius: 8, elevation: 4,
   },
-  submitText: { color: '#fff', fontSize: FONTS.md, fontWeight: '900', letterSpacing: 0.5 },
+  submitText: { color: '#fff', fontSize: FONTS.sm, fontWeight: '800', letterSpacing: 0.3 },
 
   // 약 복용
   medEmptyBtn: { borderWidth: 1, borderColor: COLORS.border, borderStyle: 'dashed', borderRadius: RADIUS.md, paddingVertical: 14, alignItems: 'center' },
