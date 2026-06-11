@@ -115,7 +115,11 @@ export type AchievementId =
   | 'total_records_30'
   | 'total_records_100'
   | 'morning_bs_14'
-  | 'score_90_streak_3';
+  | 'score_90_streak_3'
+  | 'enhance_5'
+  | 'enhance_10'
+  | 'enhance_15'
+  | 'enhance_20';
 
 export interface AchievementDef {
   id: AchievementId;
@@ -146,6 +150,10 @@ export const ACHIEVEMENT_DEFS: Record<AchievementId, AchievementDef> = {
   total_records_100: { id: 'total_records_100',  name: '기록 마스터',     desc: '누적 100일 기록 달성',             emoji: '📚' },
   morning_bs_14:     { id: 'morning_bs_14',      name: '혈당 관리자',     desc: '14일 연속 공복혈당 기록',           emoji: '🩸' },
   score_90_streak_3: { id: 'score_90_streak_3',  name: '황금 주간',       desc: '3일 연속 90점 이상 달성',          emoji: '✨' },
+  enhance_5:         { id: 'enhance_5',          name: '강화 입문',       desc: '장비 +5 강화 달성',                emoji: '🔨' },
+  enhance_10:        { id: 'enhance_10',         name: '대장장이',        desc: '장비 +10 강화 달성',               emoji: '⚒️' },
+  enhance_15:        { id: 'enhance_15',         name: '전설의 대장장이', desc: '+15 강화 — 용사의 성검 획득!',     emoji: '🗡️' },
+  enhance_20:        { id: 'enhance_20',         name: '신화를 두드린 자', desc: '장비 +20 강화 달성',              emoji: '🌟' },
 };
 
 export interface UnlockedAchievement {

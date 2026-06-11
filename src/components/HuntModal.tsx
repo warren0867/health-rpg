@@ -15,6 +15,9 @@ import { GachaBonus, PermanentStats } from '../types';
 import { addGold } from '../utils/gacha';
 import { hapticLight, hapticSuccess, hapticWarning } from '../utils/haptics';
 import {
+  HuntDrop, TIER_CFG, getGearState, rollHuntDrops, saveGearState,
+} from '../utils/equipment';
+import {
   CombatStats, Monster, calcCombatStats, calcHuntReward, calcRegen,
   getHuntBest, monsterHit, monsterFor, playerHit, saveHuntBest,
 } from '../utils/hunt';
@@ -54,7 +57,9 @@ export default function HuntModal({
   const [floats, setFloats] = useState<FloatNum[]>([]);
   const [fast, setFast] = useState(false);
   const [reward, setReward] = useState<{ gold: number; xp: number; newBestBonus: number } | null>(null);
+  const [drops, setDrops] = useState<HuntDrop | null>(null);
   const [clearedBanner, setClearedBanner] = useState(false);
+  const [, forceRender] = useState(0);
 
   const combat = useRef<CombatStats>(calcCombatStats(permStats, level, condScore, activeBonuses));
   const stateRef = useRef({ stage: 1, mHp: 0, pHp: 0, turn: 'player' as 'player' | 'monster', rounds: 0 });
@@ -68,10 +73,16 @@ export default function HuntModal({
 
   useEffect(() => {
     if (visible) {
+      // 장착 장비를 반영해 전투력 계산
       combat.current = calcCombatStats(permStats, level, condScore, activeBonuses);
+      getGearState().then(gear => {
+        combat.current = calcCombatStats(permStats, level, condScore, activeBonuses, gear);
+        forceRender(t => t + 1);
+      });
       getHuntBest().then(setBest);
       setPhase('ready');
       setReward(null);
+      setDrops(null);
       setFast(false);
       endedRef.current = false;
     } else {
@@ -191,6 +202,17 @@ export default function HuntModal({
       await saveHuntBest(stagesCleared);
       hapticSuccess();
     }
+
+    // 장비/주문서 드랍
+    const drop = rollHuntDrops(stagesCleared);
+    if (drop.weaponScrolls || drop.armorScrolls || drop.gear) {
+      const gear = await getGearState();
+      gear.weaponScrolls += drop.weaponScrolls;
+      gear.armorScrolls += drop.armorScrolls;
+      if (drop.gear) gear.inventory.push(drop.gear);
+      await saveGearState(gear);
+    }
+    setDrops(drop);
     setPhase('result');
   }
 
@@ -325,6 +347,36 @@ export default function HuntModal({
                 <Text style={s.rewardTxt}>🪙 +{reward.gold}G</Text>
                 <Text style={s.rewardTxt}>✨ +{reward.xp} XP</Text>
               </View>
+
+              {/* 드랍 아이템 */}
+              {drops && (drops.weaponScrolls > 0 || drops.armorScrolls > 0 || drops.gear) && (
+                <View style={s.dropBox}>
+                  <Text style={s.dropTitle}>전리품</Text>
+                  <View style={s.dropRow}>
+                    {drops.weaponScrolls > 0 && (
+                      <View style={s.dropItem}>
+                        <Text style={s.dropEmoji}>📜</Text>
+                        <Text style={s.dropName}>무기 주문서 x{drops.weaponScrolls}</Text>
+                      </View>
+                    )}
+                    {drops.armorScrolls > 0 && (
+                      <View style={s.dropItem}>
+                        <Text style={s.dropEmoji}>📘</Text>
+                        <Text style={s.dropName}>방어구 주문서 x{drops.armorScrolls}</Text>
+                      </View>
+                    )}
+                    {drops.gear && (
+                      <View style={[s.dropItem, { borderColor: TIER_CFG[drops.gear.tier].color + '66', backgroundColor: TIER_CFG[drops.gear.tier].color + '12' }]}>
+                        <Text style={s.dropEmoji}>{drops.gear.emoji}</Text>
+                        <Text style={[s.dropName, { color: TIER_CFG[drops.gear.tier].color, fontWeight: '800' }]}>
+                          [{TIER_CFG[drops.gear.tier].label}] {drops.gear.name}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                  <Text style={s.dropHint}>캐릭터 정보 → 장비 탭에서 장착·강화할 수 있어요</Text>
+                </View>
+              )}
 
               <View style={s.tipBox}>
                 <Ionicons name="trending-up" size={14} color={COLORS.primary} />
@@ -505,6 +557,25 @@ const s = StyleSheet.create({
   resultCompare: { fontSize: FONTS.xs, color: COLORS.textSub, marginTop: 8, textAlign: 'center' },
   rewardRow: { flexDirection: 'row', gap: 18, marginTop: 14 },
   rewardTxt: { fontSize: FONTS.md, fontWeight: '900', color: COLORS.amber, fontFamily: 'monospace' },
+  dropBox: {
+    width: '100%',
+    backgroundColor: COLORS.bgCard,
+    borderRadius: RADIUS.md,
+    borderWidth: 1, borderColor: COLORS.border,
+    padding: 12, marginTop: 14,
+  },
+  dropTitle: { fontSize: FONTS.xxs, color: COLORS.textMuted, fontWeight: '800', textAlign: 'center', marginBottom: 8, letterSpacing: 1 },
+  dropRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, justifyContent: 'center' },
+  dropItem: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    borderWidth: 1, borderColor: COLORS.border,
+    backgroundColor: COLORS.bgInput,
+    borderRadius: RADIUS.full,
+    paddingHorizontal: 10, paddingVertical: 5,
+  },
+  dropEmoji: { fontSize: 14 },
+  dropName: { fontSize: FONTS.xxs, color: COLORS.textSub, fontWeight: '600' },
+  dropHint: { fontSize: 9, color: COLORS.textDisabled, textAlign: 'center', marginTop: 8 },
   tipBox: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     backgroundColor: COLORS.primaryGlow,
