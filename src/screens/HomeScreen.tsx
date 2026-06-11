@@ -11,6 +11,7 @@ import CharacterSheetModal from '../components/CharacterSheetModal';
 import DailyChest from '../components/DailyChest';
 import Game2048Modal from '../components/Game2048Modal';
 import HeroStage from '../components/HeroStage';
+import HuntModal from '../components/HuntModal';
 import GachaModal from '../components/GachaModal';
 import BrickBreakerModal from '../components/BrickBreakerModal';
 import MiniGameModal from '../components/MiniGameModal';
@@ -78,6 +79,7 @@ export default function HomeScreen() {
   const [showMiniGame, setShowMiniGame] = useState(false);
   const [showBrickBreaker, setShowBrickBreaker] = useState(false);
   const [show2048, setShow2048] = useState(false);
+  const [showHunt, setShowHunt] = useState(false);
   const [chestClaimed, setChestClaimed] = useState(true);
   const [showCharSheet, setShowCharSheet] = useState(false);
 
@@ -305,6 +307,7 @@ export default function HomeScreen() {
             { icon: 'medkit',              label: '컨디션',  color: '#F472B6',      press: () => navigation.navigate('Illness') },
             { icon: 'chatbubble-ellipses', label: 'AI 코치', color: COLORS.primary, press: () => navigation.navigate('Coach') },
             { icon: 'flask',               label: '뽑기',    color: COLORS.purple,  press: () => { setGachaInitialTab('pull'); setShowGacha(true); } },
+            { icon: 'paw',                 label: '사냥터',  color: '#10B981',      press: () => setShowHunt(true) },
             { icon: 'skull',               label: '보스전',  color: COLORS.bad,     press: () => setShowMiniGame(true) },
             { icon: 'game-controller',     label: '벽돌깨기', color: COLORS.amber,  press: () => setShowBrickBreaker(true) },
             { icon: 'grid',                label: '2048',    color: '#0EA5E9',      press: () => setShow2048(true) },
@@ -367,6 +370,18 @@ export default function HomeScreen() {
       <Game2048Modal
         visible={show2048}
         onClose={() => setShow2048(false)}
+        addXpFn={addXP}
+        onGoldEarned={() => { getGachaInventory().then(setGachaInv); }}
+      />
+
+      {/* ── 사냥터 모달 ── */}
+      <HuntModal
+        visible={showHunt}
+        onClose={() => { setShowHunt(false); load(); }}
+        permStats={permStats}
+        level={xpProgress?.level ?? 1}
+        condScore={score}
+        activeBonuses={gachaInv?.activeBonuses ?? []}
         addXpFn={addXP}
         onGoldEarned={() => { getGachaInventory().then(setGachaInv); }}
       />
