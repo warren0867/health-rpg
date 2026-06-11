@@ -8,6 +8,7 @@ import {
   LayoutChangeEvent,
   Modal,
   PanResponder,
+  Platform,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -306,6 +307,20 @@ export default function Game2048Modal({ visible, onClose, addXpFn, onGoldEarned 
     }, SLIDE_MS + 30);
   }
 
+  // 웹: 키보드 방향키 지원
+  useEffect(() => {
+    if (Platform.OS !== 'web' || !visible) return;
+    const onKey = (e: KeyboardEvent) => {
+      const map: Record<string, Dir> = {
+        ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down',
+      };
+      const d = map[e.key];
+      if (d) { e.preventDefault(); doMove(d); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [visible]);
+
   const pan = useRef(PanResponder.create({
     onStartShouldSetPanResponder: () => true,
     onMoveShouldSetPanResponder: (_, gs) => Math.abs(gs.dx) > 8 || Math.abs(gs.dy) > 8,
@@ -433,7 +448,9 @@ export default function Game2048Modal({ visible, onClose, addXpFn, onGoldEarned 
             {phase === 'playing' ? (
               <>
                 <Ionicons name="swap-horizontal" size={13} color={COLORS.textMuted} />
-                <Text style={t.hintTxt}>상하좌우 스와이프 · 같은 숫자가 만나면 합쳐져요</Text>
+                <Text style={t.hintTxt}>
+                  {Platform.OS === 'web' ? '방향키 또는 드래그' : '상하좌우 스와이프'} · 같은 숫자가 만나면 합쳐져요
+                </Text>
               </>
             ) : (
               <Text style={t.hintTxt}> </Text>

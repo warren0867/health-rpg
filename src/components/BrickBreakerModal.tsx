@@ -6,6 +6,7 @@ import {
   GestureResponderEvent,
   LayoutChangeEvent,
   Modal,
+  Platform,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -17,9 +18,9 @@ import { addXP } from '../utils/storage';
 
 // ── 게임 상수 ────────────────────────────────────────────────
 const BALL_R     = 8;
-const BALL_SPD   = 6.0;       // 기본 속도 (벽돌 깰수록 증가)
-const SPD_GROWTH = 0.012;     // 벽돌 1개당 속도 증가율 (최대 +50%)
-const PADDLE_W   = 92;
+const BALL_SPD   = 5.4;       // 기본 속도 (벽돌 깰수록 증가)
+const SPD_GROWTH = 0.010;     // 벽돌 1개당 속도 증가율 (최대 +45%)
+const PADDLE_W   = 116;
 const PADDLE_H   = 13;
 const COLS       = 7;
 const ROWS       = 5;
@@ -141,7 +142,7 @@ function paddleWidth(g: G): number {
 }
 
 function targetSpeed(g: G): number {
-  let spd = BALL_SPD * (1 + Math.min(0.5, g.bricksHit * SPD_GROWTH));
+  let spd = BALL_SPD * (1 + Math.min(0.45, g.bricksHit * SPD_GROWTH));
   if (g.effects.some(e => e.kind === 'slow')) spd *= 0.72;
   if (g.effects.some(e => e.kind === 'fast')) spd *= 1.32;
   return spd;
@@ -393,17 +394,32 @@ export default function BrickBreakerModal({ visible, onClose, addXpFn, onGoldEar
     Animated.spring(resultAnim, { toValue: 1, useNativeDriver: true, tension: 55, friction: 8 }).start();
   }
 
-  // ── 터치 핸들러 ──────────────────────────────────────────
-  function handleMove(e: GestureResponderEvent) {
+  // ── 터치/마우스 핸들러 ────────────────────────────────────
+  function movePaddleTo(x: number) {
     const g = gRef.current;
     if (!g || (g.phase !== 'playing' && g.phase !== 'idle')) return;
     const padW = paddleWidth(g);
-    const newPx = Math.max(padW / 2, Math.min(g.areaW - padW / 2, e.nativeEvent.locationX));
+    const newPx = Math.max(padW / 2, Math.min(g.areaW - padW / 2, x));
     g.px = newPx;
     if (g.phase === 'idle') {
       g.balls = [{ x: newPx, y: g.paddleY - BALL_R - 2, vx: 0, vy: 0 }];
     }
   }
+
+  function handleMove(e: GestureResponderEvent) {
+    movePaddleTo(e.nativeEvent.locationX);
+  }
+
+  // 웹: 마우스를 누르지 않아도 커서를 따라 패들 이동, 클릭으로 발사
+  const areaRef = useRef<View>(null);
+  const webMouseProps = Platform.OS === 'web' ? {
+    onMouseMove: (e: any) => {
+      const node = areaRef.current as any;
+      const rect = node?.getBoundingClientRect?.();
+      const clientX = e?.clientX ?? e?.nativeEvent?.clientX;
+      if (rect && typeof clientX === 'number') movePaddleTo(clientX - rect.left);
+    },
+  } : {};
 
   function handleRelease() {
     const g = gRef.current;
@@ -501,6 +517,7 @@ export default function BrickBreakerModal({ visible, onClose, addXpFn, onGoldEar
 
           {/* 게임 영역 */}
           <View
+            ref={areaRef}
             style={s.gameArea}
             onLayout={onLayout}
             onStartShouldSetResponder={() => true}
@@ -508,6 +525,7 @@ export default function BrickBreakerModal({ visible, onClose, addXpFn, onGoldEar
             onResponderGrant={handleMove}
             onResponderMove={handleMove}
             onResponderRelease={handleRelease}
+            {...webMouseProps}
           >
             {g && !isResult && (
               <>
@@ -586,7 +604,7 @@ export default function BrickBreakerModal({ visible, onClose, addXpFn, onGoldEar
                   <View style={[s.tapHint, { top: g.paddleY - 48 }]} pointerEvents="none">
                     <View style={s.tapHintPill}>
                       <Ionicons name="finger-print" size={13} color={COLORS.primary} />
-                      <Text style={s.tapHintTxt}>손 떼면 발사</Text>
+                      <Text style={s.tapHintTxt}>{Platform.OS === 'web' ? '클릭하면 발사' : '손 떼면 발사'}</Text>
                     </View>
                   </View>
                 )}
