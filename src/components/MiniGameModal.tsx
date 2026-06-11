@@ -5,10 +5,10 @@ import {
   Dimensions,
   LayoutChangeEvent,
   Modal,
+  Pressable,
   StyleSheet,
   Text,
   TouchableOpacity,
-  TouchableWithoutFeedback,
   View,
 } from 'react-native';
 import { COLORS, FONTS, RADIUS, SPACING } from '../constants/theme';
@@ -346,7 +346,8 @@ export default function MiniGameModal({ visible, onClose, bossState, addXpFn, on
     const cfg  = ORB_CFG[orb.type];
 
     Animated.spring(orb.scale, { toValue: 1, useNativeDriver: true, tension: 150, friction: 5 }).start();
-    Animated.timing(orb.opacity, { toValue: 0.12, duration: cfg.lifetimeMs, useNativeDriver: true }).start();
+    // 수명 끝까지도 충분히 보이게 (0.12까지 빠지면 마우스/터치로 못 맞춤)
+    Animated.timing(orb.opacity, { toValue: 0.35, duration: cfg.lifetimeMs, useNativeDriver: true }).start();
     Animated.loop(
       Animated.sequence([
         Animated.timing(orb.pulse, { toValue: 1.14, duration: 520, useNativeDriver: true }),
@@ -473,15 +474,6 @@ export default function MiniGameModal({ visible, onClose, bossState, addXpFn, on
     ]).start(() => setOrbs(prev => prev.filter(o => o.id !== orb.id)));
 
     if (bossHpRef.current <= 0) triggerEnd(true);
-  }
-
-  // ── 빈 화면 탭 → 콤보 리셋 ─────────────────────────────
-  function handleGameAreaTap() {
-    if (phaseRef.current !== 'playing') return;
-    if (comboRef.current > 0) {
-      comboRef.current = 0;
-      setCombo(0);
-    }
   }
 
   function triggerEnd(bossKilled = false) {
@@ -644,8 +636,7 @@ export default function MiniGameModal({ visible, onClose, bossState, addXpFn, on
           </Animated.View>
 
           {/* ── 게임 영역 ── */}
-          <TouchableWithoutFeedback onPress={handleGameAreaTap}>
-            <View style={s.gameArea} onLayout={onGameAreaLayout}>
+          <View style={s.gameArea} onLayout={onGameAreaLayout}>
 
               {/* ready 오버레이 */}
               {phase === 'ready' && (
@@ -699,8 +690,7 @@ export default function MiniGameModal({ visible, onClose, bossState, addXpFn, on
                 style={[StyleSheet.absoluteFill, s.screenFlash, { opacity: screenFlash }]}
                 pointerEvents="none"
               />
-            </View>
-          </TouchableWithoutFeedback>
+          </View>
 
           {/* ── 결과 오버레이 ── */}
           {phase === 'result' && (
@@ -762,22 +752,21 @@ function OrbView({ orb, onTap }: { orb: OrbData; onTap: () => void }) {
       backgroundColor: orb.inner,
       shadowColor: orb.color,
     }]}>
-      <TouchableWithoutFeedback onPress={onTap}>
-        <View style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center', borderRadius: orb.size / 2 }]}>
-          {/* 반짝이 */}
-          <View style={[s.orbShine, { width: orb.size * 0.22, height: orb.size * 0.22, borderRadius: orb.size * 0.11 }]} />
-          {/* 중앙 코어 */}
-          <View style={[s.orbCore, {
-            width: orb.size * 0.38, height: orb.size * 0.38, borderRadius: orb.size * 0.19,
-            backgroundColor: orb.color + '70',
-          }]} />
-          {orb.type !== 'normal' && (
-            <Text style={[s.orbTypeLabel, { color: orb.color, bottom: orb.size * 0.1 }]}>
-              {orb.type === 'legendary' ? '전설' : '희귀'}
-            </Text>
-          )}
-        </View>
-      </TouchableWithoutFeedback>
+      {/* onPressIn: 누르는 즉시 타격 판정 (마우스/터치 반응성) + hitSlop으로 판정 확대 */}
+      <Pressable onPressIn={onTap} hitSlop={14} style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center', borderRadius: orb.size / 2 }]}>
+        {/* 반짝이 */}
+        <View style={[s.orbShine, { width: orb.size * 0.22, height: orb.size * 0.22, borderRadius: orb.size * 0.11 }]} />
+        {/* 중앙 코어 */}
+        <View style={[s.orbCore, {
+          width: orb.size * 0.38, height: orb.size * 0.38, borderRadius: orb.size * 0.19,
+          backgroundColor: orb.color + '70',
+        }]} />
+        {orb.type !== 'normal' && (
+          <Text style={[s.orbTypeLabel, { color: orb.color, bottom: orb.size * 0.1 }]}>
+            {orb.type === 'legendary' ? '전설' : '희귀'}
+          </Text>
+        )}
+      </Pressable>
     </Animated.View>
   );
 }
@@ -794,12 +783,10 @@ function FallingItemView({ item, onTap }: { item: FallingItem; onTap: () => void
       backgroundColor: cfg.color + '22',
       shadowColor: cfg.color,
     }]}>
-      <TouchableWithoutFeedback onPress={onTap}>
-        <View style={s.fallingItemInner}>
-          <Text style={s.fallingItemEmoji}>{cfg.emoji}</Text>
-          <Text style={[s.fallingItemLabel, { color: cfg.color }]}>{cfg.label}</Text>
-        </View>
-      </TouchableWithoutFeedback>
+      <Pressable onPressIn={onTap} hitSlop={10} style={s.fallingItemInner}>
+        <Text style={s.fallingItemEmoji}>{cfg.emoji}</Text>
+        <Text style={[s.fallingItemLabel, { color: cfg.color }]}>{cfg.label}</Text>
+      </Pressable>
     </Animated.View>
   );
 }
