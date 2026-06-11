@@ -29,7 +29,13 @@ interface Props {
   questsLeft?: number;
   hasIllness?: boolean;
   onEditName?: () => void;
+  /** 능력치 요약 칩을 탭했을 때 (캐릭터 시트 열기) */
+  onOpenSheet?: () => void;
 }
+
+const STAT_CHIP_COLORS: Record<'str' | 'end' | 'vit' | 'agi' | 'wis', string> = {
+  str: COLORS.str, end: COLORS.mp, vit: COLORS.vit, agi: COLORS.agi, wis: COLORS.amber,
+};
 
 const pixelated: any = Platform.select({ web: { imageRendering: 'pixelated' }, default: {} });
 
@@ -91,7 +97,7 @@ function pickSpeech(p: {
 export default function HeroStage({
   name, score, rank, level, levelTitle,
   xpCurrent, xpNeeded, todayXp, permStats, conditionInfo, statusEffects,
-  streak = 0, questsLeft = 0, hasIllness = false, onEditName,
+  streak = 0, questsLeft = 0, hasIllness = false, onEditName, onOpenSheet,
 }: Props) {
   const ps = permStats ?? EMPTY_PERMANENT_STATS;
   const evo = getEvoStage(ps.totalGained);
@@ -265,6 +271,17 @@ export default function HeroStage({
           <Text style={s.xpDim}>XP {xpCurrent}/{xpNeeded}</Text>
         </Text>
       </View>
+
+      {/* 능력치 요약 — 상세는 탭해서 캐릭터 시트로 */}
+      <Pressable style={s.statChipRow} onPress={onOpenSheet}>
+        {(['str', 'end', 'vit', 'agi', 'wis'] as const).map(k => (
+          <View key={k} style={s.statChip}>
+            <Text style={[s.statChipKey, { color: STAT_CHIP_COLORS[k] }]}>{k.toUpperCase()}</Text>
+            <Text style={s.statChipVal}>{Math.round(ps[k])}</Text>
+          </View>
+        ))}
+        <Ionicons name="chevron-forward" size={13} color={COLORS.textDisabled} />
+      </Pressable>
     </View>
   );
 }
@@ -357,4 +374,21 @@ const s = StyleSheet.create({
   xpMeta: { fontSize: 10, fontFamily: 'monospace', alignSelf: 'flex-end' },
   xpGain: { color: COLORS.amber, fontWeight: '700' },
   xpDim: { color: COLORS.textMuted, fontWeight: '600' },
+
+  statChipRow: {
+    flexDirection: 'row', alignItems: 'center',
+    marginTop: 12, paddingTop: 12,
+    borderTopWidth: 1, borderTopColor: COLORS.borderSub,
+    gap: 6,
+  },
+  statChip: {
+    flex: 1,
+    alignItems: 'center',
+    backgroundColor: COLORS.bgInput,
+    borderRadius: RADIUS.sm,
+    paddingVertical: 7,
+    gap: 1,
+  },
+  statChipKey: { fontSize: 9, fontWeight: '900', fontFamily: 'monospace', letterSpacing: 0.5 },
+  statChipVal: { fontSize: FONTS.sm, fontWeight: '800', color: COLORS.text, fontFamily: 'monospace' },
 });

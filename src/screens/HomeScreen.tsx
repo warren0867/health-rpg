@@ -7,16 +7,13 @@ import {
   Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import CharacterSheetModal from '../components/CharacterSheetModal';
 import DailyChest from '../components/DailyChest';
-import DailyRings from '../components/DailyRings';
 import HeroStage from '../components/HeroStage';
 import GachaModal from '../components/GachaModal';
 import BrickBreakerModal from '../components/BrickBreakerModal';
 import MiniGameModal from '../components/MiniGameModal';
-import PermanentStatPanel from '../components/PermanentStatPanel';
-import SkillPanel from '../components/SkillPanel';
 import QuestList, { Quest } from '../components/QuestList';
-import StatGrid from '../components/StatGrid';
 import TopStatusBar from '../components/TopStatusBar';
 import WeeklyBossCard from '../components/WeeklyBossCard';
 import { COLORS, FONTS, RADIUS, SPACING, getRank } from '../constants/theme';
@@ -29,14 +26,14 @@ import {
   addWater, addXP, calcImmunity, generateId, getAllDailyLogs, getCurrentIllness,
   getDailyLog, getFoodEntriesByDate, getLatestWeight, getMorningBS,
   getPermanentStats, getRecentDailyLogs, getRecentMorningBS, getStreak,
-  getTodayKey, getUnlockedAchievementIds, getUnlockedAchievements, getUserProfile, getUserXP,
+  getTodayKey, getUnlockedAchievementIds, getUserProfile, getUserXP,
   getWaterLog, getWaterStreak, recalcAndSavePermanentStats, saveMorningBS,
   saveUserProfile, sumFoodEntries, unlockAchievement, updateChallengeProgress,
 } from '../utils/storage';
 import { RecentCondition, calcRecentCondition } from '../utils/permanentStats';
 import { StatusEffect, calcStatusEffects } from '../utils/statusEffects';
 import { WeeklyBossState, claimBossReward, updateWeeklyBoss } from '../utils/weeklyBoss';
-import { GachaBonus, GachaInventory, ACHIEVEMENT_DEFS, UnlockedAchievement } from '../types';
+import { GachaInventory } from '../types';
 import { addGold, getGachaInventory } from '../utils/gacha';
 import { NotifSettings, getNotifSettings, saveNotifSettings, scheduleAllNotifications, requestPermissions } from '../utils/notifications';
 import { ChestReward, isChestClaimedToday } from '../utils/dailyChest';
@@ -80,10 +77,9 @@ export default function HomeScreen() {
   const [showMiniGame, setShowMiniGame] = useState(false);
   const [showBrickBreaker, setShowBrickBreaker] = useState(false);
   const [chestClaimed, setChestClaimed] = useState(true);
-  const [charTab, setCharTab] = useState<'stats' | 'skills' | 'today'>('stats');
+  const [showCharSheet, setShowCharSheet] = useState(false);
 
   // 모달
-  const [recentAchievements, setRecentAchievements] = useState<UnlockedAchievement[]>([]);
   const [showNotifModal, setShowNotifModal] = useState(false);
   const [notifSettings, setNotifSettings] = useState<NotifSettings | null>(null);
   const [showBSModal, setShowBSModal] = useState(false);
@@ -136,8 +132,6 @@ export default function HomeScreen() {
     setBossState(boss);
     const gacha = await getGachaInventory();
     setGachaInv(gacha);
-    const allAch = await getUnlockedAchievements();
-    setRecentAchievements([...allAch].sort((a, b) => b.unlockedAt.localeCompare(a.unlockedAt)).slice(0, 3));
     setChestClaimed(await isChestClaimedToday());
 
     setLoading(false);
@@ -276,6 +270,7 @@ export default function HomeScreen() {
             setEditTargetCal(String(profile?.targetCalories ?? ''));
             setShowProfileModal(true);
           }}
+          onOpenSheet={() => setShowCharSheet(true)}
         />
 
         {/* ── 일일 보상 상자 (하루 한 번) ── */}
@@ -301,15 +296,27 @@ export default function HomeScreen() {
           </TouchableOpacity>
         )}
 
-        {/* ── 오늘의 퀘스트 (메인 루프 — 최상단 배치) ── */}
-        <QuestList quests={quests} />
+        {/* ── 메뉴 타일 (탭바에 없는 기능만 — 중복 없이 한 곳에) ── */}
+        <View style={s.tileGrid}>
+          {([
+            { icon: 'water',               label: '혈당',    color: COLORS.info,    press: () => navigation.navigate('BloodSugar') },
+            { icon: 'medkit',              label: '컨디션',  color: '#F472B6',      press: () => navigation.navigate('Illness') },
+            { icon: 'chatbubble-ellipses', label: 'AI 코치', color: COLORS.primary, press: () => navigation.navigate('Coach') },
+            { icon: 'skull',               label: '보스전',  color: COLORS.bad,     press: () => setShowMiniGame(true) },
+            { icon: 'game-controller',     label: '벽돌깨기', color: COLORS.amber,  press: () => setShowBrickBreaker(true) },
+            { icon: 'flask',               label: '뽑기',    color: COLORS.purple,  press: () => { setGachaInitialTab('pull'); setShowGacha(true); } },
+          ] as const).map(({ icon, label, color, press }) => (
+            <TouchableOpacity key={label} style={s.tile} onPress={press} activeOpacity={0.7}>
+              <View style={[s.tileIcon, { backgroundColor: color }]}>
+                <Ionicons name={icon} size={24} color="#FFFFFF" />
+              </View>
+              <Text style={s.tileLabel}>{label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
 
-        {/* ── 데일리 링 ── */}
-        <DailyRings
-          calorie={{ current: foodSummary.calories, goal: targetCal }}
-          water={{ currentMl: waterMl, goalMl: WATER_GOAL }}
-          quest={{ done: quests.filter(q => q.done).length, total: quests.length }}
-        />
+        {/* ── 오늘의 퀘스트 (매일의 메인 루프) ── */}
+        <QuestList quests={quests} />
 
         {/* ── 주간 보스전 ── */}
         {bossState && (
@@ -322,105 +329,18 @@ export default function HomeScreen() {
           </>
         )}
 
-        {/* ── 내 캐릭터 (능력치 / 스킬 / 오늘 — 탭으로 묶음) ── */}
-        <SectionLabel>내 캐릭터</SectionLabel>
-        <View style={s.segmentRow}>
-          {([
-            { key: 'stats',  label: '능력치' },
-            { key: 'skills', label: '스킬' },
-            { key: 'today',  label: '오늘' },
-          ] as const).map(t => (
-            <TouchableOpacity
-              key={t.key}
-              style={[s.segmentBtn, charTab === t.key && s.segmentBtnActive]}
-              onPress={() => setCharTab(t.key)}
-              activeOpacity={0.7}
-            >
-              <Text style={[s.segmentText, charTab === t.key && s.segmentTextActive]}>{t.label}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-        {charTab === 'stats' && (
-          <PermanentStatPanel stats={permStats} activeBonuses={gachaInv?.activeBonuses ?? []} />
-        )}
-        {charTab === 'skills' && (
-          <SkillPanel level={xpProgress?.level ?? 1} />
-        )}
-        {charTab === 'today' && (
-          stats ? (
-            <StatGrid stats={stats} />
-          ) : (
-            <TouchableOpacity style={s.emptyCard} onPress={() => navigation.navigate('Input')}>
-              <View style={s.emptyIconBox}>
-                <Ionicons name="add-circle-outline" size={28} color={COLORS.primary} />
-              </View>
-              <Text style={s.emptyTitle}>오늘 첫 체크인을 시작해주세요</Text>
-              <Text style={s.emptySub}>수면·운동·음주를 기록하면 스탯이 생성돼요</Text>
-              <View style={s.emptyBtn}>
-                <Text style={s.emptyBtnText}>체크인 시작</Text>
-                <Ionicons name="arrow-forward" size={14} color="#FFFFFF" />
-              </View>
-            </TouchableOpacity>
-          )
-        )}
-
-        {/* ── 최근 업적 ── */}
-        {recentAchievements.length > 0 && (
-          <>
-            <SectionLabel>최근 업적</SectionLabel>
-            <View style={s.achRow}>
-              {recentAchievements.map(ua => {
-                const def = ACHIEVEMENT_DEFS[ua.id as keyof typeof ACHIEVEMENT_DEFS];
-                if (!def) return null;
-                return (
-                  <View key={ua.id} style={s.achCard}>
-                    <Text style={s.achEmoji}>{def.emoji}</Text>
-                    <Text style={s.achName}>{def.name}</Text>
-                    <Text style={s.achDesc}>{def.desc}</Text>
-                  </View>
-                );
-              })}
-            </View>
-          </>
-        )}
-
-        {/* ── 빠른 작업 ── */}
-        <SectionLabel>빠른 작업</SectionLabel>
-        <View style={s.quickRow}>
-          {([
-            { icon: 'create-outline',     label: '체크인', color: COLORS.amber,   press: () => navigation.navigate('Input') },
-            { icon: 'restaurant-outline', label: '식단',   color: COLORS.primary, press: () => navigation.navigate('Calorie') },
-            { icon: 'water-outline',      label: '혈당',   color: COLORS.info,    press: () => navigation.navigate('BloodSugar') },
-            { icon: 'body-outline',       label: '인바디', color: COLORS.good,    press: () => navigation.navigate('InBody') },
-            { icon: 'bar-chart-outline',  label: '기록',   color: COLORS.purple,  press: () => navigation.navigate('History') },
-          ] as const).map(({ icon, label, color, press }) => (
-            <TouchableOpacity key={label} style={s.quickItem} onPress={press} activeOpacity={0.6}>
-              <View style={[s.quickIcon, { backgroundColor: color + '18' }]}>
-                <Ionicons name={icon} size={20} color={color} />
-              </View>
-              <Text style={s.quickLabel}>{label}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        {/* ── 게임 ── */}
-        <SectionLabel>게임</SectionLabel>
-        <AppListSection>
-          <AppListRow icon="skull-outline" color="#EF4444" title="보스 격파" sub="주간 보스에 도전" onPress={() => setShowMiniGame(true)} />
-          <AppListRow icon="game-controller-outline" color={COLORS.primary} title="벽돌깨기" sub="아케이드 미니게임" onPress={() => setShowBrickBreaker(true)} last />
-        </AppListSection>
-
-        {/* ── 아이템 & AI ── */}
-        <SectionLabel>아이템 & AI</SectionLabel>
-        <AppListSection>
-          <AppListRow icon="flask-outline" color="#A78BFA" title="마법 뽑기" sub="주문서·강화 아이템" badge={`${gachaInv?.gold ?? 0}G`} onPress={() => { setGachaInitialTab('pull'); setShowGacha(true); }} />
-          <AppListRow icon="bag-outline" color="#34D399" title="인벤토리" sub="보유 주문서" badge={`주문서 ${gachaInv?.scrolls?.length ?? 0}개`} onPress={() => { setGachaInitialTab('inventory'); setShowGacha(true); }} />
-          <AppListRow icon="star-outline" color={COLORS.amber} title="활성 버프" sub="능력치 강화 버프" badge={gachaInv?.activeBonuses?.length ? `${gachaInv.activeBonuses.length}개` : ''} onPress={() => { setGachaInitialTab('bonus'); setShowGacha(true); }} />
-          <AppListRow icon="chatbubble-ellipses-outline" color="#60A5FA" title="AI 코치" sub="건강 조언 & 채팅" onPress={() => navigation.navigate('Coach')} last />
-        </AppListSection>
-
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      {/* ── 캐릭터 시트 (능력치 / 스킬 / 오늘 상세) ── */}
+      <CharacterSheetModal
+        visible={showCharSheet}
+        onClose={() => setShowCharSheet(false)}
+        permStats={permStats}
+        activeBonuses={gachaInv?.activeBonuses ?? []}
+        level={xpProgress?.level ?? 1}
+        todayStats={stats}
+      />
 
       {/* ── 가챠 모달 ── */}
       <GachaModal
@@ -605,29 +525,6 @@ function SectionLabel({ children }: { children: React.ReactNode; accent?: string
   return <Text style={s.sectionLabel}>{children}</Text>;
 }
 
-function AppListSection({ children }: { children: React.ReactNode }) {
-  return <View style={s.listSection}>{children}</View>;
-}
-
-function AppListRow({ icon, color, title, sub, badge, last, onPress }: {
-  icon: any; color: string; title: string;
-  sub?: string; badge?: string; last?: boolean; onPress: () => void;
-}) {
-  return (
-    <TouchableOpacity style={[s.listRow, last && s.listRowLast]} onPress={onPress} activeOpacity={0.5}>
-      <View style={[s.listIconBox, { backgroundColor: color + '18' }]}>
-        <Ionicons name={icon} size={18} color={color} />
-      </View>
-      <View style={s.listText}>
-        <Text style={s.listTitle}>{title}</Text>
-        {sub && <Text style={s.listSub}>{sub}</Text>}
-      </View>
-      {!!badge && <Text style={s.listBadge}>{badge}</Text>}
-      <Ionicons name="chevron-forward" size={14} color={COLORS.textDisabled} />
-    </TouchableOpacity>
-  );
-}
-
 function getDateLabel(today: string) {
   const [y, m, d] = today.split('-');
   const dayOfWeek = ['일', '월', '화', '수', '목', '금', '토'][new Date(today).getDay()];
@@ -669,27 +566,33 @@ const s = StyleSheet.create({
   illnessTitle: { color: COLORS.bad, fontSize: FONTS.sm, fontWeight: '700' },
   illnessSub: { color: COLORS.textMuted, fontSize: FONTS.xxs, marginTop: 2 },
 
-  // 내 캐릭터 세그먼트 탭
-  segmentRow: {
+  // 메뉴 타일 (Helpy풍 컬러 아이콘 그리드)
+  tileGrid: {
     flexDirection: 'row',
-    marginHorizontal: SPACING.md,
-    marginBottom: SPACING.sm + 2,
-    backgroundColor: COLORS.bgCard,
-    borderRadius: RADIUS.full,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    padding: 3,
-    gap: 3,
+    flexWrap: 'wrap',
+    paddingHorizontal: SPACING.md,
+    marginBottom: SPACING.sm,
+    rowGap: 14,
   },
-  segmentBtn: {
-    flex: 1,
-    paddingVertical: 7,
-    borderRadius: RADIUS.full,
+  tile: {
+    width: '33.33%',
     alignItems: 'center',
+    gap: 7,
   },
-  segmentBtnActive: { backgroundColor: COLORS.bgHighlight },
-  segmentText: { fontSize: FONTS.xs, color: COLORS.textMuted, fontWeight: '600' },
-  segmentTextActive: { color: COLORS.text, fontWeight: '800' },
+  tileIcon: {
+    width: 56, height: 56, borderRadius: 18,
+    alignItems: 'center', justifyContent: 'center',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.10,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  tileLabel: {
+    fontSize: 12,
+    color: COLORS.textSub,
+    fontWeight: '700',
+  },
 
   // 미니멀 — 단순 텍스트 라벨
   sectionLabel: {
@@ -701,100 +604,6 @@ const s = StyleSheet.create({
     paddingTop: SPACING.lg - 4,
     paddingBottom: SPACING.sm + 2,
   },
-
-  emptyCard: {
-    backgroundColor: COLORS.bgCard,
-    borderRadius: RADIUS.lg,
-    marginHorizontal: SPACING.md,
-    marginBottom: SPACING.md,
-    padding: SPACING.lg,
-    borderWidth: 1, borderColor: COLORS.border,
-    alignItems: 'center',
-  },
-  emptyIconBox: {
-    width: 48, height: 48, borderRadius: 14,
-    backgroundColor: COLORS.primaryGlow,
-    alignItems: 'center', justifyContent: 'center',
-    marginBottom: 10,
-  },
-  emptyTitle: { fontSize: FONTS.sm, fontWeight: '700', color: COLORS.text, textAlign: 'center' },
-  emptySub: { fontSize: FONTS.xxs, color: COLORS.textMuted, marginTop: 4, textAlign: 'center', fontFamily: 'monospace' },
-  emptyBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    marginTop: 14,
-    backgroundColor: COLORS.primary,
-    paddingHorizontal: 18, paddingVertical: 9,
-    borderRadius: RADIUS.full,
-  },
-  emptyBtnText: { color: '#FFFFFF', fontSize: FONTS.xs, fontWeight: '800' },
-
-  actionGrid: {
-    flexDirection: 'row',
-    paddingHorizontal: SPACING.md,
-    gap: 10,
-    marginBottom: SPACING.md,
-  },
-
-  // 미니멀 빠른 작업 — 깔끔한 5칸
-  quickRow: {
-    flexDirection: 'row',
-    paddingHorizontal: SPACING.md,
-    marginBottom: SPACING.md,
-    gap: 6,
-    justifyContent: 'space-between',
-  },
-  quickItem: {
-    flex: 1,
-    alignItems: 'center',
-    gap: 7,
-    paddingVertical: 4,
-  },
-  quickIcon: {
-    width: 46, height: 46, borderRadius: 14,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  quickLabel: {
-    fontSize: 11,
-    color: COLORS.textSub,
-    fontWeight: '600',
-    letterSpacing: 0.1,
-  },
-
-  // 미니멀 리스트 카드
-  listSection: {
-    backgroundColor: COLORS.bgCard,
-    borderRadius: RADIUS.md,
-    marginHorizontal: SPACING.md,
-    marginBottom: SPACING.md,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    overflow: 'hidden',
-  },
-  listRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: SPACING.md,
-    paddingVertical: 13,
-    gap: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.borderSub,
-  },
-  listRowLast: { borderBottomWidth: 0 },
-  listIconBox: {
-    width: 34, height: 34, borderRadius: 10,
-    alignItems: 'center', justifyContent: 'center',
-    flexShrink: 0,
-  },
-  listText: { flex: 1 },
-  listTitle: { color: COLORS.text, fontSize: FONTS.sm, fontWeight: '600', letterSpacing: -0.1 },
-  listSub: { color: COLORS.textMuted, fontSize: FONTS.xxs, marginTop: 2 },
-  listBadge: {
-    fontSize: FONTS.xxs,
-    color: COLORS.textMuted,
-    fontWeight: '500',
-    marginRight: 2,
-  },
-
 
   // Modal
   modalOverlay: {
@@ -852,22 +661,6 @@ const s = StyleSheet.create({
     alignItems: 'center',
   },
   modalBtnPrimaryText: { color: '#FFFFFF', fontWeight: '800', fontSize: FONTS.sm },
-
-  // 업적
-  achRow: {
-    flexDirection: 'row', gap: 8,
-    paddingHorizontal: SPACING.md,
-    marginBottom: SPACING.md,
-  },
-  achCard: {
-    flex: 1, backgroundColor: COLORS.bgCard,
-    borderRadius: RADIUS.md, padding: 10,
-    borderWidth: 1, borderColor: COLORS.border,
-    alignItems: 'center',
-  },
-  achEmoji: { fontSize: 22, marginBottom: 4 },
-  achName: { fontSize: 11, fontWeight: '700', color: COLORS.text, textAlign: 'center', marginBottom: 2 },
-  achDesc: { fontSize: 9, color: COLORS.textMuted, textAlign: 'center', lineHeight: 13 },
 
   // 알림 설정
   notifSection: {
