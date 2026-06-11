@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
+import { hapticLight, hapticMedium, hapticSuccess } from '../utils/haptics';
 import { useFocusEffect } from '@react-navigation/native';
 import React, { useCallback, useState } from 'react';
 import {
@@ -95,7 +95,7 @@ export default function InBodyScreen() {
     };
     await saveInBodyRecord(rec);
     await recalcAndSavePermanentStats();
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    hapticSuccess();
     setShowForm(false);
     setEditingId(null);
     load();
@@ -109,7 +109,7 @@ export default function InBodyScreen() {
         text: '삭제', style: 'destructive', onPress: async () => {
           await deleteInBodyRecord(id);
           await recalcAndSavePermanentStats();
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          hapticMedium();
           load();
           triggerRefresh();
         }

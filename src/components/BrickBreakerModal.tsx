@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
+import { hapticLight, hapticSuccess, hapticWarning } from '../utils/haptics';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Animated,
@@ -16,7 +16,6 @@ import { addGold } from '../utils/gacha';
 import { addXP } from '../utils/storage';
 
 // ── 게임 상수 ────────────────────────────────────────────────
-const TICK_MS    = 16;
 const BALL_R     = 8;
 const BALL_SPD   = 6.0;       // 기본 속도 (벽돌 깰수록 증가)
 const SPD_GROWTH = 0.012;     // 벽돌 1개당 속도 증가율 (최대 +50%)
@@ -38,6 +37,7 @@ const DROP_SPD    = 2.4;      // 아이템 낙하 속도
 const DROP_SIZE   = 26;
 const MAX_BALLS   = 6;
 const WIDE_MULT   = 1.5;      // 패들 확장 배율
+const TOAST_FRAMES = 80;      // 아이템 획득 토스트 표시 시간 (~1.3초)
 
 type DropKind = 'wide' | 'multi' | 'slow' | 'fast' | 'gold' | 'life';
 
@@ -86,11 +86,14 @@ interface Effect { kind: 'wide' | 'slow' | 'fast'; framesLeft: number; }
 
 type Phase = 'ready' | 'idle' | 'playing' | 'cleared' | 'dead';
 
+// 게임 상태 — 성능을 위해 매 프레임 "제자리 변형"한다 (복사 없음).
+// React 렌더는 setTick 카운터로만 트리거.
 interface G {
   phase: Phase;
   balls: Ball[];
   drops: Drop[];
   effects: Effect[];
+  toast: { kind: DropKind; frames: number } | null;
   px: number;              // paddle center X
   paddleY: number;         // paddle top Y
   lives: number;
@@ -123,7 +126,7 @@ function makeG(areaW: number, areaH: number): G {
   return {
     phase: 'ready',
     balls: [{ x: px, y: paddleY - BALL_R - 2, vx: 0, vy: 0 }],
-    drops: [], effects: [],
+    drops: [], effects: [], toast: null,
     px, paddleY,
     lives: START_LIVES, bricksHit: 0, goldBonus: 0,
     bricks: makeBricks(areaW),
@@ -144,6 +147,161 @@ function targetSpeed(g: G): number {
   return spd;
 }
 
+// ── 아이템 적용 (G를 제자리 변형) ────────────────────────────
+function applyDrop(g: G, kind: DropKind) {
+  hapticLight();
+  g.toast = { kind, frames: TOAST_FRAMES };
+  switch (kind) {
+    case 'wide':
+    case 'slow':
+    case 'fast': {
+      const dur = DROP_CFG[kind].durationFrames ?? 600;
+      g.effects = g.effects.filter(e => e.kind !== kind);
+      g.effects.push({ kind, framesLeft: dur });
+      break;
+    }
+    case 'multi': {
+      const add: Ball[] = [];
+      for (const b of g.balls) {
+        if (g.balls.length + add.length >= MAX_BALLS) break;
+        const spd = Math.max(2, Math.hypot(b.vx, b.vy)) || targetSpeed(g);
+        const baseAngle = Math.atan2(b.vx, -b.vy);
+        for (const off of [-0.55, 0.55]) {
+          if (g.balls.length + add.length >= MAX_BALLS) break;
+          const a = baseAngle + off;
+          add.push({ x: b.x, y: b.y, vx: spd * Math.sin(a), vy: -Math.abs(spd * Math.cos(a)) });
+        }
+      }
+      g.balls.push(...add);
+      break;
+    }
+    case 'gold':
+      g.goldBonus += 15;
+      break;
+    case 'life':
+      g.lives = Math.min(MAX_LIVES, g.lives + 1);
+      break;
+  }
+}
+
+// ── 물리 1프레임 (G 제자리 변형, 종료 시 'end' 반환) ─────────
+function step(g: G): 'continue' | 'cleared' | 'dead' {
+  const { paddleY, areaW, areaH } = g;
+  const padW = paddleWidth(g);
+  const spd = targetSpeed(g);
+
+  // 효과 시간 경과
+  for (const e of g.effects) e.framesLeft--;
+  g.effects = g.effects.filter(e => e.framesLeft > 0);
+  if (g.toast) {
+    g.toast.frames--;
+    if (g.toast.frames <= 0) g.toast = null;
+  }
+
+  // 공 이동/충돌
+  for (let bi = g.balls.length - 1; bi >= 0; bi--) {
+    const ball = g.balls[bi];
+    ball.x += ball.vx;
+    ball.y += ball.vy;
+
+    // 벽 반사
+    if (ball.x - BALL_R <= 0)     { ball.vx =  Math.abs(ball.vx); ball.x = BALL_R; }
+    if (ball.x + BALL_R >= areaW) { ball.vx = -Math.abs(ball.vx); ball.x = areaW - BALL_R; }
+    if (ball.y - BALL_R <= 0)     { ball.vy =  Math.abs(ball.vy); ball.y = BALL_R; }
+
+    // 패들 반사 (공이 아래로 내려갈 때만)
+    if (ball.vy > 0) {
+      const padL = g.px - padW / 2;
+      const padR = g.px + padW / 2;
+      if (
+        ball.x >= padL - BALL_R && ball.x <= padR + BALL_R &&
+        ball.y + BALL_R >= paddleY && ball.y - BALL_R <= paddleY + PADDLE_H
+      ) {
+        const hit = Math.max(-1, Math.min(1, (ball.x - g.px) / (padW / 2)));
+        const angle = hit * (55 * Math.PI / 180);
+        ball.vx = spd * Math.sin(angle);
+        ball.vy = -Math.abs(spd * Math.cos(angle));
+        ball.y = paddleY - BALL_R - 1;
+      }
+    }
+
+    // 벽돌 충돌 (공 하나당 한 프레임에 하나만)
+    for (let i = 0; i < g.bricks.length; i++) {
+      const b = g.bricks[i];
+      if (!b.alive) continue;
+      const bl = ball.x - BALL_R, br = ball.x + BALL_R;
+      const bt = ball.y - BALL_R, bb = ball.y + BALL_R;
+      if (br > b.x && bl < b.x + b.w && bb > b.y && bt < b.y + b.h) {
+        const oL = br - b.x,         oR = (b.x + b.w) - bl;
+        const oT = bb - b.y,         oB = (b.y + b.h) - bt;
+        const mn = Math.min(oL, oR, oT, oB);
+        if (mn === oL || mn === oR) ball.vx = -ball.vx;
+        else                        ball.vy = -ball.vy;
+        b.hp--;
+        if (b.hp <= 0) {
+          b.alive = false;
+          g.bricksHit++;
+          const kind = rollDrop();
+          if (kind) g.drops.push({ x: b.x + b.w / 2, y: b.y + b.h / 2, kind });
+        }
+        break;
+      }
+    }
+
+    // 속도 정규화 (진행도/효과 반영)
+    const mag = Math.hypot(ball.vx, ball.vy);
+    if (mag > 0.1) { ball.vx = (ball.vx / mag) * spd; ball.vy = (ball.vy / mag) * spd; }
+
+    // 낙사
+    if (ball.y - BALL_R > areaH) g.balls.splice(bi, 1);
+  }
+
+  // 아이템 낙하/획득
+  const padL = g.px - padW / 2;
+  const padR = g.px + padW / 2;
+  for (let di = g.drops.length - 1; di >= 0; di--) {
+    const d = g.drops[di];
+    d.y += DROP_SPD;
+    const caught =
+      d.y + DROP_SIZE / 2 >= paddleY && d.y - DROP_SIZE / 2 <= paddleY + PADDLE_H &&
+      d.x >= padL - DROP_SIZE / 2 && d.x <= padR + DROP_SIZE / 2;
+    if (caught) {
+      g.drops.splice(di, 1);
+      applyDrop(g, d.kind);
+    } else if (d.y - DROP_SIZE / 2 > areaH) {
+      g.drops.splice(di, 1);
+    }
+  }
+
+  // 모든 공 낙사 → 목숨 차감
+  if (g.balls.length === 0) {
+    g.lives--;
+    hapticWarning();
+    if (g.lives <= 0) {
+      g.earnedGold = Math.max(5, g.bricksHit * 3) + g.goldBonus;
+      g.earnedXp   = Math.max(10, g.bricksHit * 2 + 10);
+      g.phase = 'dead';
+      return 'dead';
+    }
+    // 리스폰: 효과/아이템 초기화, 공 1개로
+    g.phase = 'idle';
+    g.effects = [];
+    g.drops = [];
+    g.toast = null;
+    g.balls = [{ x: g.px, y: paddleY - BALL_R - 2, vx: 0, vy: 0 }];
+  }
+
+  // 클리어 체크
+  if (g.bricks.every(b => !b.alive)) {
+    g.earnedGold = g.bricksHit * 4 + 60 + g.goldBonus;
+    g.earnedXp   = g.bricksHit * 3 + 100;
+    g.phase = 'cleared';
+    return 'cleared';
+  }
+
+  return 'continue';
+}
+
 // ── Props ──────────────────────────────────────────────────
 interface Props {
   visible: boolean;
@@ -155,16 +313,12 @@ interface Props {
 // ── 메인 컴포넌트 ─────────────────────────────────────────
 export default function BrickBreakerModal({ visible, onClose, addXpFn, onGoldEarned }: Props) {
   const gRef     = useRef<G | null>(null);
-  const tickRef  = useRef<ReturnType<typeof setInterval>>();
+  const rafRef   = useRef<number | null>(null);
   const endedRef = useRef(false);
-  const [tick, setTick] = useState(0);
-  const [toast, setToast] = useState<{ label: string; color: string } | null>(null);
-  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [, setTick] = useState(0);
 
   const containerAnim = useRef(new Animated.Value(0)).current;
   const resultAnim    = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => () => { if (toastTimer.current) clearTimeout(toastTimer.current); }, []);
 
   useEffect(() => {
     if (visible) {
@@ -177,20 +331,38 @@ export default function BrickBreakerModal({ visible, onClose, addXpFn, onGoldEar
       }
       Animated.spring(containerAnim, { toValue: 1, useNativeDriver: true, tension: 65, friction: 9 }).start();
     } else {
-      stopTick();
+      stopLoop();
       containerAnim.setValue(0);
     }
+    return stopLoop;
   }, [visible]);
 
-  // ── 타이머 ──────────────────────────────────────────────
-  function stopTick() {
-    clearInterval(tickRef.current);
-    tickRef.current = undefined;
+  // ── 게임 루프 (requestAnimationFrame — setInterval보다 끊김/중첩에 안전) ──
+  function stopLoop() {
+    if (rafRef.current != null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
   }
 
-  function startTick() {
-    stopTick();
-    tickRef.current = setInterval(physics, TICK_MS);
+  function startLoop() {
+    stopLoop();
+    const loop = () => {
+      const g = gRef.current;
+      if (!g) { rafRef.current = null; return; }
+      if (g.phase === 'playing') {
+        const result = step(g);
+        if (result !== 'continue') {
+          setTick(t => t + 1);
+          doEnd(g.earnedGold, g.earnedXp);
+          rafRef.current = null;
+          return;
+        }
+      }
+      setTick(t => t + 1);
+      rafRef.current = requestAnimationFrame(loop);
+    };
+    rafRef.current = requestAnimationFrame(loop);
   }
 
   // ── 레이아웃 측정 ────────────────────────────────────────
@@ -206,185 +378,15 @@ export default function BrickBreakerModal({ visible, onClose, addXpFn, onGoldEar
   function startGame() {
     const g = gRef.current;
     if (!g) return;
-    gRef.current = { ...g, phase: 'idle' };
+    g.phase = 'idle';
     setTick(t => t + 1);
-    startTick();
-  }
-
-  function showToast(kind: DropKind) {
-    const cfg = DROP_CFG[kind];
-    setToast({ label: cfg.label, color: cfg.color });
-    if (toastTimer.current) clearTimeout(toastTimer.current);
-    toastTimer.current = setTimeout(() => setToast(null), 1300);
-  }
-
-  // ── 아이템 적용 ──────────────────────────────────────────
-  function applyDrop(g: G, kind: DropKind) {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-    showToast(kind);
-    switch (kind) {
-      case 'wide':
-      case 'slow':
-      case 'fast': {
-        const dur = DROP_CFG[kind].durationFrames ?? 600;
-        // 같은 효과는 시간 갱신
-        g.effects = g.effects.filter(e => e.kind !== kind);
-        g.effects.push({ kind, framesLeft: dur });
-        break;
-      }
-      case 'multi': {
-        const newBalls: Ball[] = [];
-        for (const b of g.balls) {
-          if (g.balls.length + newBalls.length >= MAX_BALLS) break;
-          const spd = Math.max(2, Math.hypot(b.vx, b.vy)) || targetSpeed(g);
-          const baseAngle = Math.atan2(b.vx, -b.vy);
-          for (const off of [-0.55, 0.55]) {
-            if (g.balls.length + newBalls.length >= MAX_BALLS) break;
-            const a = baseAngle + off;
-            newBalls.push({ x: b.x, y: b.y, vx: spd * Math.sin(a), vy: -Math.abs(spd * Math.cos(a)) });
-          }
-        }
-        g.balls = [...g.balls, ...newBalls];
-        break;
-      }
-      case 'gold':
-        g.goldBonus += 15;
-        break;
-      case 'life':
-        g.lives = Math.min(MAX_LIVES, g.lives + 1);
-        break;
-    }
-  }
-
-  // ── 물리 업데이트 ────────────────────────────────────────
-  function physics() {
-    const g = gRef.current;
-    if (!g || g.phase !== 'playing') return;
-
-    // 얕은 복사 후 변형 (이번 프레임 작업본)
-    const w: G = { ...g, balls: g.balls.map(b => ({ ...b })), drops: g.drops.slice(), effects: g.effects.map(e => ({ ...e })), bricks: g.bricks.slice() };
-    const { paddleY, areaW, areaH } = w;
-    const padW = paddleWidth(w);
-    const spd = targetSpeed(w);
-
-    // ── 효과 시간 경과 ──
-    w.effects = w.effects.map(e => ({ ...e, framesLeft: e.framesLeft - 1 })).filter(e => e.framesLeft > 0);
-
-    // ── 공 이동/충돌 ──
-    const survivors: Ball[] = [];
-    for (const ball of w.balls) {
-      let { x, y, vx, vy } = ball;
-      x += vx; y += vy;
-
-      // 벽 반사
-      if (x - BALL_R <= 0)     { vx =  Math.abs(vx); x = BALL_R; }
-      if (x + BALL_R >= areaW) { vx = -Math.abs(vx); x = areaW - BALL_R; }
-      if (y - BALL_R <= 0)     { vy =  Math.abs(vy); y = BALL_R; }
-
-      // 패들 반사 (공이 아래로 내려갈 때만)
-      if (vy > 0) {
-        const padL = w.px - padW / 2;
-        const padR = w.px + padW / 2;
-        if (
-          x >= padL - BALL_R && x <= padR + BALL_R &&
-          y + BALL_R >= paddleY && y - BALL_R <= paddleY + PADDLE_H
-        ) {
-          const hit = Math.max(-1, Math.min(1, (x - w.px) / (padW / 2)));
-          const angle = hit * (55 * Math.PI / 180);
-          vx = spd * Math.sin(angle);
-          vy = -Math.abs(spd * Math.cos(angle));
-          y = paddleY - BALL_R - 1;
-        }
-      }
-
-      // 벽돌 충돌 (공 하나당 한 프레임에 하나만)
-      for (let i = 0; i < w.bricks.length; i++) {
-        const b = w.bricks[i];
-        if (!b.alive) continue;
-        const bl = x - BALL_R, br = x + BALL_R;
-        const bt = y - BALL_R, bb = y + BALL_R;
-        if (br > b.x && bl < b.x + b.w && bb > b.y && bt < b.y + b.h) {
-          const oL = br - b.x,         oR = (b.x + b.w) - bl;
-          const oT = bb - b.y,         oB = (b.y + b.h) - bt;
-          const mn = Math.min(oL, oR, oT, oB);
-          if (mn === oL || mn === oR) vx = -vx;
-          else                        vy = -vy;
-          const newHp = b.hp - 1;
-          w.bricks[i] = { ...b, hp: newHp, alive: newHp > 0 };
-          if (newHp <= 0) {
-            w.bricksHit++;
-            // 아이템 드랍
-            const kind = rollDrop();
-            if (kind) w.drops.push({ x: b.x + b.w / 2, y: b.y + b.h / 2, kind });
-          }
-          break;
-        }
-      }
-
-      // 속도 정규화 (진행도/효과 반영)
-      const mag = Math.hypot(vx, vy);
-      if (mag > 0.1) { vx = (vx / mag) * spd; vy = (vy / mag) * spd; }
-
-      // 낙사 체크
-      if (y - BALL_R <= areaH) survivors.push({ x, y, vx, vy });
-    }
-    w.balls = survivors;
-
-    // ── 아이템 낙하/획득 ──
-    const padL = w.px - padW / 2;
-    const padR = w.px + padW / 2;
-    const remainingDrops: Drop[] = [];
-    for (const d of w.drops) {
-      const ny = d.y + DROP_SPD;
-      const caught =
-        ny + DROP_SIZE / 2 >= paddleY && ny - DROP_SIZE / 2 <= paddleY + PADDLE_H &&
-        d.x >= padL - DROP_SIZE / 2 && d.x <= padR + DROP_SIZE / 2;
-      if (caught) {
-        applyDrop(w, d.kind);
-      } else if (ny - DROP_SIZE / 2 <= areaH) {
-        remainingDrops.push({ ...d, y: ny });
-      }
-    }
-    w.drops = remainingDrops;
-
-    // ── 모든 공 낙사 → 목숨 차감 ──
-    if (w.balls.length === 0) {
-      w.lives--;
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
-      if (w.lives <= 0) {
-        w.earnedGold = Math.max(5, w.bricksHit * 3) + w.goldBonus;
-        w.earnedXp   = Math.max(10, w.bricksHit * 2 + 10);
-        w.phase = 'dead';
-        gRef.current = w;
-        doEnd(w.earnedGold, w.earnedXp);
-        return;
-      }
-      // 리스폰: 효과/아이템 초기화, 공 1개로
-      w.phase = 'idle';
-      w.effects = [];
-      w.drops = [];
-      w.balls = [{ x: w.px, y: paddleY - BALL_R - 2, vx: 0, vy: 0 }];
-    }
-
-    // ── 클리어 체크 ──
-    if (w.bricks.every(b => !b.alive)) {
-      w.earnedGold = w.bricksHit * 4 + 60 + w.goldBonus;
-      w.earnedXp   = w.bricksHit * 3 + 100;
-      w.phase = 'cleared';
-      gRef.current = w;
-      doEnd(w.earnedGold, w.earnedXp);
-      return;
-    }
-
-    gRef.current = w;
-    setTick(t => t + 1);
+    startLoop();
   }
 
   function doEnd(gold: number, xp: number) {
     if (endedRef.current) return;
     endedRef.current = true;
-    stopTick();
-    setTick(t => t + 1);
+    stopLoop();
     addGold(gold);
     (addXpFn ?? addXP)(xp);
     onGoldEarned?.(gold);
@@ -397,11 +399,9 @@ export default function BrickBreakerModal({ visible, onClose, addXpFn, onGoldEar
     if (!g || (g.phase !== 'playing' && g.phase !== 'idle')) return;
     const padW = paddleWidth(g);
     const newPx = Math.max(padW / 2, Math.min(g.areaW - padW / 2, e.nativeEvent.locationX));
+    g.px = newPx;
     if (g.phase === 'idle') {
-      gRef.current = { ...g, px: newPx, balls: [{ x: newPx, y: g.paddleY - BALL_R - 2, vx: 0, vy: 0 }] };
-      setTick(t => t + 1);
-    } else {
-      gRef.current = { ...g, px: newPx };
+      g.balls = [{ x: newPx, y: g.paddleY - BALL_R - 2, vx: 0, vy: 0 }];
     }
   }
 
@@ -410,19 +410,15 @@ export default function BrickBreakerModal({ visible, onClose, addXpFn, onGoldEar
     if (!g || g.phase !== 'idle') return;
     const angle = (Math.random() * 0.6 - 0.3);
     const spd = targetSpeed(g);
-    gRef.current = {
-      ...g, phase: 'playing',
-      balls: g.balls.map(b => ({
-        ...b,
-        vx: spd * Math.sin(angle),
-        vy: -Math.abs(spd * Math.cos(angle)),
-      })),
-    };
-    setTick(t => t + 1);
+    for (const b of g.balls) {
+      b.vx = spd * Math.sin(angle);
+      b.vy = -Math.abs(spd * Math.cos(angle));
+    }
+    g.phase = 'playing';
   }
 
   function handleClose() {
-    stopTick();
+    stopLoop();
     gRef.current = null;
     onClose();
   }
@@ -432,6 +428,7 @@ export default function BrickBreakerModal({ visible, onClose, addXpFn, onGoldEar
   const isResult = g?.phase === 'cleared' || g?.phase === 'dead';
   const padW = g ? paddleWidth(g) : PADDLE_W;
   const wideActive = g?.effects.some(e => e.kind === 'wide');
+  const toastCfg = g?.toast ? DROP_CFG[g.toast.kind] : null;
 
   return (
     <Modal visible={visible} animationType="none" transparent statusBarTranslucent onRequestClose={handleClose}>
@@ -464,13 +461,12 @@ export default function BrickBreakerModal({ visible, onClose, addXpFn, onGoldEar
               </View>
 
               <View style={s.hudCenter}>
-                {/* 활성 효과 */}
                 {g.effects.length > 0 ? (
                   <View style={s.effectRow}>
                     {g.effects.map(e => (
                       <View key={e.kind} style={[s.effectPill, { borderColor: DROP_CFG[e.kind].color + '66', backgroundColor: DROP_CFG[e.kind].color + '1A' }]}>
                         <Ionicons name={DROP_CFG[e.kind].icon} size={10} color={DROP_CFG[e.kind].color} />
-                        <Text style={[s.effectPillTxt, { color: DROP_CFG[e.kind].color }]}>{Math.ceil(e.framesLeft * TICK_MS / 1000)}s</Text>
+                        <Text style={[s.effectPillTxt, { color: DROP_CFG[e.kind].color }]}>{Math.ceil(e.framesLeft / 62)}s</Text>
                       </View>
                     ))}
                   </View>
@@ -555,10 +551,10 @@ export default function BrickBreakerModal({ visible, onClose, addXpFn, onGoldEar
                 }]} />
 
                 {/* 아이템 획득 토스트 */}
-                {toast && g.phase === 'playing' && (
+                {toastCfg && g.phase === 'playing' && (
                   <View style={s.toastWrap} pointerEvents="none">
-                    <View style={[s.toastPill, { backgroundColor: toast.color }]}>
-                      <Text style={s.toastTxt}>{toast.label}</Text>
+                    <View style={[s.toastPill, { backgroundColor: toastCfg.color }]}>
+                      <Text style={s.toastTxt}>{toastCfg.label}</Text>
                     </View>
                   </View>
                 )}
@@ -650,7 +646,6 @@ function BrickView({ brick }: { brick: Brick }) {
       width: brick.w, height: brick.h,
       borderColor: brick.color + borderAlpha,
       backgroundColor: brick.color + bgAlpha,
-      shadowColor: brick.glow,
     }]}>
       {/* HP 바 */}
       <View style={[s.brickHpBar, {
@@ -811,10 +806,6 @@ const s = StyleSheet.create({
     borderRadius: 5,
     borderWidth: 1,
     overflow: 'hidden',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.7,
-    shadowRadius: 6,
-    elevation: 4,
   },
   brickHpBar: {
     position: 'absolute',

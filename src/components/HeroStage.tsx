@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
+import { hapticMedium } from '../utils/haptics';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated, Easing, Image, Platform, Pressable, StyleSheet, Text, View,
@@ -131,7 +131,7 @@ export default function HeroStage({
   useEffect(() => () => { if (speechTimer.current) clearTimeout(speechTimer.current); }, []);
 
   const handlePoke = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    hapticMedium();
     squash.setValue(0);
     Animated.sequence([
       Animated.timing(squash, { toValue: 1, duration: 90, useNativeDriver: true }),

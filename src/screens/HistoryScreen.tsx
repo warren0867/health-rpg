@@ -1,4 +1,4 @@
-import * as Haptics from 'expo-haptics';
+import { hapticLight, hapticMedium, hapticSuccess } from '../utils/haptics';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import React, { useCallback, useState } from 'react';
@@ -375,7 +375,7 @@ export default function HistoryScreen() {
         try {
           const text = await file.text();
           await importAllData(text);
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          hapticSuccess();
           Alert.alert('✅ 복구 완료', '데이터를 성공적으로 불러왔어요!', [
             { text: '새로고침 (적용)', onPress: () => (window as any).location.reload() },
             { text: '나중에' },
@@ -398,7 +398,7 @@ export default function HistoryScreen() {
               try {
                 const text = await Clipboard.getString();
                 await importAllData(text);
-                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                hapticSuccess();
                 Alert.alert('✅ 복구 완료', '데이터를 성공적으로 불러왔어요. 앱을 재시작해주세요.');
               } catch {
                 Alert.alert('오류', '올바른 백업 데이터가 아닙니다.');
@@ -424,7 +424,7 @@ export default function HistoryScreen() {
   const handleSaveWeight = async () => {
     const v = parseFloat(weightInput);
     if (isNaN(v) || v < 20 || v > 300) { Alert.alert('오류', '올바른 체중을 입력해주세요 (20~300kg)'); return; }
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    hapticSuccess();
     const today = getTodayKey();
     await saveWeightEntry({ id: generateId(), date: today, weightKg: v, timestamp: new Date().toISOString() });
     const updated = await getWeightHistory(30);

@@ -1,4 +1,4 @@
-import * as Haptics from 'expo-haptics';
+import { hapticLight, hapticMedium, hapticSuccess } from '../utils/haptics';
 import { useFocusEffect } from '@react-navigation/native';
 import React, { useCallback, useState } from 'react';
 import { useRefresh } from '../context/RefreshContext';
@@ -155,7 +155,7 @@ export default function BloodSugarScreen() {
       Alert.alert('입력 오류', '혈당값을 올바르게 입력해주세요 (20–600 mg/dL)');
       return;
     }
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    hapticSuccess();
     const entry: BloodSugarEntry = {
       id: generateId(),
       date: today,
@@ -508,7 +508,7 @@ export default function BloodSugarScreen() {
                   key={opt.value}
                   style={[styles.timingBtn, inputTiming === opt.value && styles.timingBtnActive]}
                   onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    hapticLight();
                     setInputTiming(opt.value);
                   }}
                 >

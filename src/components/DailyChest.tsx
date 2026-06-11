@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
+import { hapticSuccess } from '../utils/haptics';
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
 import { COLORS, FONTS, RADIUS, SPACING } from '../constants/theme';
@@ -44,7 +44,7 @@ export default function DailyChest({ streak, onClaimed }: Props) {
   const handleOpen = async () => {
     const r = await claimDailyChest(streak);
     if (!r) { setHidden(true); return; }
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    hapticSuccess();
     setReward(r);
     onClaimed(r);
 

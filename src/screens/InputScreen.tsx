@@ -1,4 +1,4 @@
-import * as Haptics from 'expo-haptics';
+import { hapticLight, hapticMedium, hapticSuccess } from '../utils/haptics';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import React, { useCallback, useEffect, useState } from 'react';
@@ -61,7 +61,7 @@ function ChipBtn({ label, sub, selected, onPress, color = COLORS.purple }: {
   return (
     <TouchableOpacity
       style={[c.chip, selected && { borderColor: color, backgroundColor: color + '18' }]}
-      onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onPress(); }}
+      onPress={() => { hapticLight(); onPress(); }}
       activeOpacity={0.75}
     >
       <Text style={[c.chipText, selected && { color }]}>{label}</Text>
@@ -196,7 +196,7 @@ export default function InputScreen() {
     setNewExType(null);
     setNewExMinutes(30);
     setNewExIntensity('medium');
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    hapticSuccess();
     triggerRefresh();
   };
 
@@ -208,7 +208,7 @@ export default function InputScreen() {
           await deleteExerciseEntry(id);
           await recalcAndSavePermanentStats();
           setExerciseEntries(prev => prev.filter(e => e.id !== id));
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          hapticMedium();
           triggerRefresh();
         }
       }
@@ -243,7 +243,7 @@ export default function InputScreen() {
 
   const buildLog = async (goToResult: boolean) => {
     setSaving(true);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    hapticSuccess();
 
     // 운동은 entries로부터 합산해서 호환 필드를 채움
     const exerciseTypes = Array.from(new Set(exerciseEntries.map(e => e.type))) as ExerciseType[];
@@ -357,7 +357,7 @@ export default function InputScreen() {
     setNewMedName(''); setNewMedDose(''); setNewMedTimes(['morning']);
     setShowMedModal(false);
     loadMeds(selectedDate);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    hapticSuccess();
   };
 
   const handleDeleteMed = (id: string) => {
@@ -368,7 +368,7 @@ export default function InputScreen() {
   };
 
   const handleToggleMed = async (medId: string, time: string) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    hapticLight();
     const updated = await toggleMedTaken(selectedDate, `${medId}_${time}`);
     setMedLog(updated);
   };
@@ -396,7 +396,7 @@ export default function InputScreen() {
                   <TouchableOpacity
                     key={date}
                     style={[c.dateChip, isSelected && c.dateChipSelected]}
-                    onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setSelectedDate(date); }}
+                    onPress={() => { hapticLight(); setSelectedDate(date); }}
                   >
                     <Text style={[c.dateChipLabel, isSelected && c.dateChipLabelSelected]}>
                       {dateLabel(date, today)}
@@ -425,7 +425,7 @@ export default function InputScreen() {
               <TouchableOpacity
                 key={m}
                 style={[c.moodBtn, mood === m && { borderColor: COLORS.purple, backgroundColor: COLORS.purple + '22' }]}
-                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setMood(m); }}
+                onPress={() => { hapticLight(); setMood(m); }}
               >
                 <Text style={c.moodEmoji}>{MOOD_EMOJI[m]}</Text>
                 <Text style={[c.moodLabel, mood === m && { color: COLORS.purple }]}>{MOOD_LABEL[m]}</Text>
@@ -565,7 +565,7 @@ export default function InputScreen() {
         >
           <TouchableOpacity
             style={[c.chip, !alcohol.consumed && { borderColor: COLORS.teal, backgroundColor: COLORS.teal + '18' }]}
-            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setAlcohol({ consumed: false, items: [] }); }}
+            onPress={() => { hapticLight(); setAlcohol({ consumed: false, items: [] }); }}
           >
             <Text style={[c.chipText, !alcohol.consumed && { color: COLORS.teal }]}>✅ 금주</Text>
           </TouchableOpacity>

@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
+import { hapticLight, hapticMedium, hapticSuccess } from '../utils/haptics';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
@@ -147,7 +147,7 @@ export default function HomeScreen() {
   const handleSaveBS = async () => {
     const v = parseInt(bsInput);
     if (isNaN(v) || v < 40 || v > 600) { Alert.alert('오류', '40~600 사이 값을 입력해주세요'); return; }
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    hapticSuccess();
     await saveMorningBS({ id: generateId(), date: today, value: v, timestamp: new Date().toISOString() });
     setBsInput(''); setShowBSModal(false); load();
   };
@@ -164,7 +164,7 @@ export default function HomeScreen() {
       await saveUserProfile(updated);
       setProfile(updated);
     }
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    hapticSuccess();
     setShowProfileModal(false);
   };
 
@@ -188,7 +188,7 @@ export default function HomeScreen() {
     const CUP = 250;
     const next = await addWater(today, CUP);
     setWaterMl(next);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    hapticLight();
   };
 
   // ─── 파생 데이터 ─────────────────────────────────
@@ -503,7 +503,7 @@ export default function HomeScreen() {
                     await saveNotifSettings(notifSettings);
                     await scheduleAllNotifications(notifSettings);
                     setShowNotifModal(false);
-                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                    hapticSuccess();
                   }}
                 >
                   <Text style={s.modalBtnPrimaryText}>저장</Text>

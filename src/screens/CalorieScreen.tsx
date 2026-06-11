@@ -1,4 +1,4 @@
-import * as Haptics from 'expo-haptics';
+import { hapticLight, hapticMedium, hapticSuccess } from '../utils/haptics';
 import { useFocusEffect } from '@react-navigation/native';
 import React, { useCallback, useRef, useState, useEffect } from 'react';
 import { useRefresh } from '../context/RefreshContext';
@@ -141,7 +141,7 @@ export default function CalorieScreen() {
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
   const openInput = (meal: MealTime) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    hapticLight();
     if (activeMeal === meal) {
       // 같은 끼니 다시 탭하면 닫기
       setActiveMeal(null);
@@ -178,7 +178,7 @@ export default function CalorieScreen() {
   };
 
   const handleSelectFood = (food: FoodItem) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    hapticMedium();
     setSelectedFood(food);
     setServings(1);
     setEatPct(100);
@@ -186,7 +186,7 @@ export default function CalorieScreen() {
 
   const handleAddEntry = async () => {
     if (!selectedFood || !activeMeal) return;
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    hapticSuccess();
     const cal = Math.round(selectedFood.cal * servings * eatPct / 100);
     const entry: FoodEntry = {
       id: generateId(),
@@ -216,13 +216,13 @@ export default function CalorieScreen() {
   };
 
   const handleToggleFav = async (foodId: string) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    hapticLight();
     await toggleFavoriteFood(foodId);
     setFavIds(await getFavoriteFoodIds());
   };
 
   const handleDelete = async (entry: FoodEntry) => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    hapticSuccess();
     // 스토리지에서 삭제
     await deleteFoodEntry(entry.id);
     await syncDailyLogCalories(selectedDate);
@@ -234,7 +234,7 @@ export default function CalorieScreen() {
   };
 
   const handleOpenEdit = (entry: FoodEntry) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    hapticLight();
     setEditingEntry(entry);
     setEditServings(entry.servings);
   };
@@ -259,7 +259,7 @@ export default function CalorieScreen() {
     const fresh = await getFoodEntriesByDate(selectedDate);
     setEntries(fresh);
     setSummary(sumFoodEntries(fresh));
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    hapticSuccess();
     triggerRefresh();
   };
 
@@ -272,7 +272,7 @@ export default function CalorieScreen() {
     Alert.alert(`${fromLabel} 식단 복사`, `${fromLabel} 기록을 ${dateLabel(selectedDate, today)}로 복사할까요?`, [
       { text: '취소', style: 'cancel' },
       { text: '복사', onPress: async () => {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        hapticSuccess();
         const count = await copyYesterdayMeals(selectedDate, prevDay);
         if (count === 0) Alert.alert('알림', `${fromLabel} 기록이 없어요`);
         else { load(); triggerRefresh(); }
@@ -282,7 +282,7 @@ export default function CalorieScreen() {
 
   const handleSaveCustom = async () => {
     if (!customName.trim() || !customCal) { Alert.alert('오류', '이름과 칼로리는 필수입니다'); return; }
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    hapticSuccess();
     const food: FoodItem = {
       id: `custom_${generateId()}`,
       name: customName.trim(),
@@ -342,7 +342,7 @@ export default function CalorieScreen() {
                   key={date}
                   style={[styles.dateChip, isSelected && styles.dateChipSelected]}
                   onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    hapticLight();
                     setSelectedDate(date);
                     setActiveMeal(null);
                     setSelectedFood(null);
@@ -414,7 +414,7 @@ export default function CalorieScreen() {
                   {mealEntries.length > 0 && (
                     <TouchableOpacity
                       onPress={() => {
-                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        hapticLight();
                         setEditMeal(editMeal === meal ? null : meal);
                       }}
                       style={[styles.editBtn, editMeal === meal && styles.editBtnActive]}
@@ -445,7 +445,7 @@ export default function CalorieScreen() {
                         <TouchableOpacity
                           style={styles.deleteBtn}
                           onPress={() => {
-                            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                            hapticSuccess();
                             handleDelete(entry);
                           }}
                         >
@@ -616,7 +616,7 @@ export default function CalorieScreen() {
                           <TouchableOpacity
                             key={s}
                             style={[styles.servingBtn, servings === s && styles.servingBtnActive]}
-                            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setServings(s); }}
+                            onPress={() => { hapticLight(); setServings(s); }}
                           >
                             <Text style={[styles.servingBtnText, servings === s && { color: COLORS.purple }]}>{s}</Text>
                           </TouchableOpacity>
@@ -632,7 +632,7 @@ export default function CalorieScreen() {
                               <TouchableOpacity
                                 key={p}
                                 style={[styles.pctBtn, eatPct === p && styles.pctBtnActive]}
-                                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setEatPct(p); }}
+                                onPress={() => { hapticLight(); setEatPct(p); }}
                               >
                                 <Text style={[styles.pctBtnText, eatPct === p && { color: COLORS.orange }]}>{p}</Text>
                               </TouchableOpacity>

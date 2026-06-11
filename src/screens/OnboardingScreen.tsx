@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
-import * as Haptics from 'expo-haptics';
+import { hapticLight, hapticMedium, hapticSuccess } from '../utils/haptics';
 import React, { useState } from 'react';
 import {
   KeyboardAvoidingView, Platform, ScrollView, StyleSheet,
@@ -55,7 +55,7 @@ export default function OnboardingScreen() {
 
   const handleNext = () => {
     if (step < STEPS.length - 1) {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      hapticMedium();
       setStep(s => s + 1);
     } else {
       handleComplete();
@@ -64,13 +64,13 @@ export default function OnboardingScreen() {
 
   const handleBack = () => {
     if (step > 0) {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      hapticLight();
       setStep(s => s - 1);
     }
   };
 
   const handleComplete = async () => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    hapticSuccess();
     const profile: UserProfile = {
       name: name.trim(), gender, age: parseInt(age),
       heightCm: parseInt(height), weightKg: parseFloat(weight),

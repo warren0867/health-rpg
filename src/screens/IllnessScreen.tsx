@@ -1,4 +1,4 @@
-import * as Haptics from 'expo-haptics';
+import { hapticLight, hapticMedium, hapticSuccess } from '../utils/haptics';
 import { useFocusEffect } from '@react-navigation/native';
 import React, { useCallback, useState } from 'react';
 import { useRefresh } from '../context/RefreshContext';
@@ -84,7 +84,7 @@ export default function IllnessScreen() {
   const handleSave = async () => {
     if (!formStart) { Alert.alert('오류', '시작일을 입력하세요'); return; }
     if (formEnd && formEnd < formStart) { Alert.alert('오류', '종료일은 시작일 이후여야 합니다'); return; }
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    hapticSuccess();
     const now = new Date().toISOString();
     const entry: IllnessEntry = {
       id: editEntry?.id ?? generateId(),
@@ -109,7 +109,7 @@ export default function IllnessScreen() {
   };
 
   const handleRecover = async (e: IllnessEntry) => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    hapticSuccess();
     const recovered = { ...e, endDate: today, updatedAt: new Date().toISOString() };
     await saveIllness(recovered);
     // 회복 완료 시 전체 기간 재계산
@@ -219,7 +219,7 @@ export default function IllnessScreen() {
                   <TouchableOpacity
                     key={t}
                     style={[s.typeBtn, formType === t && s.typeBtnActive]}
-                    onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setFormType(t); }}
+                    onPress={() => { hapticLight(); setFormType(t); }}
                   >
                     <Text style={s.typeEmoji}>{ILLNESS_EMOJI[t]}</Text>
                     <Text style={[s.typeLabel, formType === t && { color: COLORS.purple }]}>{ILLNESS_LABELS[t]}</Text>
@@ -260,7 +260,7 @@ export default function IllnessScreen() {
                 <TouchableOpacity
                   key={sv}
                   style={[s.svBtn, formSeverity === sv && { borderColor: SEVERITY_COLORS[sv], backgroundColor: SEVERITY_COLORS[sv] + '22' }]}
-                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setFormSeverity(sv); }}
+                  onPress={() => { hapticLight(); setFormSeverity(sv); }}
                 >
                   <Text style={[s.svBtnNum, formSeverity === sv && { color: SEVERITY_COLORS[sv] }]}>{sv}</Text>
                   <Text style={[s.svBtnLabel, formSeverity === sv && { color: SEVERITY_COLORS[sv] }]}>{SEVERITY_LABELS[sv]}</Text>
@@ -275,7 +275,7 @@ export default function IllnessScreen() {
                 <TouchableOpacity
                   key={sym}
                   style={[s.symptomPick, formSymptoms.includes(sym) && s.symptomPickActive]}
-                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); toggleSymptom(sym); }}
+                  onPress={() => { hapticLight(); toggleSymptom(sym); }}
                 >
                   <Text style={[s.symptomPickText, formSymptoms.includes(sym) && { color: COLORS.purple }]}>
                     {SYMPTOM_LABELS[sym]}
