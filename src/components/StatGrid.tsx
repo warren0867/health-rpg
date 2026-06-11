@@ -60,7 +60,7 @@ const s = StyleSheet.create({
   barRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   track: {
     flex: 1, height: 5,
-    backgroundColor: 'rgba(255,255,255,0.05)',
+    backgroundColor: 'rgba(15,23,42,0.05)',
     borderRadius: RADIUS.full, overflow: 'hidden',
   },
   fill: { height: '100%', borderRadius: RADIUS.full },

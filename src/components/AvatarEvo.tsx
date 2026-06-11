@@ -175,6 +175,6 @@ const s = StyleSheet.create({
   statusDot: {
     position: 'absolute',
     borderWidth: 2,
-    borderColor: '#070912',  // bg 색과 같게 — 테두리로 분리감
+    borderColor: '#FFFFFF',  // bg 색과 같게 — 테두리로 분리감
   },
 });

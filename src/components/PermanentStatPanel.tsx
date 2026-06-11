@@ -49,7 +49,7 @@ function EquipmentSlotRow({ item, slotName }: { item: EquipmentItem | null; slot
 
   return (
     <View style={[s.eqRow, isDecayed && s.eqRowDecay]}>
-      <View style={[s.eqIconBox, { backgroundColor: empty ? 'rgba(255,255,255,0.04)' : tierColor + '18', borderColor: empty ? COLORS.border : tierColor + '44' }]}>
+      <View style={[s.eqIconBox, { backgroundColor: empty ? 'rgba(15,23,42,0.05)' : tierColor + '18', borderColor: empty ? COLORS.border : tierColor + '44' }]}>
         <Ionicons name={slotIcon} size={16} color={empty ? COLORS.textDisabled : isDecayed ? COLORS.warn : tierColor} />
         {isDecayed && !empty && (
           <View style={s.decayDot} />
@@ -166,7 +166,7 @@ const s = StyleSheet.create({
   statFull: { color: COLORS.textSub, fontWeight: '600', fontSize: FONTS.xs },
   gachaTag: { fontSize: FONTS.xxs - 1, fontWeight: '900', fontFamily: 'monospace' },
   tierLabel: { color: COLORS.textMuted, fontSize: FONTS.xxs, fontFamily: 'monospace', letterSpacing: 0.5 },
-  track: { height: 8, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: RADIUS.full, overflow: 'hidden' },
+  track: { height: 8, backgroundColor: 'rgba(15,23,42,0.05)', borderRadius: RADIUS.full, overflow: 'hidden' },
   fill: { height: '100%', borderRadius: RADIUS.full },
   statVal: {
     fontFamily: 'monospace', fontSize: FONTS.lg, fontWeight: '900',

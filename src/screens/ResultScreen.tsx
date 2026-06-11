@@ -277,7 +277,7 @@ export default function ResultScreen() {
         {/* ── 정적 피드백 (별 아이콘) ── */}
         <View style={s.feedbackCard}>
           <View style={s.feedbackIcon}>
-            <Ionicons name="star" size={20} color="#000" />
+            <Ionicons name="star" size={20} color="#FFFFFF" />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={s.feedbackTitle}>{getFeedbackTitle(conditionScore)}</Text>
@@ -326,7 +326,7 @@ export default function ResultScreen() {
             onPress={() => navigation.navigate('MainTabs', { screen: 'Home' })}
             activeOpacity={0.85}
           >
-            <Ionicons name="home" size={18} color="#000" />
+            <Ionicons name="home" size={18} color="#FFFFFF" />
             <Text style={s.homeBtnText}>홈으로</Text>
           </TouchableOpacity>
         </View>
@@ -506,7 +506,7 @@ const s = StyleSheet.create({
   statName: { fontSize: 11, fontFamily: 'monospace', fontWeight: '700', width: 36 },
   statTrack: {
     flex: 1, height: 6,
-    backgroundColor: 'rgba(255,255,255,0.04)',
+    backgroundColor: 'rgba(15,23,42,0.05)',
     borderRadius: RADIUS.full, overflow: 'hidden',
   },
   statFill: { height: '100%', borderRadius: RADIUS.full },
@@ -529,7 +529,7 @@ const s = StyleSheet.create({
     fontSize: 13, color: COLORS.amber, fontFamily: 'monospace', fontWeight: '800',
   },
   xpTrack: {
-    height: 8, backgroundColor: 'rgba(255,255,255,0.05)',
+    height: 8, backgroundColor: 'rgba(15,23,42,0.05)',
     borderRadius: RADIUS.full, overflow: 'hidden',
   },
   xpFill: { height: '100%', borderRadius: RADIUS.full },
@@ -584,11 +584,11 @@ const s = StyleSheet.create({
     flex: 1.5, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     paddingVertical: 14, borderRadius: RADIUS.md,
   },
-  homeBtnText: { fontSize: 15, fontWeight: '800', color: '#000' },
+  homeBtnText: { fontSize: 15, fontWeight: '800', color: '#FFFFFF' },
 
   // 레벨업 모달
   luOverlay: {
-    flex: 1, backgroundColor: 'rgba(2,3,8,0.9)',
+    flex: 1, backgroundColor: 'rgba(15,23,42,0.9)',
     alignItems: 'center', justifyContent: 'center',
   },
   luSheet: {
@@ -632,7 +632,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 32, paddingVertical: 12,
     borderRadius: RADIUS.full, marginTop: SPACING.lg,
   },
-  luBtnText: { color: '#000', fontWeight: '800', fontSize: 14 },
+  luBtnText: { color: '#FFFFFF', fontWeight: '800', fontSize: 14 },
 
   // 영구 스탯 게인 카드
   permGainCard: {

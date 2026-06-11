@@ -405,7 +405,7 @@ function MealConfirmCard({ msgId, items, saved, onSave }: { msgId: string; items
         <Text style={s.confirmMacros}>탄 {totalCarbs.toFixed(0)}g · 단 {totalProtein.toFixed(0)}g · 지 {totalFat.toFixed(0)}g</Text>
         {!saved
           ? <TouchableOpacity style={[s.confirmSaveBtn, { backgroundColor: COLORS.amber }]} onPress={() => onSave(msgId, items)} activeOpacity={0.85}>
-              <Ionicons name="checkmark" size={15} color="#000" /><Text style={s.confirmSaveBtnText}>식단에 저장</Text>
+              <Ionicons name="checkmark" size={15} color="#FFFFFF" /><Text style={s.confirmSaveBtnText}>식단에 저장</Text>
             </TouchableOpacity>
           : <View style={s.savedBadge}><Ionicons name="checkmark-circle" size={14} color={COLORS.good} /><Text style={[s.savedBadgeText, { color: COLORS.good }]}>저장됨</Text></View>
         }
@@ -448,7 +448,7 @@ function CheckInConfirmCard({ msgId, data, saved, onSave }: { msgId: string; dat
         {data.morningBS && <ConfirmRow label="공복혈당" value={`${data.morningBS} mg/dL`} />}
         {!saved
           ? <TouchableOpacity style={[s.confirmSaveBtn, { backgroundColor: COLORS.primary }]} onPress={() => onSave(msgId, data)} activeOpacity={0.85}>
-              <Ionicons name="checkmark" size={15} color="#000" /><Text style={s.confirmSaveBtnText}>체크인 저장 & 결과 보기</Text>
+              <Ionicons name="checkmark" size={15} color="#FFFFFF" /><Text style={s.confirmSaveBtnText}>체크인 저장 & 결과 보기</Text>
             </TouchableOpacity>
           : <View style={s.savedBadge}><Ionicons name="checkmark-circle" size={14} color={COLORS.good} /><Text style={[s.savedBadgeText, { color: COLORS.good }]}>저장 중...</Text></View>
         }
@@ -538,7 +538,7 @@ const s = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     borderRadius: RADIUS.md, paddingVertical: 10, marginTop: 4,
   },
-  confirmSaveBtnText: { fontSize: FONTS.sm, fontWeight: '800', color: '#000' },
+  confirmSaveBtnText: { fontSize: FONTS.sm, fontWeight: '800', color: '#FFFFFF' },
   savedBadge: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 8, marginTop: 4 },
   savedBadgeText: { fontSize: FONTS.xs, fontWeight: '700' },
 

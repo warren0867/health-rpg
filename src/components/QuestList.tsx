@@ -113,7 +113,7 @@ export default function QuestList({ quests }: Props) {
 
           <View style={[styles.checkbox, q.done && styles.checkboxDone]}>
             {q.done
-              ? <Ionicons name="checkmark" size={13} color="#000" />
+              ? <Ionicons name="checkmark" size={13} color="#FFFFFF" />
               : <Ionicons name="chevron-forward" size={11} color={COLORS.textDisabled} />
             }
           </View>
@@ -179,7 +179,7 @@ const styles = StyleSheet.create({
   bar: {
     flex: 1,
     height: 4,
-    backgroundColor: 'rgba(255,255,255,0.05)',
+    backgroundColor: 'rgba(15,23,42,0.05)',
     borderRadius: RADIUS.full,
     overflow: 'hidden',
   },

@@ -77,9 +77,9 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <RefreshProvider>
-        <StatusBar style="light" />
+        <StatusBar style="dark" />
         <NavigationContainer theme={{
-          dark: true,
+          dark: false,
           colors: {
             primary: COLORS.primary,
             background: COLORS.bg,
@@ -115,15 +115,15 @@ export default function App() {
 const styles = StyleSheet.create({
   tabBar: {
     backgroundColor: COLORS.bgCard,
-    borderTopColor: 'rgba(255,255,255,0.08)',
+    borderTopColor: 'rgba(15,23,42,0.08)',
     borderTopWidth: 0.5,
     height: 88,
     paddingBottom: 24,
     paddingTop: 8,
-    shadowColor: '#000',
+    shadowColor: '#0F172A',
     shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 16,
-    elevation: 16,
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 8,
   },
 });

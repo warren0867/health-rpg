@@ -137,7 +137,7 @@ function ScrollCard({
         <Animated.View style={[ic.doneOverlay, { opacity: doneAnim }]}>
           <Animated.View style={{ transform: [{ scale: doneAnim.interpolate({ inputRange: [0, 1], outputRange: [0.5, 1] }) }] }}>
             <View style={ic.doneIconBox}>
-              <Ionicons name="checkmark" size={36} color="#000" />
+              <Ionicons name="checkmark" size={36} color="#FFFFFF" />
             </View>
             <Text style={ic.doneTxt}>강화 완료!</Text>
             <Text style={ic.doneSub}>{STAT_FULLNAME[scroll.stat]} +{scroll.bonus} 적용됨</Text>
@@ -201,16 +201,16 @@ function ScrollCard({
         disabled={state !== 'idle'}
       >
         {state === 'loading' ? (
-          <ActivityIndicator color="#000" size="small" />
+          <ActivityIndicator color="#FFFFFF" size="small" />
         ) : state === 'done' ? (
           <>
-            <Ionicons name="checkmark-circle" size={16} color="#000" />
+            <Ionicons name="checkmark-circle" size={16} color="#FFFFFF" />
             <Text style={ic.useBtnTxt}>강화 완료</Text>
           </>
         ) : (
           <>
             <Text style={ic.useBtnTxt}>사용하기</Text>
-            <Ionicons name="arrow-forward" size={16} color="#000" />
+            <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
           </>
         )}
       </TouchableOpacity>
@@ -485,18 +485,18 @@ export default function GachaModal({ visible, onClose, addXpFn, onInventoryChang
 
               <View style={s.pullRow}>
                 <PressableScale style={[s.pullBtn, pulling && { opacity: 0.5 }]} onPress={() => handlePull(1)} disabled={pulling}>
-                  {pulling ? <ActivityIndicator color="#000" /> : (
+                  {pulling ? <ActivityIndicator color="#FFFFFF" /> : (
                     <>
-                      <Ionicons name="sparkles" size={28} color="#000" />
+                      <Ionicons name="sparkles" size={28} color="#FFFFFF" />
                       <Text style={s.pullLabel}>단일 뽑기</Text>
                       <Text style={s.pullCost}>{SINGLE_COST} G</Text>
                     </>
                   )}
                 </PressableScale>
                 <PressableScale style={[s.pullBtn, s.pullBtnTen, pulling && { opacity: 0.5 }]} onPress={() => handlePull(10)} disabled={pulling}>
-                  {pulling ? <ActivityIndicator color="#000" /> : (
+                  {pulling ? <ActivityIndicator color="#FFFFFF" /> : (
                     <>
-                      <Ionicons name="layers" size={28} color="#000" />
+                      <Ionicons name="layers" size={28} color="#FFFFFF" />
                       <Text style={s.pullLabel}>10연 뽑기</Text>
                       <Text style={s.pullCost}>{TEN_COST} G</Text>
                       <View style={s.savePill}><Text style={s.saveTxt}>10% 절약</Text></View>
@@ -554,7 +554,7 @@ export default function GachaModal({ visible, onClose, addXpFn, onInventoryChang
                   <Text style={s.emptySub}>뽑기 탭에서 주문서를 획득하세요</Text>
                   <PressableScale style={s.emptyGoBtn} onPress={() => switchTab('pull')}>
                     <Text style={s.emptyGoBtnTxt}>뽑기하러 가기</Text>
-                    <Ionicons name="arrow-forward" size={14} color="#000" />
+                    <Ionicons name="arrow-forward" size={14} color="#FFFFFF" />
                   </PressableScale>
                 </View>
               ) : (
@@ -568,7 +568,7 @@ export default function GachaModal({ visible, onClose, addXpFn, onInventoryChang
                       activeOpacity={0.8}
                     >
                       <Ionicons name="git-merge-outline" size={14} color={fuseMode ? '#000' : COLORS.textSub} />
-                      <Text style={[s.fuseToggleTxt, fuseMode && { color: '#000' }]}>
+                      <Text style={[s.fuseToggleTxt, fuseMode && { color: '#FFFFFF' }]}>
                         {fuseMode ? '합성 취소' : '합성하기'}
                       </Text>
                     </TouchableOpacity>
@@ -608,7 +608,7 @@ export default function GachaModal({ visible, onClose, addXpFn, onInventoryChang
                         >
                           {/* 선택 체크 */}
                           <View style={[s.fuseCheck, isSelected && { backgroundColor: color, borderColor: color }]}>
-                            {isSelected && <Ionicons name="checkmark" size={12} color="#000" />}
+                            {isSelected && <Ionicons name="checkmark" size={12} color="#FFFFFF" />}
                           </View>
                           <View style={[s.fuseCardIconBox, { backgroundColor: color + '20' }]}>
                             <Ionicons name={RARITY_ICON[scroll.rarity]} size={20} color={color} />
@@ -645,10 +645,10 @@ export default function GachaModal({ visible, onClose, addXpFn, onInventoryChang
                       disabled={selected.length !== 3 || fusing}
                     >
                       {fusing
-                        ? <ActivityIndicator color="#000" />
+                        ? <ActivityIndicator color="#FFFFFF" />
                         : <>
                             <Ionicons name="git-merge-outline" size={18} color={selected.length === 3 ? '#000' : COLORS.textDisabled} />
-                            <Text style={[s.fuseBtnTxt, selected.length === 3 && { color: '#000' }]}>
+                            <Text style={[s.fuseBtnTxt, selected.length === 3 && { color: '#FFFFFF' }]}>
                               {selected.length}/3 선택 {selected.length === 3 ? '— 합성하기!' : '— 같은 등급 3개 선택'}
                             </Text>
                           </>
@@ -702,7 +702,7 @@ export default function GachaModal({ visible, onClose, addXpFn, onInventoryChang
                   <Text style={s.emptySub}>인벤토리에서 주문서를 사용하면{'\n'}스탯이 강화됩니다</Text>
                   <PressableScale style={s.emptyGoBtn} onPress={() => switchTab('inventory')}>
                     <Text style={s.emptyGoBtnTxt}>인벤토리 확인</Text>
-                    <Ionicons name="arrow-forward" size={14} color="#000" />
+                    <Ionicons name="arrow-forward" size={14} color="#FFFFFF" />
                   </PressableScale>
                 </View>
               ) : (
@@ -731,7 +731,7 @@ export default function GachaModal({ visible, onClose, addXpFn, onInventoryChang
 
 // ── 스타일 ────────────────────────────────────────────────────
 const s = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.80)', justifyContent: 'flex-end' },
+  overlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.8)', justifyContent: 'flex-end' },
   sheet: {
     backgroundColor: COLORS.bg,
     borderTopLeftRadius: RADIUS.xl,
@@ -757,7 +757,7 @@ const s = StyleSheet.create({
   tabTxt: { fontSize: FONTS.xs, color: COLORS.textDisabled, fontWeight: '600' },
   tabTxtActive: { color: COLORS.primary, fontWeight: '800' },
   tabBadge: { backgroundColor: COLORS.bgHighlight, borderRadius: RADIUS.full, minWidth: 18, height: 18, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
-  tabBadgeTxt: { fontSize: 9, color: '#000', fontWeight: '900' },
+  tabBadgeTxt: { fontSize: 9, color: '#FFFFFF', fontWeight: '900' },
 
   // 확률표
   rateCard: { backgroundColor: COLORS.bgCard, borderRadius: RADIUS.md, padding: SPACING.md, marginBottom: SPACING.sm, borderWidth: 1, borderColor: COLORS.border },
@@ -781,10 +781,10 @@ const s = StyleSheet.create({
   pullRow: { flexDirection: 'row', gap: 10, marginBottom: SPACING.md },
   pullBtn: { flex: 1, backgroundColor: COLORS.primary, borderRadius: RADIUS.md, paddingVertical: 16, alignItems: 'center', gap: 4 },
   pullBtnTen: { backgroundColor: COLORS.amber },
-  pullLabel: { color: '#000', fontSize: FONTS.sm, fontWeight: '900' },
-  pullCost: { color: '#000', fontSize: FONTS.xxs, fontWeight: '700', fontFamily: 'monospace' },
+  pullLabel: { color: '#FFFFFF', fontSize: FONTS.sm, fontWeight: '900' },
+  pullCost: { color: '#FFFFFF', fontSize: FONTS.xxs, fontWeight: '700', fontFamily: 'monospace' },
   savePill: { backgroundColor: 'rgba(0,0,0,0.20)', borderRadius: RADIUS.full, paddingHorizontal: 8, paddingVertical: 2 },
-  saveTxt: { fontSize: 9, color: '#000', fontWeight: '900' },
+  saveTxt: { fontSize: 9, color: '#FFFFFF', fontWeight: '900' },
 
   resultSection: { marginTop: SPACING.sm },
   resultTitle: { color: COLORS.amber, fontSize: FONTS.md, fontWeight: '900', textAlign: 'center', marginBottom: SPACING.sm, fontFamily: 'monospace', letterSpacing: 1 },
@@ -814,7 +814,7 @@ const s = StyleSheet.create({
   emptyTxt: { color: COLORS.textSub, fontSize: FONTS.sm, fontWeight: '700' },
   emptySub: { color: COLORS.textMuted, fontSize: FONTS.xxs, fontFamily: 'monospace', textAlign: 'center', lineHeight: 18 },
   emptyGoBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8, backgroundColor: COLORS.primary, borderRadius: RADIUS.full, paddingHorizontal: 20, paddingVertical: 10 },
-  emptyGoBtnTxt: { color: '#000', fontWeight: '800', fontSize: FONTS.xs },
+  emptyGoBtnTxt: { color: '#FFFFFF', fontWeight: '800', fontSize: FONTS.xs },
 
   summaryCard: { backgroundColor: COLORS.bgCard, borderRadius: RADIUS.md, padding: SPACING.md, marginTop: SPACING.sm, borderWidth: 1, borderColor: COLORS.border, gap: 8 },
   summaryTitle: { fontSize: FONTS.xxs, color: COLORS.textDisabled, fontFamily: 'monospace', letterSpacing: 1.5, fontWeight: '800', textTransform: 'uppercase', marginBottom: 4 },
@@ -857,7 +857,7 @@ const s = StyleSheet.create({
     width: 22, height: 22, borderRadius: 11,
     alignItems: 'center', justifyContent: 'center',
   },
-  fuseSelNumTxt: { fontSize: 12, fontWeight: '900', color: '#000' },
+  fuseSelNumTxt: { fontSize: 12, fontWeight: '900', color: '#FFFFFF' },
 
   fuseBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
@@ -876,7 +876,7 @@ const s = StyleSheet.create({
   },
   fuseResultBg: {
     position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.75)',
+    backgroundColor: 'rgba(15,23,42,0.75)',
   },
   fuseResultCard: {
     backgroundColor: COLORS.bgCard, borderRadius: RADIUS.xl,
@@ -892,7 +892,7 @@ const s = StyleSheet.create({
   fuseResultRarity: { fontSize: FONTS.xs, fontWeight: '900', fontFamily: 'monospace' },
   fuseResultStat: { fontSize: FONTS.sm, color: COLORS.textMuted, fontFamily: 'monospace', marginTop: 2 },
   fuseResultBtn: { borderRadius: RADIUS.md, paddingHorizontal: 24, paddingVertical: 12, marginTop: 4 },
-  fuseResultBtnTxt: { fontSize: FONTS.sm, fontWeight: '900', color: '#000' },
+  fuseResultBtnTxt: { fontSize: FONTS.sm, fontWeight: '900', color: '#FFFFFF' },
 });
 
 // ── 결과 카드 스타일 ──────────────────────────────────────────
@@ -925,8 +925,8 @@ const ic = StyleSheet.create({
     width: 64, height: 64, borderRadius: 32,
     backgroundColor: '#000', alignItems: 'center', justifyContent: 'center',
   },
-  doneTxt: { fontSize: FONTS.xl, fontWeight: '900', color: '#000' },
-  doneSub: { fontSize: FONTS.sm, color: '#000', fontWeight: '700', opacity: 0.8 },
+  doneTxt: { fontSize: FONTS.xl, fontWeight: '900', color: '#FFFFFF' },
+  doneSub: { fontSize: FONTS.sm, color: '#FFFFFF', fontWeight: '700', opacity: 0.8 },
   // 카드 본체
   top: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   iconBox: { width: 52, height: 52, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
@@ -953,7 +953,7 @@ const ic = StyleSheet.create({
   impactNote: { fontSize: FONTS.xxs, color: COLORS.textDisabled, lineHeight: 16 },
   // 사용 버튼
   useBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: RADIUS.md, paddingVertical: 14 },
-  useBtnTxt: { fontSize: FONTS.sm, fontWeight: '900', color: '#000' },
+  useBtnTxt: { fontSize: FONTS.sm, fontWeight: '900', color: '#FFFFFF' },
 });
 
 // ── 버프 카드 스타일 ──────────────────────────────────────────
@@ -974,7 +974,7 @@ const bc = StyleSheet.create({
   activePill: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: RADIUS.full, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1 },
   dot: { width: 6, height: 6, borderRadius: 3 },
   activeTxt: { fontSize: 10, fontWeight: '800', fontFamily: 'monospace' },
-  timeTrack: { height: 6, backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: RADIUS.full, overflow: 'hidden' },
+  timeTrack: { height: 6, backgroundColor: 'rgba(15,23,42,0.06)', borderRadius: RADIUS.full, overflow: 'hidden' },
   timeFill: { height: '100%', borderRadius: RADIUS.full },
   timeRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   timeLeft: { fontSize: FONTS.xs, fontWeight: '800', fontFamily: 'monospace' },

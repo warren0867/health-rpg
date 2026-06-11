@@ -1050,7 +1050,7 @@ const styles = StyleSheet.create({
   },
 
   // 체중 모달
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'flex-end' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.85)', justifyContent: 'flex-end' },
   modalSheet: { backgroundColor: COLORS.bgCard, borderTopLeftRadius: RADIUS.xl, borderTopRightRadius: RADIUS.xl, padding: SPACING.lg, borderTopWidth: 1, borderColor: COLORS.border },
   modalTitle: { color: COLORS.text, fontSize: FONTS.lg, fontWeight: '900', marginBottom: 4 },
   modalSub: { color: COLORS.textMuted, fontSize: FONTS.xs, marginBottom: SPACING.md },

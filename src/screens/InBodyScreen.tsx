@@ -337,7 +337,7 @@ const s = StyleSheet.create({
     flex: 2, backgroundColor: COLORS.primary,
     paddingVertical: 12, borderRadius: RADIUS.md, alignItems: 'center',
   },
-  btnSaveText: { color: '#000', fontWeight: '900', fontSize: FONTS.sm },
+  btnSaveText: { color: '#FFFFFF', fontWeight: '900', fontSize: FONTS.sm },
 
   addBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,

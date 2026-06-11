@@ -140,7 +140,7 @@ export default function OnboardingScreen() {
             <Text style={s.primaryBtnText}>
               {step === 0 ? '모험 시작하기' : step === STEPS.length - 1 ? '완료' : '다음'}
             </Text>
-            <Ionicons name="arrow-forward" size={16} color="#000" />
+            <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -444,7 +444,7 @@ function BigOption({ active, onPress, title, sub, icon }: any) {
         </View>
       </View>
       <View style={[s.bigOptionCheck, active && s.bigOptionCheckActive]}>
-        {active && <Ionicons name="checkmark" size={12} color="#000" />}
+        {active && <Ionicons name="checkmark" size={12} color="#FFFFFF" />}
       </View>
     </TouchableOpacity>
   );
@@ -462,7 +462,7 @@ const s = StyleSheet.create({
     borderWidth: 1, borderColor: COLORS.border,
   },
   stepper: { flexDirection: 'row', gap: 6, flex: 1, marginHorizontal: SPACING.md, alignItems: 'center' },
-  stepDot: { flex: 1, height: 3, borderRadius: 99, backgroundColor: 'rgba(255,255,255,0.06)' },
+  stepDot: { flex: 1, height: 3, borderRadius: 99, backgroundColor: 'rgba(15,23,42,0.06)' },
   stepDotDone: { backgroundColor: COLORS.primary },
   stepDotActive: { backgroundColor: COLORS.primary, shadowColor: COLORS.primary, shadowOpacity: 0.6, shadowRadius: 6 },
   scroll: { paddingHorizontal: SPACING.md + 4, paddingTop: SPACING.sm, paddingBottom: SPACING.xxl + 60 },
@@ -525,7 +525,7 @@ const s = StyleSheet.create({
   },
   choicePillActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
   choicePillText: { fontSize: 14, fontWeight: '700', color: COLORS.textSub },
-  choicePillTextActive: { color: '#000' },
+  choicePillTextActive: { color: '#FFFFFF' },
 
   bigOption: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
@@ -611,5 +611,5 @@ const s = StyleSheet.create({
     shadowColor: COLORS.primary, shadowOpacity: 0.3, shadowRadius: 16, elevation: 6,
   },
   primaryBtnDisabled: { backgroundColor: COLORS.bgInput, shadowOpacity: 0 },
-  primaryBtnText: { color: '#000', fontSize: 15, fontWeight: '800' },
+  primaryBtnText: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
 });

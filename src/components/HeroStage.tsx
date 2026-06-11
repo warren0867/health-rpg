@@ -116,7 +116,7 @@ export default function HeroStage({
   }, [bob]);
   const bobY = bob.interpolate({ inputRange: [0, 1], outputRange: [0, -7] });
   const shadowScale = bob.interpolate({ inputRange: [0, 1], outputRange: [1, 0.82] });
-  const shadowOpacity = bob.interpolate({ inputRange: [0, 1], outputRange: [0.35, 0.2] });
+  const shadowOpacity = bob.interpolate({ inputRange: [0, 1], outputRange: [0.14, 0.07] });
 
   // ─── 탭 반응 (스쿼시 & 스트레치) ─────────────────────
   const squash = useRef(new Animated.Value(0)).current;
@@ -159,9 +159,23 @@ export default function HeroStage({
     <View style={s.card}>
       <EvoModal visible={evoModalVisible} totalGained={ps.totalGained} onClose={() => setEvoModalVisible(false)} />
 
-      {/* 무대 배경 글로우 (EVO 단계 컬러) */}
-      <View pointerEvents="none" style={[s.stageGlow, { backgroundColor: (evo.glowColor ?? COLORS.primary) + '14' }]} />
-      <View pointerEvents="none" style={[s.stageGlowInner, { backgroundColor: (evo.glowColor ?? COLORS.primary) + '10' }]} />
+      {/* 무대 배경 글로우 (EVO 단계 컬러) — 알파를 잘게 나눠 라디얼 그라데이션처럼 */}
+      {[
+        { size: 300, alpha: '06' },
+        { size: 240, alpha: '08' },
+        { size: 185, alpha: '0A' },
+        { size: 135, alpha: '0D' },
+      ].map(({ size, alpha }) => (
+        <View
+          key={size}
+          pointerEvents="none"
+          style={[s.stageGlow, {
+            width: size, height: size, borderRadius: size / 2,
+            top: 95 - size / 2,
+            backgroundColor: (evo.glowColor ?? COLORS.primary) + alpha,
+          }]}
+        />
+      ))}
 
       {/* 상단 정보 줄: 이름·레벨 / 점수 */}
       <View style={s.headerRow}>
@@ -269,13 +283,7 @@ const s = StyleSheet.create({
 
   stageGlow: {
     position: 'absolute',
-    width: 260, height: 260, borderRadius: 130,
-    top: -30, alignSelf: 'center',
-  },
-  stageGlowInner: {
-    position: 'absolute',
-    width: 170, height: 170, borderRadius: 85,
-    top: 20, alignSelf: 'center',
+    alignSelf: 'center',
   },
 
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
@@ -290,7 +298,7 @@ const s = StyleSheet.create({
   stage: { alignItems: 'center', paddingTop: 18, paddingBottom: 4 },
   floorShadow: {
     width: 70, height: 12, borderRadius: 6,
-    backgroundColor: '#000',
+    backgroundColor: '#0F172A',
     marginTop: -6,
   },
   condRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 8 },
@@ -302,17 +310,22 @@ const s = StyleSheet.create({
     top: -8,
     zIndex: 10,
     maxWidth: 240,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#1E293B',
     borderRadius: RADIUS.md,
     paddingHorizontal: 12, paddingVertical: 8,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 10,
+    elevation: 5,
   },
-  bubbleText: { color: '#0F1322', fontSize: 12, fontWeight: '700', textAlign: 'center' },
+  bubbleText: { color: '#FFFFFF', fontSize: 12, fontWeight: '700', textAlign: 'center' },
   bubbleTail: {
     position: 'absolute', bottom: -6, alignSelf: 'center',
     width: 0, height: 0,
     borderLeftWidth: 6, borderRightWidth: 6, borderTopWidth: 6,
     borderLeftColor: 'transparent', borderRightColor: 'transparent',
-    borderTopColor: '#F8FAFC',
+    borderTopColor: '#1E293B',
   },
 
   effectRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 5, justifyContent: 'center', marginTop: 6 },
@@ -333,13 +346,13 @@ const s = StyleSheet.create({
   evoLabel: { fontSize: 11, color: COLORS.textSub, fontWeight: '600' },
   evoTrack: {
     flex: 1, height: 3,
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: 'rgba(15,23,42,0.06)',
     borderRadius: RADIUS.full, overflow: 'hidden',
   },
   evoFill: { height: '100%', borderRadius: RADIUS.full },
 
   xpRow: { gap: 5, marginTop: 10 },
-  xpTrack: { height: 4, backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 2, overflow: 'hidden' },
+  xpTrack: { height: 4, backgroundColor: 'rgba(15,23,42,0.06)', borderRadius: 2, overflow: 'hidden' },
   xpFill: { height: '100%', backgroundColor: COLORS.primary, borderRadius: 2 },
   xpMeta: { fontSize: 10, fontFamily: 'monospace', alignSelf: 'flex-end' },
   xpGain: { color: COLORS.amber, fontWeight: '700' },

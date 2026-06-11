@@ -358,7 +358,7 @@ export default function HomeScreen() {
               <Text style={s.emptySub}>수면·운동·음주를 기록하면 스탯이 생성돼요</Text>
               <View style={s.emptyBtn}>
                 <Text style={s.emptyBtnText}>체크인 시작</Text>
-                <Ionicons name="arrow-forward" size={14} color="#000" />
+                <Ionicons name="arrow-forward" size={14} color="#FFFFFF" />
               </View>
             </TouchableOpacity>
           )
@@ -726,7 +726,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 18, paddingVertical: 9,
     borderRadius: RADIUS.full,
   },
-  emptyBtnText: { color: '#000', fontSize: FONTS.xs, fontWeight: '800' },
+  emptyBtnText: { color: '#FFFFFF', fontSize: FONTS.xs, fontWeight: '800' },
 
   actionGrid: {
     flexDirection: 'row',
@@ -798,7 +798,7 @@ const s = StyleSheet.create({
 
   // Modal
   modalOverlay: {
-    flex: 1, backgroundColor: 'rgba(2,3,8,0.7)',
+    flex: 1, backgroundColor: 'rgba(15,23,42,0.45)',
     justifyContent: 'center', padding: SPACING.md,
   },
   modalSheet: {
@@ -851,7 +851,7 @@ const s = StyleSheet.create({
     paddingVertical: 14, borderRadius: RADIUS.md,
     alignItems: 'center',
   },
-  modalBtnPrimaryText: { color: '#000', fontWeight: '800', fontSize: FONTS.sm },
+  modalBtnPrimaryText: { color: '#FFFFFF', fontWeight: '800', fontSize: FONTS.sm },
 
   // 업적
   achRow: {

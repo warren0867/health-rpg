@@ -70,10 +70,6 @@ export default function WeeklyBossCard({ bossState, onClaimReward }: Props) {
           {/* 상단 하이라이트 */}
           <View style={s.hpShine} pointerEvents="none" />
         </View>
-        <View style={s.hpNumbers}>
-          <Text style={[s.hpPct, { color: hpColor }]}>{hpPct}%</Text>
-          <Text style={s.hpRemain}>HP 잔여</Text>
-        </View>
       </View>
 
       {/* 내 데미지 */}
@@ -93,7 +89,7 @@ export default function WeeklyBossCard({ bossState, onClaimReward }: Props) {
       {/* 보상 버튼 */}
       {isVictory && !bossState.rewardClaimed && onClaimReward && (
         <PressableScale style={s.rewardBtn} onPress={onClaimReward}>
-          <Ionicons name="trophy" size={16} color="#000" />
+          <Ionicons name="trophy" size={16} color="#FFFFFF" />
           <Text style={s.rewardBtnTxt}>보상 수령  +200 XP  +100G</Text>
         </PressableScale>
       )}
@@ -131,13 +127,13 @@ const s = StyleSheet.create({
   statusTxt: { fontSize: 11, fontWeight: '800', fontFamily: 'monospace' },
   bossMain: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   emojiBox: {
-    width: 70, height: 70, borderRadius: RADIUS.md,
+    width: 52, height: 52, borderRadius: RADIUS.md,
     alignItems: 'center', justifyContent: 'center',
     borderWidth: 1.5,
   },
-  bossEmoji: { fontSize: 48 },
+  bossEmoji: { fontSize: 30 },
   bossInfo: { flex: 1, gap: 4 },
-  bossName: { fontSize: FONTS.lg, fontWeight: '900', letterSpacing: -0.3 },
+  bossName: { fontSize: FONTS.md, fontWeight: '900', letterSpacing: -0.3 },
   bossSub: { fontSize: FONTS.xxs, color: COLORS.textMuted, fontFamily: 'monospace' },
   weakRow: { marginTop: 2 },
   weakPill: {
@@ -150,19 +146,16 @@ const s = StyleSheet.create({
   hpSection: { gap: 6 },
   hpLabelRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
   hpLabel: { fontSize: 10, color: COLORS.textDisabled, fontFamily: 'monospace', letterSpacing: 1.5, fontWeight: '800' },
-  hpVal: { fontSize: FONTS.md, fontFamily: 'monospace', fontWeight: '900' },
+  hpVal: { fontSize: FONTS.sm, fontFamily: 'monospace', fontWeight: '900' },
   hpTrack: {
-    height: 16, backgroundColor: 'rgba(255,255,255,0.05)',
-    borderRadius: RADIUS.sm, overflow: 'hidden', position: 'relative',
+    height: 10, backgroundColor: 'rgba(15,23,42,0.05)',
+    borderRadius: RADIUS.full, overflow: 'hidden', position: 'relative',
   },
-  hpFill: { height: '100%', borderRadius: RADIUS.sm },
+  hpFill: { height: '100%', borderRadius: RADIUS.full },
   hpShine: {
-    position: 'absolute', top: 0, left: 0, right: 0, height: 4,
+    position: 'absolute', top: 0, left: 0, right: 0, height: 3,
     backgroundColor: 'rgba(255,255,255,0.12)',
   },
-  hpNumbers: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  hpPct: { fontSize: FONTS.md, fontWeight: '900', fontFamily: 'monospace' },
-  hpRemain: { fontSize: FONTS.xxs, color: COLORS.textMuted, fontFamily: 'monospace' },
   dmgPanel: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     borderRadius: RADIUS.md, padding: 12,
@@ -170,15 +163,15 @@ const s = StyleSheet.create({
   },
   dmgLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
   dmgLabel: { fontSize: FONTS.xxs, color: COLORS.textMuted, fontFamily: 'monospace', marginBottom: 4 },
-  dmgBarTrack: { height: 3, width: 80, backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: RADIUS.full, overflow: 'hidden' },
+  dmgBarTrack: { height: 3, width: 80, backgroundColor: 'rgba(15,23,42,0.08)', borderRadius: RADIUS.full, overflow: 'hidden' },
   dmgBarFill: { height: '100%', backgroundColor: COLORS.amber, borderRadius: RADIUS.full },
-  dmgVal: { fontSize: FONTS.xl, fontWeight: '900', color: COLORS.amber, fontFamily: 'monospace' },
+  dmgVal: { fontSize: FONTS.lg, fontWeight: '900', color: COLORS.amber, fontFamily: 'monospace' },
   rewardBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     backgroundColor: COLORS.good,
-    borderRadius: RADIUS.md, paddingVertical: 14,
+    borderRadius: RADIUS.md, paddingVertical: 12,
   },
-  rewardBtnTxt: { color: '#000', fontWeight: '900', fontSize: FONTS.sm },
+  rewardBtnTxt: { color: '#FFFFFF', fontWeight: '800', fontSize: FONTS.xs },
   claimedRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
   claimedTxt: { fontSize: FONTS.xs, color: COLORS.good, fontFamily: 'monospace', fontWeight: '700' },
 });

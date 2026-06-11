@@ -226,7 +226,7 @@ const styles = StyleSheet.create({
   xpRow: { gap: 5 },
   xpTrack: {
     height: 4,
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: 'rgba(15,23,42,0.06)',
     borderRadius: 2,
     overflow: 'hidden',
   },
@@ -241,7 +241,7 @@ const styles = StyleSheet.create({
   condText: { fontSize: 11, fontWeight: '700' },
   condDivider: {
     width: 1, height: 10,
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: 'rgba(15,23,42,0.08)',
     marginHorizontal: 2,
   },
   evoText: { fontSize: 11, color: COLORS.textMuted, fontWeight: '600' },
@@ -264,7 +264,7 @@ const styles = StyleSheet.create({
 });
 
 const em = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center' },
+  backdrop: { flex: 1, backgroundColor: 'rgba(15,23,42,0.45)', justifyContent: 'center', alignItems: 'center' },
   sheet: {
     backgroundColor: COLORS.bgCard, borderRadius: RADIUS.lg, padding: SPACING.lg,
     width: '88%', maxWidth: 360,
@@ -283,9 +283,9 @@ const em = StyleSheet.create({
   stage: { fontSize: FONTS.xxs, fontWeight: '900', fontFamily: 'monospace' },
   label: { fontSize: FONTS.xs, fontWeight: '700' },
   curBadge: { paddingHorizontal: 5, paddingVertical: 1, borderRadius: RADIUS.full },
-  curText: { color: '#000', fontSize: 9, fontWeight: '900' },
+  curText: { color: '#FFFFFF', fontSize: 9, fontWeight: '900' },
   threshold: { fontSize: FONTS.xxs - 1, fontFamily: 'monospace', marginBottom: 4 },
-  barTrack: { height: 3, backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: RADIUS.full, overflow: 'hidden', marginBottom: 2 },
+  barTrack: { height: 3, backgroundColor: 'rgba(15,23,42,0.08)', borderRadius: RADIUS.full, overflow: 'hidden', marginBottom: 2 },
   barFill: { height: '100%', borderRadius: RADIUS.full },
   closeBtn: {
     marginTop: SPACING.md, backgroundColor: COLORS.bgInput,

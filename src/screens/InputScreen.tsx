@@ -900,7 +900,7 @@ const c = StyleSheet.create({
     flex: 2, backgroundColor: COLORS.gold,
     borderRadius: RADIUS.md, paddingVertical: 11, alignItems: 'center',
   },
-  exFormSaveText: { color: '#000', fontSize: FONTS.sm, fontWeight: '900' },
+  exFormSaveText: { color: '#FFFFFF', fontSize: FONTS.sm, fontWeight: '900' },
 
   // 음주 테이블
   alcoholTable: { backgroundColor: COLORS.bgHighlight, borderRadius: RADIUS.sm, padding: SPACING.sm, marginTop: 6, gap: 6 },
@@ -963,7 +963,7 @@ const c = StyleSheet.create({
   medAddMoreText: { color: COLORS.purple, fontSize: FONTS.xs, fontWeight: '600' },
 
   // 모달
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'flex-end' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.85)', justifyContent: 'flex-end' },
   modalSheet: { backgroundColor: COLORS.bgCard, borderTopLeftRadius: RADIUS.xl, borderTopRightRadius: RADIUS.xl, padding: SPACING.lg, borderTopWidth: 1, borderColor: COLORS.border },
   modalTitle: { color: COLORS.text, fontSize: FONTS.lg, fontWeight: '900', marginBottom: 4 },
   modalSub: { color: COLORS.textMuted, fontSize: FONTS.xs, marginBottom: SPACING.md },

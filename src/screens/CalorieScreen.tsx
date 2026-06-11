@@ -1057,7 +1057,7 @@ const styles = StyleSheet.create({
   // 항목 수정 모달
   editModalOverlay: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
-    backgroundColor: 'rgba(0,0,0,0.75)',
+    backgroundColor: 'rgba(15,23,42,0.75)',
     top: 0, justifyContent: 'flex-end',
   },
   editModalSheet: {

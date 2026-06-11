@@ -125,5 +125,5 @@ const s = StyleSheet.create({
     paddingHorizontal: 16, paddingVertical: 8,
     borderRadius: RADIUS.full,
   },
-  openBtnText: { color: '#000', fontSize: FONTS.xs, fontWeight: '900' },
+  openBtnText: { color: '#FFFFFF', fontSize: FONTS.xs, fontWeight: '900' },
 });

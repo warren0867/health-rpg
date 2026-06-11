@@ -661,7 +661,7 @@ export default function MiniGameModal({ visible, onClose, bossState, addXpFn, on
                   </View>
                   <TouchableOpacity style={[s.startBtn, { backgroundColor: boss.color }]} onPress={startGame} activeOpacity={0.85}>
                     <Text style={s.startBtnTxt}>전투 시작</Text>
-                    <Ionicons name="flash" size={18} color="#000" />
+                    <Ionicons name="flash" size={18} color="#FFFFFF" />
                   </TouchableOpacity>
                 </View>
               )}
@@ -850,7 +850,7 @@ function RuleRow({ icon, color, text }: { icon: string; color: string; text: str
 const s = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(2,3,8,0.88)',
+    backgroundColor: 'rgba(15,23,42,0.88)',
     justifyContent: 'flex-end',
   },
   container: {
@@ -901,14 +901,14 @@ const s = StyleSheet.create({
     letterSpacing: 0.5,
   },
 
-  timerTrack: { height: 2, backgroundColor: 'rgba(255,255,255,0.04)' },
+  timerTrack: { height: 2, backgroundColor: 'rgba(15,23,42,0.05)' },
   timerFill:  { height: '100%' },
 
   // 콤보 인디케이터 (상단 바)
   comboIndicator: {
     alignItems: 'center',
     paddingVertical: 4,
-    backgroundColor: 'rgba(0,0,0,0.3)',
+    backgroundColor: 'rgba(15,23,42,0.25)',
   },
   comboIndicatorText: {
     fontSize: FONTS.sm,
@@ -939,7 +939,7 @@ const s = StyleSheet.create({
   },
   rageTxt: { fontSize: 9, color: COLORS.bad, fontWeight: '900', fontFamily: 'monospace', letterSpacing: 0.5 },
   hpBarRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  hpTrack: { flex: 1, height: 7, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: RADIUS.full, overflow: 'hidden' },
+  hpTrack: { flex: 1, height: 7, backgroundColor: 'rgba(15,23,42,0.05)', borderRadius: RADIUS.full, overflow: 'hidden' },
   hpFill:  { height: '100%', borderRadius: RADIUS.full },
   hpHitFlash: {
     backgroundColor: 'rgba(239,68,68,0.7)',
@@ -1032,7 +1032,7 @@ const s = StyleSheet.create({
     fontSize: FONTS.xl,
     fontWeight: '900',
     fontFamily: 'monospace',
-    textShadowColor: 'rgba(0,0,0,0.6)',
+    textShadowColor: 'rgba(15,23,42,0.5)',
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 4,
   },
@@ -1085,7 +1085,7 @@ const s = StyleSheet.create({
     paddingVertical: 15,
     paddingHorizontal: 44,
   },
-  startBtnTxt: { fontSize: FONTS.md, fontWeight: '900', color: '#000' },
+  startBtnTxt: { fontSize: FONTS.md, fontWeight: '900', color: '#FFFFFF' },
 
   // 결과
   resultOverlay: {
@@ -1131,5 +1131,5 @@ const s = StyleSheet.create({
     paddingVertical: 15,
     paddingHorizontal: 52,
   },
-  closeResultTxt: { fontSize: FONTS.md, fontWeight: '900', color: '#000' },
+  closeResultTxt: { fontSize: FONTS.md, fontWeight: '900', color: '#FFFFFF' },
 });

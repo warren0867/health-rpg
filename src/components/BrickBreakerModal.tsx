@@ -328,7 +328,7 @@ export default function BrickBreakerModal({ visible, onClose, addXpFn, onGoldEar
 
               <View style={s.hudCenter}>
                 <View style={[s.phasePill, {
-                  backgroundColor: g.phase === 'playing' ? COLORS.primaryGlow : 'rgba(255,255,255,0.05)',
+                  backgroundColor: g.phase === 'playing' ? COLORS.primaryGlow : 'rgba(15,23,42,0.05)',
                   borderColor: g.phase === 'playing' ? COLORS.primary + '60' : COLORS.border,
                 }]}>
                   <Text style={[s.phaseTxt, { color: g.phase === 'playing' ? COLORS.primary : COLORS.textDisabled }]}>
@@ -404,7 +404,7 @@ export default function BrickBreakerModal({ visible, onClose, addXpFn, onGoldEar
                     </View>
 
                     <TouchableOpacity style={s.startBtn} onPress={startGame} activeOpacity={0.85}>
-                      <Ionicons name="play" size={16} color="#000" />
+                      <Ionicons name="play" size={16} color="#FFFFFF" />
                       <Text style={s.startBtnTxt}>게임 시작</Text>
                     </TouchableOpacity>
                   </View>
@@ -520,7 +520,7 @@ function RewardItem({ emoji, val }: { emoji: string; val: string }) {
 const s = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(2,3,8,0.90)',
+    backgroundColor: 'rgba(15,23,42,0.9)',
     justifyContent: 'flex-end',
   },
   container: {
@@ -654,7 +654,7 @@ const s = StyleSheet.create({
     borderRadius: RADIUS.lg,
     paddingVertical: 14, paddingHorizontal: 40,
   },
-  startBtnTxt: { fontSize: FONTS.md, fontWeight: '900', color: '#000' },
+  startBtnTxt: { fontSize: FONTS.md, fontWeight: '900', color: '#FFFFFF' },
 
   // IDLE 힌트
   tapHint: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
@@ -710,5 +710,5 @@ const s = StyleSheet.create({
     paddingVertical: 15,
     alignItems: 'center',
   },
-  closeBtnTxt: { fontSize: FONTS.md, fontWeight: '900', color: '#000' },
+  closeBtnTxt: { fontSize: FONTS.md, fontWeight: '900', color: '#FFFFFF' },
 });

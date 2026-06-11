@@ -24,6 +24,7 @@ export default function DailyRings({ calorie, water, quest }: Props) {
         unit="kcal"
         label="칼로리"
         pct={calPct}
+        goal={`목표 ${calorie.goal.toLocaleString()}`}
       />
       <Tile
         icon="water-outline"
@@ -32,6 +33,7 @@ export default function DailyRings({ calorie, water, quest }: Props) {
         unit="L"
         label="수분"
         pct={waterPct}
+        goal={`목표 ${(water.goalMl / 1000).toFixed(1)}L`}
       />
       <Tile
         icon="checkmark-circle-outline"
@@ -40,13 +42,14 @@ export default function DailyRings({ calorie, water, quest }: Props) {
         unit=""
         label="퀘스트"
         pct={questPct}
+        goal={quest.done >= quest.total ? '올 클리어!' : `${quest.total - quest.done}개 남음`}
       />
     </View>
   );
 }
 
-function Tile({ icon, color, value, unit, label, pct }: {
-  icon: any; color: string; value: string; unit: string; label: string; pct: number;
+function Tile({ icon, color, value, unit, label, pct, goal }: {
+  icon: any; color: string; value: string; unit: string; label: string; pct: number; goal?: string;
 }) {
   const done = pct >= 100;
   return (
@@ -64,6 +67,7 @@ function Tile({ icon, color, value, unit, label, pct }: {
       <View style={s.tileBarTrack}>
         <View style={[s.tileBarFill, { width: `${pct}%` as any, backgroundColor: color }]} />
       </View>
+      {!!goal && <Text style={[s.tileGoal, done && { color }]} numberOfLines={1}>{goal}</Text>}
     </View>
   );
 }
@@ -97,8 +101,9 @@ const s = StyleSheet.create({
   },
   tileUnit: { fontSize: 11, color: COLORS.textMuted, fontFamily: 'monospace', fontWeight: '600' },
   tileBarTrack: {
-    height: 3, backgroundColor: 'rgba(255,255,255,0.06)',
-    borderRadius: 2, overflow: 'hidden',
+    height: 5, backgroundColor: 'rgba(15,23,42,0.06)',
+    borderRadius: RADIUS.full, overflow: 'hidden',
   },
-  tileBarFill: { height: '100%', borderRadius: 2 },
+  tileBarFill: { height: '100%', borderRadius: RADIUS.full },
+  tileGoal: { fontSize: 10, color: COLORS.textDisabled, fontWeight: '600' },
 });
