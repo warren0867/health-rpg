@@ -13,9 +13,13 @@ import {
 } from '../types';
 import {
   SINGLE_COST, TEN_COST,
-  applyXpPotions, canDailyFreePull, doDailyFreePull, doPull,
+  addGold, applyXpPotions, canDailyFreePull, doDailyFreePull, doPull,
   fuseScrolls, getGachaInventory, useScroll,
 } from '../utils/gacha';
+import {
+  GEAR_PULL_COST, GearState, PullResult, TIER_CFG,
+  gearAtk, gearDef, gearHp, getGearState, pullGear, rollGear, saveGearState,
+} from '../utils/equipment';
 
 // 등급별 아이콘 매핑
 const RARITY_ICON: Record<string, keyof typeof Ionicons.glyphMap> = {
@@ -41,7 +45,9 @@ interface Props {
   permStats?: PermanentStats;
 }
 
-type Tab = 'pull' | 'inventory' | 'bonus';
+type Tab = 'pull' | 'gear' | 'inventory' | 'bonus';
+
+const GEAR_TEN_COST = 1350; // 10연 10% 할인 + 희귀 이상 1개 보장
 
 // ── 뽑기 결과 카드 ────────────────────────────────────────────
 function ResultCard({ result }: { result: GachaPullResult }) {
@@ -270,6 +276,10 @@ export default function GachaModal({ visible, onClose, addXpFn, onInventoryChang
   const [canFree, setCanFree] = useState(false);
   const sheetAnim             = useRef(new Animated.Value(0)).current;
 
+  // 무기뽑기 (장비)
+  const [gearState, setGearState]       = useState<GearState | null>(null);
+  const [gearResults, setGearResults]   = useState<PullResult[] | null>(null);
+
   // 합성 모드
   const [fuseMode, setFuseMode]         = useState(false);
   const [selected, setSelected]         = useState<string[]>([]); // scrollId[]
@@ -281,6 +291,7 @@ export default function GachaModal({ visible, onClose, addXpFn, onInventoryChang
     const data = await getGachaInventory();
     setInv(data);
     setCanFree(await canDailyFreePull());
+    setGearState(await getGearState());
   };
 
   useEffect(() => {
@@ -302,6 +313,39 @@ export default function GachaModal({ visible, onClose, addXpFn, onInventoryChang
   const switchTab = (t: Tab) => {
     setTab(t);
     if (t !== 'pull') { setResults(null); loadInv(); }
+    if (t !== 'gear') setGearResults(null);
+  };
+
+  // ── 무기뽑기 ──────────────────────────────────────────
+  const handleGearPull = async (count: 1 | 10) => {
+    if (!inv || !gearState || pulling) return;
+    const cost = count === 1 ? GEAR_PULL_COST : GEAR_TEN_COST;
+    if (inv.gold < cost) return;
+    setPulling(true); setGearResults(null);
+    try {
+      await addGold(-cost);
+      const results: PullResult[] = [];
+      for (let i = 0; i < count; i++) results.push(pullGear());
+      // 10연 보장: 희귀 이상 장비가 없으면 하나를 희귀로 교체
+      if (count === 10 && !results.some(r => r.type === 'gear' && r.item.tier !== 'common')) {
+        const idx = results.findIndex(r => r.type === 'gear');
+        results[idx >= 0 ? idx : 0] = { type: 'gear', item: rollGear(undefined, 'rare') };
+      }
+      const gear = await getGearState();
+      for (const r of results) {
+        if (r.type === 'scroll') {
+          if (r.kind === 'weapon') gear.weaponScrolls++;
+          else gear.armorScrolls++;
+        } else {
+          gear.inventory.push(r.item);
+        }
+      }
+      await saveGearState(gear);
+      setGearState(gear);
+      setGearResults(results);
+      setInv(await getGachaInventory());
+      onInventoryChanged();
+    } finally { setPulling(false); }
   };
 
   const handleFreePull = async () => {
@@ -400,7 +444,7 @@ export default function GachaModal({ visible, onClose, addXpFn, onInventoryChang
                 <View style={s.headerIconBox}>
                   <Ionicons name="flask" size={16} color="#A78BFA" />
                 </View>
-                <Text style={s.title}>마법 뽑기</Text>
+                <Text style={s.title}>{tab === 'gear' ? '무기 뽑기' : '마법 뽑기'}</Text>
               </View>
               <View style={s.goldRow}>
                 <Ionicons name="ellipse" size={10} color={COLORS.amber} />
@@ -415,9 +459,10 @@ export default function GachaModal({ visible, onClose, addXpFn, onInventoryChang
           {/* 탭 */}
           <View style={s.tabRow}>
             {([
-              { key: 'pull',      label: '뽑기',      icon: 'dice-outline' },
+              { key: 'pull',      label: '마법뽑기',  icon: 'dice-outline' },
+              { key: 'gear',      label: '무기뽑기',  icon: 'hammer-outline' },
               { key: 'inventory', label: '인벤토리',  icon: 'bag-outline',   badge: scrollCount },
-              { key: 'bonus',     label: '활성 버프', icon: 'flash-outline', badge: bonusCount },
+              { key: 'bonus',     label: '버프',      icon: 'flash-outline', badge: bonusCount },
             ] as { key: Tab; label: string; icon: any; badge?: number }[]).map(t => (
               <TouchableOpacity
                 key={t.key}
@@ -518,6 +563,95 @@ export default function GachaModal({ visible, onClose, addXpFn, onInventoryChang
                       <Ionicons name="arrow-forward" size={14} color={COLORS.primary} />
                     </PressableScale>
                   )}
+                </View>
+              )}
+              <View style={{ height: 24 }} />
+            </ScrollView>
+          )}
+
+          {/* ── 무기뽑기 탭 ── */}
+          {tab === 'gear' && (
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {/* 확률표 */}
+              <View style={s.rateCard}>
+                <Text style={s.rateTitle}>장비 등급 확률</Text>
+                <View style={s.rateGrid}>
+                  {([
+                    { label: '일반',   color: TIER_CFG.common.color,    pct: '40%' },
+                    { label: '희귀',   color: TIER_CFG.rare.color,      pct: '22%' },
+                    { label: '영웅',   color: TIER_CFG.epic.color,      pct: '8%' },
+                    { label: '전설',   color: TIER_CFG.legendary.color, pct: '2%' },
+                    { label: '무기 주문서', color: COLORS.info,        pct: '14%' },
+                    { label: '방어구 주문서', color: COLORS.info,      pct: '14%' },
+                  ] as { label: string; color: string; pct: string }[]).map(r => (
+                    <View key={r.label} style={s.rateItem}>
+                      <View style={[s.rateDot, { backgroundColor: r.color }]} />
+                      <Text style={[s.ratePct, { color: r.color }]}>{r.pct}</Text>
+                      <Text style={s.rateLabel}>{r.label}</Text>
+                    </View>
+                  ))}
+                </View>
+                <Text style={s.rateNote}>◆ 10연 뽑기: 희귀 이상 장비 1개 보장</Text>
+              </View>
+
+              {/* 보유 주문서 */}
+              <View style={s.gearScrollRow}>
+                <View style={s.gearScrollPill}>
+                  <Text style={s.gearScrollEmoji}>📜</Text>
+                  <Text style={s.gearScrollTxt}>무기 주문서 x{gearState?.weaponScrolls ?? 0}</Text>
+                </View>
+                <View style={s.gearScrollPill}>
+                  <Text style={s.gearScrollEmoji}>📘</Text>
+                  <Text style={s.gearScrollTxt}>방어구 주문서 x{gearState?.armorScrolls ?? 0}</Text>
+                </View>
+              </View>
+
+              {/* 뽑기 버튼 */}
+              <View style={s.pullRow}>
+                <PressableScale style={[s.pullBtn, (pulling || (inv?.gold ?? 0) < GEAR_PULL_COST) && { opacity: 0.5 }]} onPress={() => handleGearPull(1)} disabled={pulling || (inv?.gold ?? 0) < GEAR_PULL_COST}>
+                  {pulling ? <ActivityIndicator color="#FFFFFF" /> : (
+                    <>
+                      <Text style={s.pullLabel}>1회 뽑기</Text>
+                      <Text style={s.pullCost}>{GEAR_PULL_COST} G</Text>
+                    </>
+                  )}
+                </PressableScale>
+                <PressableScale style={[s.pullBtn, s.pullBtnTen, (pulling || (inv?.gold ?? 0) < GEAR_TEN_COST) && { opacity: 0.5 }]} onPress={() => handleGearPull(10)} disabled={pulling || (inv?.gold ?? 0) < GEAR_TEN_COST}>
+                  {pulling ? <ActivityIndicator color="#FFFFFF" /> : (
+                    <>
+                      <Text style={s.pullLabel}>10연 뽑기</Text>
+                      <Text style={s.pullCost}>{GEAR_TEN_COST} G</Text>
+                    </>
+                  )}
+                </PressableScale>
+              </View>
+
+              {/* 결과 */}
+              {gearResults && (
+                <View style={s.resultSection}>
+                  <Text style={s.resultTitle}>◆ 뽑기 결과</Text>
+                  {gearResults.map((r, i) => (
+                    r.type === 'scroll' ? (
+                      <View key={i} style={s.gearResultRow}>
+                        <Text style={s.gearResultEmoji}>{r.kind === 'weapon' ? '📜' : '📘'}</Text>
+                        <Text style={s.gearResultName}>{r.kind === 'weapon' ? '무기' : '방어구'} 강화 주문서</Text>
+                      </View>
+                    ) : (
+                      <View key={i} style={[s.gearResultRow, { borderColor: TIER_CFG[r.item.tier].color + '55', backgroundColor: TIER_CFG[r.item.tier].color + '0D' }]}>
+                        <Text style={s.gearResultEmoji}>{r.item.emoji}</Text>
+                        <View style={{ flex: 1 }}>
+                          <Text style={s.gearResultName}>
+                            <Text style={{ color: TIER_CFG[r.item.tier].color, fontWeight: '900' }}>[{TIER_CFG[r.item.tier].label}]</Text>
+                            {' '}{r.item.name}
+                          </Text>
+                          <Text style={s.gearResultStat}>
+                            {r.item.kind === 'weapon' ? `공격 +${gearAtk(r.item)}` : `방어 +${gearDef(r.item)} · HP +${gearHp(r.item)}`}
+                          </Text>
+                        </View>
+                      </View>
+                    )
+                  ))}
+                  <Text style={s.gearResultHint}>장착·강화는 캐릭터 카드의 스탯 칩 → 장비 탭에서!</Text>
                 </View>
               )}
               <View style={{ height: 24 }} />
@@ -779,6 +913,31 @@ const s = StyleSheet.create({
   freeBadgeTxt: { fontSize: 11, fontWeight: '900', color: COLORS.good, fontFamily: 'monospace' },
 
   pullRow: { flexDirection: 'row', gap: 10, marginBottom: SPACING.md },
+
+  // 무기뽑기 탭
+  gearScrollRow: { flexDirection: 'row', gap: 8, marginBottom: SPACING.md },
+  gearScrollPill: {
+    flex: 1,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5,
+    backgroundColor: COLORS.bgCard,
+    borderRadius: RADIUS.full,
+    borderWidth: 1, borderColor: COLORS.border,
+    paddingVertical: 8,
+  },
+  gearScrollEmoji: { fontSize: 13 },
+  gearScrollTxt: { fontSize: FONTS.xxs, fontWeight: '800', color: COLORS.textSub, fontFamily: 'monospace' },
+  gearResultRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    backgroundColor: COLORS.bgCard,
+    borderRadius: RADIUS.md,
+    borderWidth: 1, borderColor: COLORS.border,
+    paddingVertical: 9, paddingHorizontal: 12,
+    marginBottom: 6,
+  },
+  gearResultEmoji: { fontSize: 22 },
+  gearResultName: { fontSize: FONTS.xs, color: COLORS.text, fontWeight: '600' },
+  gearResultStat: { fontSize: 10, color: COLORS.textMuted, fontFamily: 'monospace', marginTop: 1 },
+  gearResultHint: { fontSize: 9, color: COLORS.textDisabled, textAlign: 'center', marginTop: 8 },
   pullBtn: { flex: 1, backgroundColor: COLORS.primary, borderRadius: RADIUS.md, paddingVertical: 16, alignItems: 'center', gap: 4 },
   pullBtnTen: { backgroundColor: COLORS.amber },
   pullLabel: { color: '#FFFFFF', fontSize: FONTS.sm, fontWeight: '900' },

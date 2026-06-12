@@ -6,6 +6,7 @@ import {
 } from 'react-native';
 import { COLORS, FONTS, RADIUS, SPACING } from '../constants/theme';
 import { EMPTY_PERMANENT_STATS, PermanentStats } from '../types';
+import { GearState, TIER_CFG } from '../utils/equipment';
 import { RecentCondition } from '../utils/permanentStats';
 import { StatusEffect } from '../utils/statusEffects';
 import { getEvoStage, getNextEvoStage } from './AvatarEvo';
@@ -31,11 +32,49 @@ interface Props {
   onEditName?: () => void;
   /** 능력치 요약 칩을 탭했을 때 (캐릭터 시트 열기) */
   onOpenSheet?: () => void;
+  /** 장착 장비 (캐릭터 옆 슬롯 표시) */
+  gear?: GearState | null;
+  /** 장비 슬롯을 탭했을 때 (장비창 열기) */
+  onPressGear?: () => void;
 }
 
 const STAT_CHIP_COLORS: Record<'str' | 'end' | 'vit' | 'agi' | 'wis', string> = {
   str: COLORS.str, end: COLORS.mp, vit: COLORS.vit, agi: COLORS.agi, wis: COLORS.amber,
 };
+
+// ─── 장비 슬롯 (캐릭터 옆) ──────────────────────────
+function GearSlot({ kind, item, onPress }: {
+  kind: 'weapon' | 'armor';
+  item: GearState['weapon'];
+  onPress?: () => void;
+}) {
+  if (!item) {
+    return (
+      <Pressable style={[s.gearSlot, s.gearSlotEmpty]} onPress={onPress} hitSlop={4}>
+        <Ionicons
+          name={kind === 'weapon' ? 'flash-outline' : 'shield-outline'}
+          size={16} color={COLORS.textDisabled}
+        />
+        <Text style={s.gearSlotLabel}>{kind === 'weapon' ? '무기' : '방어구'}</Text>
+      </Pressable>
+    );
+  }
+  const tier = TIER_CFG[item.tier];
+  return (
+    <Pressable
+      style={[s.gearSlot, { borderColor: tier.color + '88', backgroundColor: tier.color + '14' }]}
+      onPress={onPress}
+      hitSlop={4}
+    >
+      <Text style={s.gearSlotEmoji}>{item.emoji}</Text>
+      {item.enh > 0 && (
+        <View style={s.gearEnhBadge}>
+          <Text style={s.gearEnhTxt}>+{item.enh}</Text>
+        </View>
+      )}
+    </Pressable>
+  );
+}
 
 const pixelated: any = Platform.select({ web: { imageRendering: 'pixelated' }, default: {} });
 
@@ -98,6 +137,7 @@ export default function HeroStage({
   name, score, rank, level, levelTitle,
   xpCurrent, xpNeeded, todayXp, permStats, conditionInfo, statusEffects,
   streak = 0, questsLeft = 0, hasIllness = false, onEditName, onOpenSheet,
+  gear, onPressGear,
 }: Props) {
   const ps = permStats ?? EMPTY_PERMANENT_STATS;
   const evo = getEvoStage(ps.totalGained);
@@ -200,6 +240,12 @@ export default function HeroStage({
 
       {/* 캐릭터 무대 */}
       <View style={s.stage}>
+        {/* 장비 슬롯 (캐릭터 왼쪽 — RPG 캐릭터창 스타일) */}
+        <View style={s.gearColumn}>
+          <GearSlot kind="weapon" item={gear?.weapon ?? null} onPress={onPressGear} />
+          <GearSlot kind="armor"  item={gear?.armor ?? null}  onPress={onPressGear} />
+        </View>
+
         {/* 말풍선 */}
         {speech && (
           <Animated.View style={[s.bubble, { opacity: speechOpacity }]} pointerEvents="none">
@@ -313,6 +359,36 @@ const s = StyleSheet.create({
   scoreLabel: { fontSize: 9, color: COLORS.textDisabled, fontFamily: 'monospace', letterSpacing: 1.5, fontWeight: '700', marginTop: 1 },
 
   stage: { alignItems: 'center', paddingTop: 18, paddingBottom: 4 },
+
+  // 장비 슬롯 컬럼 (캐릭터 왼쪽)
+  gearColumn: {
+    position: 'absolute',
+    left: 4, top: 28,
+    gap: 8,
+    zIndex: 5,
+  },
+  gearSlot: {
+    width: 46, height: 46,
+    borderRadius: RADIUS.md,
+    borderWidth: 1.5,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: COLORS.bgCard,
+  },
+  gearSlotEmpty: {
+    borderColor: COLORS.border,
+    borderStyle: 'dashed',
+    gap: 1,
+  },
+  gearSlotLabel: { fontSize: 8, color: COLORS.textDisabled, fontWeight: '700' },
+  gearSlotEmoji: { fontSize: 22 },
+  gearEnhBadge: {
+    position: 'absolute',
+    bottom: -5, alignSelf: 'center',
+    backgroundColor: COLORS.amber,
+    borderRadius: RADIUS.full,
+    paddingHorizontal: 5, paddingVertical: 1,
+  },
+  gearEnhTxt: { fontSize: 8, fontWeight: '900', color: '#FFFFFF' },
   floorShadow: {
     width: 70, height: 12, borderRadius: 6,
     backgroundColor: '#0F172A',

@@ -39,6 +39,7 @@ import { GachaInventory } from '../types';
 import { addGold, getGachaInventory } from '../utils/gacha';
 import { NotifSettings, getNotifSettings, saveNotifSettings, scheduleAllNotifications, requestPermissions } from '../utils/notifications';
 import { ChestReward, isChestClaimedToday } from '../utils/dailyChest';
+import { GearState, getGearState } from '../utils/equipment';
 
 /**
  * 홈 화면 — Vital Quest 디자인 v1
@@ -82,6 +83,7 @@ export default function HomeScreen() {
   const [showHunt, setShowHunt] = useState(false);
   const [chestClaimed, setChestClaimed] = useState(true);
   const [showCharSheet, setShowCharSheet] = useState(false);
+  const [gearState, setGearState] = useState<GearState | null>(null);
 
   // 모달
   const [showNotifModal, setShowNotifModal] = useState(false);
@@ -137,6 +139,7 @@ export default function HomeScreen() {
     const gacha = await getGachaInventory();
     setGachaInv(gacha);
     setChestClaimed(await isChestClaimedToday());
+    setGearState(await getGearState());
 
     setLoading(false);
   }, [today]);
@@ -275,6 +278,8 @@ export default function HomeScreen() {
             setShowProfileModal(true);
           }}
           onOpenSheet={() => setShowCharSheet(true)}
+          gear={gearState}
+          onPressGear={() => setShowCharSheet(true)}
         />
 
         {/* ── 일일 보상 상자 (하루 한 번) ── */}
@@ -338,10 +343,10 @@ export default function HomeScreen() {
         <View style={{ height: 40 }} />
       </ScrollView>
 
-      {/* ── 캐릭터 시트 (능력치 / 스킬 / 오늘 상세) ── */}
+      {/* ── 캐릭터 시트 (장비 / 능력치 / 스킬 / 오늘) ── */}
       <CharacterSheetModal
         visible={showCharSheet}
-        onClose={() => setShowCharSheet(false)}
+        onClose={() => { setShowCharSheet(false); getGearState().then(setGearState); getGachaInventory().then(setGachaInv); }}
         permStats={permStats}
         activeBonuses={gachaInv?.activeBonuses ?? []}
         level={xpProgress?.level ?? 1}

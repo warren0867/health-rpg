@@ -248,13 +248,7 @@ export default function CharacterSheetModal({
                   />
                 </View>
 
-                {/* 장비 뽑기 */}
-                <TouchableOpacity style={s.pullBtn} onPress={handlePull} activeOpacity={0.85}>
-                  <Ionicons name="gift" size={16} color="#FFFFFF" />
-                  <Text style={s.pullBtnTxt}>장비 뽑기</Text>
-                  <View style={s.pullCostPill}><Text style={s.pullCostTxt}>{GEAR_PULL_COST}G</Text></View>
-                </TouchableOpacity>
-                <Text style={s.pullHint}>장비(일반~전설) 또는 강화 주문서가 나와요 · 사냥터에서도 드랍!</Text>
+                <Text style={s.pullHint}>새 장비는 뽑기의 '무기뽑기' 탭 또는 사냥터 드랍으로 획득해요</Text>
 
                 {/* 인벤토리 */}
                 <Text style={s.invTitle}>인벤토리 ({gear.inventory.length})</Text>
