@@ -3,11 +3,17 @@
 const fs = require('fs');
 const path = require('path');
 
-const file = path.join(__dirname, '..', 'dist', 'index.html');
+const dist = path.join(__dirname, '..', 'dist');
+const file = path.join(dist, 'index.html');
 let html = fs.readFileSync(file, 'utf8');
 
+// GitHub Pages 필수 (항상 실행): Jekyll이 _expo/ 폴더를 무시하지 않도록
+fs.writeFileSync(path.join(dist, '.nojekyll'), '');
+
 if (html.includes('rel="manifest"')) {
-  console.log('이미 패치됨 — 건너뜀');
+  // HTML은 이미 패치됨 — 404.html만 갱신
+  fs.copyFileSync(file, path.join(dist, '404.html'));
+  console.log('.nojekyll + 404.html 갱신 (HTML은 이미 패치됨)');
   process.exit(0);
 }
 
@@ -31,4 +37,8 @@ const inject = `
 
 html = html.replace('</head>', inject);
 fs.writeFileSync(file, html);
-console.log('dist/index.html PWA 패치 완료');
+
+// SPA 라우팅: 직접 URL 접근/새로고침 시 404 대신 앱 로드
+fs.copyFileSync(file, path.join(dist, '404.html'));
+
+console.log('dist/index.html PWA 패치 + .nojekyll + 404.html 완료');

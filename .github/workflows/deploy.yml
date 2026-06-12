@@ -39,6 +39,9 @@ jobs:
       - name: Export web build
         run: npx expo export -p web --output-dir dist
 
+      - name: Patch PWA tags (manifest·SW·.nojekyll·404)
+        run: node scripts/patch-web.js
+
       - name: Deploy to GitHub Pages
         run: |
           touch dist/.nojekyll
