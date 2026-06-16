@@ -255,6 +255,58 @@ export async function fuseScrolls(scrollIds: string[]): Promise<GachaScroll | nu
   return newScroll;
 }
 
+function makeScrollOfRarity(rarity: GachaRarity): GachaScroll {
+  const pool = SCROLL_POOL.filter(t => t.rarity === rarity);
+  const tpl = pool[Math.floor(Math.random() * pool.length)];
+  return {
+    id: generateId(), name: tpl.name, emoji: tpl.emoji,
+    rarity, stat: tpl.stat, bonus: tpl.bonus, durationDays: tpl.durationDays,
+  };
+}
+
+/** 일괄 합성 — 보유한 모든 주문서를 등급별로 3개씩 묶어 한 번에 합성.
+ *  합성으로 생긴 상위 등급도 다시 3개가 모이면 연쇄 합성된다 (common→rare→epic→legendary).
+ *  생성된 주문서 목록을 반환. */
+export async function fuseAllScrolls(): Promise<GachaScroll[]> {
+  const inv = await getGachaInventory();
+  let scrolls = [...inv.scrolls];
+  const created: GachaScroll[] = [];
+
+  for (const rarity of ['common', 'rare', 'epic'] as GachaRarity[]) {
+    const nextRarity = RARITY_UP[rarity];
+    if (!nextRarity) continue;
+    // 이 등급이 3개 미만이 될 때까지 묶어서 합성 (연쇄는 다음 등급 루프에서 처리)
+    while (scrolls.filter(s => s.rarity === rarity).length >= 3) {
+      const three = scrolls.filter(s => s.rarity === rarity).slice(0, 3);
+      const ids = new Set(three.map(s => s.id));
+      const newScroll = makeScrollOfRarity(nextRarity);
+      created.push(newScroll);
+      scrolls = scrolls.filter(s => !ids.has(s.id));
+      scrolls.push(newScroll);
+    }
+  }
+
+  if (created.length === 0) return [];
+  await setGachaInventory({ ...inv, scrolls });
+  return created;
+}
+
+/** 일괄 합성 시 생길 결과를 미리 계산 (버튼 활성/안내용). 인벤토리는 바꾸지 않음 */
+export function countFusable(scrolls: GachaScroll[]): number {
+  const counts: Record<string, number> = {};
+  for (const s of scrolls) counts[s.rarity] = (counts[s.rarity] ?? 0) + 1;
+  let total = 0;
+  for (const rarity of ['common', 'rare', 'epic'] as GachaRarity[]) {
+    let n = counts[rarity] ?? 0;
+    const groups = Math.floor(n / 3);
+    total += groups;
+    // 연쇄: 합성 결과가 상위 등급으로 누적
+    const next = RARITY_UP[rarity];
+    if (next) counts[next] = (counts[next] ?? 0) + groups;
+  }
+  return total;
+}
+
 // ─── 현재 활성 버프 합산 ─────────────────────────────────────
 
 export function sumActiveBonuses(bonuses: GachaBonus[]): Partial<Record<StatKey, number>> {

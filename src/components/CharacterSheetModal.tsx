@@ -143,10 +143,12 @@ export default function CharacterSheetModal({
     const newGold = await addGold(-cost);
     setGold(newGold);
 
-    const ok = tryEnhance(item);
-    if (ok) {
+    const levels = tryEnhance(item);
+    if (levels > 0) {
       hapticSuccess();
-      showFlash(`✨ 강화 성공! ${item.name} +${item.enh}`, COLORS.good);
+      if (levels >= 3)      showFlash(`🌟 트리플 대성공!! ${item.name} +${item.enh} (+3단계)`, COLORS.amber);
+      else if (levels === 2) showFlash(`💫 대성공! ${item.name} +${item.enh} (+2단계)`, COLORS.amber);
+      else                   showFlash(`✨ 강화 성공! ${item.name} +${item.enh}`, COLORS.good);
       await checkEnhanceAchievements(item);
     } else {
       hapticWarning();

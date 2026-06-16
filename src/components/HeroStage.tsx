@@ -5,7 +5,7 @@ import {
   Animated, Easing, Image, Platform, Pressable, StyleSheet, Text, View,
 } from 'react-native';
 import { COLORS, FONTS, RADIUS, SPACING } from '../constants/theme';
-import { EMPTY_PERMANENT_STATS, PermanentStats } from '../types';
+import { EMPTY_PERMANENT_STATS, GachaBonus, PermanentStats } from '../types';
 import { GearState, TIER_CFG } from '../utils/equipment';
 import { RecentCondition } from '../utils/permanentStats';
 import { StatusEffect } from '../utils/statusEffects';
@@ -24,6 +24,8 @@ interface Props {
   xpNeeded: number;
   todayXp: number | null;
   permStats?: PermanentStats;
+  /** 가챠 주문서로 적용된 활성 버프 (스탯 칩에 +N 표시) */
+  activeBonuses?: GachaBonus[];
   conditionInfo?: RecentCondition;
   statusEffects?: StatusEffect[];
   streak?: number;
@@ -134,11 +136,20 @@ function pickSpeech(p: {
  */
 export default function HeroStage({
   name, score, rank, level, levelTitle,
-  xpCurrent, xpNeeded, todayXp, permStats, conditionInfo, statusEffects,
+  xpCurrent, xpNeeded, todayXp, permStats, activeBonuses = [], conditionInfo, statusEffects,
   streak = 0, questsLeft = 0, hasIllness = false, onEditName, onOpenSheet,
   gear, onPressGear,
 }: Props) {
   const ps = permStats ?? EMPTY_PERMANENT_STATS;
+  // 가챠 버프를 스탯별로 합산 (만료 제외)
+  const bonusByStat = useMemo(() => {
+    const now = new Date().toISOString();
+    const m: Record<string, number> = {};
+    for (const b of activeBonuses) {
+      if (b.expiresAt > now) m[b.stat] = (m[b.stat] ?? 0) + b.bonus;
+    }
+    return m;
+  }, [activeBonuses]);
   const evo = getEvoStage(ps.totalGained);
   const nextEvo = getNextEvoStage(ps.totalGained);
   const [evoModalVisible, setEvoModalVisible] = useState(false);
@@ -320,12 +331,19 @@ export default function HeroStage({
 
       {/* 능력치 요약 — 상세는 탭해서 캐릭터 시트로 */}
       <Pressable style={s.statChipRow} onPress={onOpenSheet}>
-        {(['str', 'end', 'vit', 'agi', 'wis'] as const).map(k => (
-          <View key={k} style={s.statChip}>
-            <Text style={[s.statChipKey, { color: STAT_CHIP_COLORS[k] }]}>{k.toUpperCase()}</Text>
-            <Text style={s.statChipVal}>{Math.round(ps[k])}</Text>
-          </View>
-        ))}
+        {(['str', 'end', 'vit', 'agi', 'wis'] as const).map(k => {
+          const base = Math.round(ps[k]);
+          const bonus = bonusByStat[k] ?? 0;
+          return (
+            <View key={k} style={s.statChip}>
+              <Text style={[s.statChipKey, { color: STAT_CHIP_COLORS[k] }]}>{k.toUpperCase()}</Text>
+              <Text style={s.statChipVal}>
+                {base}
+                {bonus > 0 && <Text style={[s.statChipBonus, { color: STAT_CHIP_COLORS[k] }]}>(+{bonus})</Text>}
+              </Text>
+            </View>
+          );
+        })}
         <Ionicons name="chevron-forward" size={13} color={COLORS.textDisabled} />
       </Pressable>
     </View>
@@ -468,4 +486,5 @@ const s = StyleSheet.create({
   },
   statChipKey: { fontSize: 9, fontWeight: '900', fontFamily: 'monospace', letterSpacing: 0.5 },
   statChipVal: { fontSize: FONTS.sm, fontWeight: '800', color: COLORS.text, fontFamily: 'monospace' },
+  statChipBonus: { fontSize: 9, fontWeight: '900', fontFamily: 'monospace' },
 });

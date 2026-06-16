@@ -266,6 +266,7 @@ export default function HomeScreen() {
           xpNeeded={xpProgress?.needed ?? 100}
           todayXp={todayXP}
           permStats={permStats}
+          activeBonuses={gachaInv?.activeBonuses ?? []}
           conditionInfo={conditionInfo ?? undefined}
           statusEffects={statusEffects}
           streak={streak}

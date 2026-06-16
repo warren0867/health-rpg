@@ -13,8 +13,8 @@ import {
 } from '../types';
 import {
   SINGLE_COST, TEN_COST,
-  addGold, applyXpPotions, canDailyFreePull, doDailyFreePull, doPull,
-  fuseScrolls, getGachaInventory, useScroll,
+  addGold, applyXpPotions, canDailyFreePull, countFusable, doDailyFreePull, doPull,
+  fuseAllScrolls, fuseScrolls, getGachaInventory, useScroll,
 } from '../utils/gacha';
 import {
   GEAR_PULL_COST, GearState, PullResult, TIER_CFG,
@@ -415,7 +415,26 @@ export default function GachaModal({ visible, onClose, addXpFn, onInventoryChang
 
   const closeFuseResult = () => { setFuseResult(null); fuseResultAnim.setValue(0); };
 
+  const handleFuseAll = async () => {
+    if (fusing) return;
+    const fusable = countFusable(inv?.scrolls ?? []);
+    if (fusable === 0) return;
+    setFusing(true);
+    setSelected([]);
+    const created = await fuseAllScrolls();
+    setFusing(false);
+    await loadInv();
+    onInventoryChanged();
+    if (created.length > 0) {
+      const best = created[created.length - 1];
+      setFuseResult(best);
+      fuseResultAnim.setValue(0);
+      Animated.spring(fuseResultAnim, { toValue: 1, tension: 80, friction: 7, useNativeDriver: true }).start();
+    }
+  };
+
   const selectedRarity = selected.length > 0 ? inv?.scrolls.find(s => s.id === selected[0])?.rarity : null;
+  const fusableGroups = countFusable(inv?.scrolls ?? []);
   const RARITY_NEXT_LABEL: Record<string, string> = { common: '→ 희귀', rare: '→ 영웅', epic: '→ 전설' };
 
   const hasScrollsInResult = results?.some(r => r.type === 'scroll') ?? false;
@@ -721,6 +740,21 @@ export default function GachaModal({ visible, onClose, addXpFn, onInventoryChang
                         {selectedRarity ? `  ✦ ${RARITY_NEXT_LABEL[selectedRarity] ?? ''}` : ''}
                       </Text>
                     </View>
+                  )}
+
+                  {/* 일괄 합성 — 가능한 모든 묶음을 한 번에 */}
+                  {fuseMode && (
+                    <TouchableOpacity
+                      style={[s.fuseAllBtn, fusableGroups === 0 && { opacity: 0.4 }]}
+                      onPress={handleFuseAll}
+                      disabled={fusableGroups === 0 || fusing}
+                      activeOpacity={0.85}
+                    >
+                      <Ionicons name="layers-outline" size={15} color={fusableGroups > 0 ? '#FFFFFF' : COLORS.textDisabled} />
+                      <Text style={[s.fuseAllTxt, fusableGroups === 0 && { color: COLORS.textDisabled }]}>
+                        {fusableGroups > 0 ? `전체 일괄 합성 (${fusableGroups}회 가능)` : '합성 가능한 묶음 없음'}
+                      </Text>
+                    </TouchableOpacity>
                   )}
 
                   {inv.scrolls.map(scroll => {
@@ -1030,6 +1064,13 @@ const s = StyleSheet.create({
   },
   fuseBtnActive: { backgroundColor: '#A78BFA', borderColor: '#A78BFA' },
   fuseBtnTxt: { fontSize: FONTS.sm, fontWeight: '900', color: COLORS.textDisabled, fontFamily: 'monospace' },
+  fuseAllBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7,
+    backgroundColor: '#8B5CF6', borderRadius: RADIUS.md,
+    paddingVertical: 11, marginBottom: 8,
+    borderWidth: 1, borderColor: '#8B5CF6',
+  },
+  fuseAllTxt: { fontSize: FONTS.xs, fontWeight: '900', color: '#FFFFFF' },
 
   // 합성 결과 팝업
   fuseResultOverlay: {

@@ -376,12 +376,15 @@ export default function HistoryScreen() {
           const text = await file.text();
           await importAllData(text);
           hapticSuccess();
-          Alert.alert('✅ 복구 완료', '데이터를 성공적으로 불러왔어요!', [
-            { text: '새로고침 (적용)', onPress: () => (window as any).location.reload() },
-            { text: '나중에' },
-          ]);
+          // 웹에서는 Alert.alert의 버튼 콜백이 동작하지 않아 새로고침이 안 됐다.
+          // 복구 직후 바로 새로고침해서 불러온 데이터가 화면에 반영되게 한다.
+          if (typeof window !== 'undefined') {
+            window.alert('✅ 복구 완료! 데이터를 불러왔어요.\n확인을 누르면 새로고침됩니다.');
+            (window as any).location.reload();
+          }
         } catch {
-          Alert.alert('오류', '올바른 백업 파일이 아닙니다.\nhealth-rpg-backup-*.json 파일을 선택해주세요.');
+          if (typeof window !== 'undefined') window.alert('❌ 올바른 백업 파일이 아닙니다.\nhealth-rpg-backup-*.json 파일을 선택해주세요.');
+          else Alert.alert('오류', '올바른 백업 파일이 아닙니다.');
         }
       };
       input.click();

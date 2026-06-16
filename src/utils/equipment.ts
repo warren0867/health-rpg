@@ -162,11 +162,15 @@ export function enhanceGoldCost(enh: number): number {
   return 20 + enh * 15;
 }
 
-/** 강화 시도 — 주문서/골드 차감은 호출측 책임. 성공 여부 반환 */
-export function tryEnhance(item: GearItem): boolean {
-  const ok = Math.random() < enhanceRate(item.enh);
-  if (ok) item.enh++;
-  return ok;
+/** 강화 시도 — 주문서/골드 차감은 호출측 책임.
+ *  반환값 = 오른 강화 단계 수 (0=실패, 1=일반 성공, 2~3=대성공). */
+export function tryEnhance(item: GearItem): number {
+  if (Math.random() >= enhanceRate(item.enh)) return 0; // 실패
+  // 성공 — 일부 확률로 2~3단계 대성공
+  const r = Math.random();
+  const levels = r < 0.08 ? 3 : r < 0.25 ? 2 : 1; // 8% +3 / 17% +2 / 75% +1
+  item.enh += levels;
+  return levels;
 }
 
 // ─── 효과 수치 ───────────────────────────────────────────
