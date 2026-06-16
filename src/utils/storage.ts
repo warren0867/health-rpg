@@ -606,28 +606,31 @@ export function illnessDuration(entry: IllnessEntry): number {
 //  데이터 백업 / 복구
 // ─────────────────────────────────────────────
 
-const BACKUP_KEYS = [
-  KEYS.USER_PROFILE, KEYS.DAILY_LOGS, KEYS.FOOD_ENTRIES, KEYS.MORNING_BS,
-  KEYS.BLOOD_SUGAR, KEYS.WATER_LOG, KEYS.WEIGHT_LOG, KEYS.USER_XP,
-  KEYS.ACHIEVEMENTS, KEYS.MEDICATIONS, KEYS.MED_LOGS, KEYS.ILLNESS_LOG,
-  KEYS.RECENT_FOODS, KEYS.FAVORITE_FOODS, KEYS.CUSTOM_FOODS,
-];
+// 백업/복구는 `hrpg_` 접두사를 가진 모든 저장 키를 자동으로 포함한다.
+// (영구스탯·장비·사냥기록·가챠·주간보스 등 RPG 진행도가 누락되지 않도록 동적으로 수집)
+const BACKUP_PREFIX = 'hrpg_';
 
 export async function exportAllData(): Promise<string> {
-  const pairs = await AsyncStorage.multiGet(BACKUP_KEYS);
+  const allKeys = await AsyncStorage.getAllKeys();
+  const keys = allKeys.filter(k => k.startsWith(BACKUP_PREFIX));
+  const pairs = await AsyncStorage.multiGet(keys);
   const data: Record<string, any> = {};
   for (const [key, val] of pairs) {
-    if (val) data[key] = safeParse(val, null);
+    if (val != null) data[key] = safeParse(val, null);
   }
-  return JSON.stringify({ version: 1, exportedAt: new Date().toISOString(), data });
+  return JSON.stringify({ version: 2, exportedAt: new Date().toISOString(), data });
 }
 
 export async function importAllData(jsonStr: string): Promise<void> {
   let parsed: any;
   try { parsed = JSON.parse(jsonStr); }
   catch { throw new Error('올바르지 않은 백업 파일입니다'); }
-  if (!parsed?.data) throw new Error('올바르지 않은 백업 파일입니다');
-  const pairs: [string, string][] = Object.entries(parsed.data).map(([k, v]) => [k, JSON.stringify(v)]);
+  if (!parsed?.data || typeof parsed.data !== 'object') throw new Error('올바르지 않은 백업 파일입니다');
+  // version 1 백업(일부 키만 포함)도 그대로 호환 — 있는 키만 덮어쓴다
+  const pairs: [string, string][] = Object.entries(parsed.data)
+    .filter(([k, v]) => k.startsWith(BACKUP_PREFIX) && v != null)
+    .map(([k, v]) => [k, JSON.stringify(v)]);
+  if (pairs.length === 0) throw new Error('백업에 복구할 데이터가 없습니다');
   await AsyncStorage.multiSet(pairs);
 }
 

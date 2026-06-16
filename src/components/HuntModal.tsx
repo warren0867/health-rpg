@@ -131,6 +131,52 @@ export default function HuntModal({
     tickTimer.current = setTimeout(tick, fastRef.current ? TICK_FAST : TICK_MS);
   }
 
+  // 전투를 애니메이션 없이 즉시 끝까지 시뮬레이션 → 도달 스테이지 반환
+  // tick()과 동일한 규칙(공방 교대·스테이지 클리어 회복·60라운드 제한)을 그대로 따른다
+  function simulate(init: { stage: number; mHp: number; pHp: number; rounds: number; turn: 'player' | 'monster' }): number {
+    const c = combat.current;
+    let { stage, mHp, pHp, rounds, turn } = init;
+    let m = monsterFor(stage);
+    let guard = 0;
+    while (guard++ < 200000) {
+      if (turn === 'player') {
+        const hit = playerHit(c, m);
+        mHp = Math.max(0, mHp - hit.dmg);
+        if (mHp <= 0) {
+          pHp = Math.min(c.maxHp, pHp + calcRegen(c.maxHp, permStats));
+          stage++;
+          rounds = 0;
+          m = monsterFor(stage);
+          mHp = m.maxHp;
+          turn = 'player';
+          continue;
+        }
+        turn = 'monster';
+      } else {
+        const hit = monsterHit(m, c);
+        if (!hit.dodged) pHp = Math.max(0, pHp - hit.dmg);
+        rounds++;
+        if (pHp <= 0 || rounds >= 60) return stage - 1;
+        turn = 'player';
+      }
+    }
+    return stage - 1;
+  }
+
+  // 스킵: 현재 진행 상태(없으면 1스테이지부터)에서 즉시 끝까지 계산하고 결과 화면으로
+  function skip() {
+    if (endedRef.current) return;
+    stopTick();
+    const c = combat.current;
+    const init = phase === 'fighting'
+      ? { ...stateRef.current }
+      : { stage: 1, mHp: monsterFor(1).maxHp, pHp: c.maxHp, rounds: 0, turn: 'player' as const };
+    const cleared = simulate(init);
+    stateRef.current.stage = cleared + 1;
+    setStage(cleared + 1);
+    finish(cleared);
+  }
+
   function tick() {
     const st = stateRef.current;
     const c = combat.current;
@@ -243,9 +289,15 @@ export default function HuntModal({
             </TouchableOpacity>
             <Text style={s.headerTitle}>🏹  사냥터</Text>
             {phase === 'fighting' ? (
-              <TouchableOpacity onPress={() => setFast(f => !f)} style={[s.speedBtn, fast && s.speedBtnOn]} hitSlop={8}>
-                <Text style={[s.speedTxt, fast && { color: '#FFFFFF' }]}>x2</Text>
-              </TouchableOpacity>
+              <View style={s.headerBtns}>
+                <TouchableOpacity onPress={skip} style={s.skipBtn} hitSlop={8}>
+                  <Ionicons name="play-forward" size={13} color={COLORS.primaryDark} />
+                  <Text style={s.skipTxt}>스킵</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => setFast(f => !f)} style={[s.speedBtn, fast && s.speedBtnOn]} hitSlop={8}>
+                  <Text style={[s.speedTxt, fast && { color: '#FFFFFF' }]}>x2</Text>
+                </TouchableOpacity>
+              </View>
             ) : <View style={{ width: 36 }} />}
           </View>
 
@@ -277,6 +329,11 @@ export default function HuntModal({
               <TouchableOpacity style={s.startBtn} onPress={start} activeOpacity={0.85}>
                 <Ionicons name="play" size={16} color="#FFFFFF" />
                 <Text style={s.startBtnTxt}>사냥 시작</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={s.skipReadyBtn} onPress={skip} activeOpacity={0.85}>
+                <Ionicons name="play-forward" size={14} color={COLORS.primaryDark} />
+                <Text style={s.skipReadyTxt}>스킵 (즉시 결과)</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -479,6 +536,24 @@ const s = StyleSheet.create({
   },
   speedBtnOn: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
   speedTxt: { fontSize: 11, fontWeight: '900', color: COLORS.primaryDark, fontFamily: 'monospace' },
+  headerBtns: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  skipBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 3,
+    height: 28, borderRadius: RADIUS.full,
+    borderWidth: 1, borderColor: COLORS.primaryLine,
+    backgroundColor: COLORS.bgHighlight,
+    paddingHorizontal: 10,
+  },
+  skipTxt: { fontSize: 11, fontWeight: '900', color: COLORS.primaryDark },
+  skipReadyBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    marginTop: 10,
+    paddingVertical: 9, paddingHorizontal: 20,
+    borderRadius: RADIUS.full,
+    borderWidth: 1, borderColor: COLORS.primaryLine,
+    backgroundColor: COLORS.bgHighlight,
+  },
+  skipReadyTxt: { fontSize: FONTS.xs, fontWeight: '800', color: COLORS.primaryDark },
 
   body: { flex: 1, paddingHorizontal: SPACING.md, alignItems: 'center' },
 
