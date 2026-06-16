@@ -284,6 +284,8 @@ export default function HistoryScreen() {
   const [calMonth, setCalMonth] = useState(now.getMonth() + 1);
   const [statHistory, setStatHistory] = useState<PermStatSnapshot[]>([]);
   const [weeklyReport, setWeeklyReport] = useState<string | null>(null);
+  // 복구 결과(성공/실패)를 앱 내 모달로 표시 — 웹에서 Alert.alert 버튼이 안 먹는 문제 우회
+  const [restoreResult, setRestoreResult] = useState<{ ok: boolean; msg: string } | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -372,19 +374,14 @@ export default function HistoryScreen() {
       input.onchange = async (e: Event) => {
         const file = (e.target as HTMLInputElement).files?.[0];
         if (!file) return;
+        // 파일 선택 후 처리 결과를 앱 내 모달로 표시 (Alert.alert 버튼은 웹에서 안 먹음)
         try {
           const text = await file.text();
           await importAllData(text);
           hapticSuccess();
-          // 웹에서는 Alert.alert의 버튼 콜백이 동작하지 않아 새로고침이 안 됐다.
-          // 복구 직후 바로 새로고침해서 불러온 데이터가 화면에 반영되게 한다.
-          if (typeof window !== 'undefined') {
-            window.alert('✅ 복구 완료! 데이터를 불러왔어요.\n확인을 누르면 새로고침됩니다.');
-            (window as any).location.reload();
-          }
+          setRestoreResult({ ok: true, msg: '데이터를 성공적으로 불러왔어요.\n아래 버튼을 누르면 새로고침되어 적용됩니다.' });
         } catch {
-          if (typeof window !== 'undefined') window.alert('❌ 올바른 백업 파일이 아닙니다.\nhealth-rpg-backup-*.json 파일을 선택해주세요.');
-          else Alert.alert('오류', '올바른 백업 파일이 아닙니다.');
+          setRestoreResult({ ok: false, msg: '올바른 백업 파일이 아니에요.\nhealth-rpg-backup-*.json 파일을 선택해주세요.' });
         }
       };
       input.click();
@@ -611,6 +608,32 @@ export default function HistoryScreen() {
             </TouchableOpacity>
           </View>
         </View>
+
+        {/* 복구 결과 모달 — 파일 선택 후 성공/실패를 명확히 안내 */}
+        <Modal visible={!!restoreResult} transparent animationType="fade" onRequestClose={() => setRestoreResult(null)}>
+          <View style={styles.restoreOverlay}>
+            <View style={styles.restoreCard}>
+              <Text style={styles.restoreEmoji}>{restoreResult?.ok ? '✅' : '❌'}</Text>
+              <Text style={styles.restoreTitle}>{restoreResult?.ok ? '복구 완료!' : '복구 실패'}</Text>
+              <Text style={styles.restoreMsg}>{restoreResult?.msg}</Text>
+              <TouchableOpacity
+                style={[styles.restoreModalBtn, !restoreResult?.ok && styles.restoreModalBtnSub]}
+                onPress={() => {
+                  const ok = restoreResult?.ok;
+                  setRestoreResult(null);
+                  if (ok && Platform.OS === 'web' && typeof window !== 'undefined') {
+                    (window as any).location.reload();
+                  }
+                }}
+                activeOpacity={0.85}
+              >
+                <Text style={[styles.restoreModalBtnTxt, !restoreResult?.ok && { color: COLORS.textSub }]}>
+                  {restoreResult?.ok ? '확인하고 새로고침' : '닫기'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
 
         {/* 전체 로그 리스트 */}
         {logs.length === 0 ? (
@@ -1025,6 +1048,14 @@ const styles = StyleSheet.create({
   backupBtnText: { color: COLORS.purple, fontWeight: '700', fontSize: FONTS.sm },
   restoreBtn: { flex: 1, backgroundColor: COLORS.bgHighlight, borderRadius: RADIUS.lg, paddingVertical: 12, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border },
   restoreBtnText: { color: COLORS.textSub, fontWeight: '700', fontSize: FONTS.sm },
+  restoreOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.45)', alignItems: 'center', justifyContent: 'center', padding: SPACING.lg },
+  restoreCard: { width: '100%', maxWidth: 340, backgroundColor: COLORS.bg, borderRadius: RADIUS.xl, padding: SPACING.lg, alignItems: 'center' },
+  restoreEmoji: { fontSize: 44, marginBottom: 8 },
+  restoreTitle: { fontSize: FONTS.lg, fontWeight: '900', color: COLORS.text, marginBottom: 8 },
+  restoreMsg: { fontSize: FONTS.xs, color: COLORS.textSub, textAlign: 'center', lineHeight: 20, marginBottom: SPACING.lg },
+  restoreModalBtn: { alignSelf: 'stretch', backgroundColor: COLORS.primary, borderRadius: RADIUS.full, paddingVertical: 13, alignItems: 'center' },
+  restoreModalBtnSub: { backgroundColor: COLORS.bgHighlight, borderWidth: 1, borderColor: COLORS.border },
+  restoreModalBtnTxt: { fontSize: FONTS.sm, fontWeight: '900', color: '#FFFFFF' },
 
   // AI 주간 리포트 카드
   aiReportCard: {
