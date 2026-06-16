@@ -1,12 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useRef, useState } from 'react';
-import { Alert, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Platform, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { COLORS, FONTS, RADIUS, SPACING } from '../constants/theme';
 import { GachaBonus, PermanentStats } from '../types';
 import {
-  GEAR_PULL_COST, GearItem, GearKind, GearState, TIER_CFG,
-  enhanceGoldCost, enhanceRate, gearAtk, gearDef, gearHp, getGearState,
-  makeHeroSword, pullGear, saveGearState, sellValue, tryEnhance,
+  GearItem, GearKind, GearState, GearTier, TIER_CFG,
+  enhanceGoldCost, enhanceRate, gearStatText, getEquipped, getGearState,
+  kindLabel, makeHeroSword, saveGearState, scrollCount, sellValue, setEquipped,
+  spendScroll, tryEnhance,
 } from '../utils/equipment';
 import { addGold, getGold } from '../utils/gacha';
 import { hapticLight, hapticSuccess, hapticWarning } from '../utils/haptics';
@@ -58,79 +59,77 @@ export default function CharacterSheetModal({
     await saveGearState(next);
   }
 
-  // ─── 뽑기 ───────────────────────────────────────────
-  async function handlePull() {
-    if (!gear) return;
-    if (gold < GEAR_PULL_COST) {
-      Alert.alert('골드 부족', `장비 뽑기에는 ${GEAR_PULL_COST}G가 필요해요.\n퀘스트·사냥·게임으로 골드를 모아보세요!`);
-      return;
-    }
-    const newGold = await addGold(-GEAR_PULL_COST);
-    setGold(newGold);
-    const result = pullGear();
-    hapticLight();
-    if (result.type === 'scroll') {
-      if (result.kind === 'weapon') gear.weaponScrolls++;
-      else gear.armorScrolls++;
-      showFlash(result.kind === 'weapon' ? '📜 무기 강화 주문서 획득!' : '📘 방어구 강화 주문서 획득!', COLORS.info);
+  // 웹(RN Web)에서는 Alert.alert의 버튼 콜백이 동작하지 않아 판매가 안 됐다.
+  // 플랫폼별로 확인창을 분리해서 어디서든 판매되게 한다.
+  function confirmAction(title: string, message: string, onConfirm: () => void) {
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined' && window.confirm(`${title}\n\n${message}`)) onConfirm();
     } else {
-      gear.inventory.push(result.item);
-      const t = TIER_CFG[result.item.tier];
-      showFlash(`${result.item.emoji} [${t.label}] ${result.item.name} 획득!`, t.color);
-      if (result.item.tier === 'legendary' || result.item.tier === 'epic') hapticSuccess();
+      Alert.alert(title, message, [
+        { text: '취소', style: 'cancel' },
+        { text: '판매', style: 'destructive', onPress: onConfirm },
+      ]);
     }
-    await persist(gear);
   }
 
   // ─── 장착/해제 ──────────────────────────────────────
   async function equip(item: GearItem) {
     if (!gear) return;
     gear.inventory = gear.inventory.filter(i => i.id !== item.id);
-    const prev = item.kind === 'weapon' ? gear.weapon : gear.armor;
+    const prev = getEquipped(gear, item.kind);
     if (prev) gear.inventory.push(prev);
-    if (item.kind === 'weapon') gear.weapon = item;
-    else gear.armor = item;
+    setEquipped(gear, item.kind, item);
     hapticLight();
     await persist(gear);
   }
 
   async function unequip(kind: GearKind) {
     if (!gear) return;
-    const item = kind === 'weapon' ? gear.weapon : gear.armor;
+    const item = getEquipped(gear, kind);
     if (!item) return;
     gear.inventory.push(item);
-    if (kind === 'weapon') gear.weapon = null;
-    else gear.armor = null;
+    setEquipped(gear, kind, null);
     await persist(gear);
   }
 
   // ─── 판매 ───────────────────────────────────────────
   function sell(item: GearItem) {
     const value = sellValue(item);
-    Alert.alert('판매', `${item.name}${item.enh > 0 ? ` +${item.enh}` : ''}을(를) ${value}G에 판매할까요?`, [
-      { text: '취소', style: 'cancel' },
-      {
-        text: '판매', style: 'destructive',
-        onPress: async () => {
-          if (!gear) return;
-          gear.inventory = gear.inventory.filter(i => i.id !== item.id);
-          const newGold = await addGold(value);
-          setGold(newGold);
-          showFlash(`+${value}G`, COLORS.amber);
-          await persist(gear);
-        },
-      },
-    ]);
+    confirmAction('판매', `${item.name}${item.enh > 0 ? ` +${item.enh}` : ''}을(를) ${value}G에 판매할까요?`, async () => {
+      if (!gear) return;
+      gear.inventory = gear.inventory.filter(i => i.id !== item.id);
+      const newGold = await addGold(value);
+      setGold(newGold);
+      hapticLight();
+      showFlash(`+${value}G`, COLORS.amber);
+      await persist(gear);
+    });
+  }
+
+  // 등급 일괄 판매 (장착 중인 장비는 인벤토리에 없으므로 대상 제외)
+  function sellTier(tier: GearTier) {
+    if (!gear) return;
+    const items = gear.inventory.filter(i => i.tier === tier);
+    if (items.length === 0) return;
+    const total = items.reduce((sum, i) => sum + sellValue(i), 0);
+    confirmAction(`${TIER_CFG[tier].label} 일괄 판매`, `${TIER_CFG[tier].label} 장비 ${items.length}개를 모두 ${total.toLocaleString()}G에 판매할까요?`, async () => {
+      if (!gear) return;
+      gear.inventory = gear.inventory.filter(i => i.tier !== tier);
+      const newGold = await addGold(total);
+      setGold(newGold);
+      hapticSuccess();
+      showFlash(`+${total.toLocaleString()}G  (${items.length}개 판매)`, COLORS.amber);
+      await persist(gear);
+    });
   }
 
   // ─── 강화 ───────────────────────────────────────────
   async function enhance(kind: GearKind) {
     if (!gear) return;
-    const item = kind === 'weapon' ? gear.weapon : gear.armor;
+    const item = getEquipped(gear, kind);
     if (!item) return;
-    const scrolls = kind === 'weapon' ? gear.weaponScrolls : gear.armorScrolls;
-    if (scrolls <= 0) {
-      Alert.alert('주문서 부족', `${kind === 'weapon' ? '무기' : '방어구'} 강화 주문서가 없어요.\n장비 뽑기나 사냥터에서 얻을 수 있어요!`);
+    if (scrollCount(gear, kind) <= 0) {
+      Alert.alert('주문서 부족', `${kindLabel(kind)} 강화 주문서가 없어요.\n장비 뽑기나 사냥터에서 얻을 수 있어요!`);
       return;
     }
     const cost = enhanceGoldCost(item.enh);
@@ -140,8 +139,7 @@ export default function CharacterSheetModal({
     }
 
     // 주문서 + 골드 차감 후 시도
-    if (kind === 'weapon') gear.weaponScrolls--;
-    else gear.armorScrolls--;
+    spendScroll(gear, kind);
     const newGold = await addGold(-cost);
     setGold(newGold);
 
@@ -216,12 +214,15 @@ export default function CharacterSheetModal({
             {/* ── 장비 탭 ── */}
             {tab === 'gear' && gear && (
               <View>
-                {/* 골드 / 주문서 보유 */}
+                {/* 골드 보유 */}
                 <View style={s.resRow}>
                   <View style={s.resPill}>
                     <Text style={s.resEmoji}>🪙</Text>
                     <Text style={s.resTxt}>{gold.toLocaleString()}G</Text>
                   </View>
+                </View>
+                {/* 강화 주문서 보유 */}
+                <View style={s.resRow}>
                   <View style={s.resPill}>
                     <Text style={s.resEmoji}>📜</Text>
                     <Text style={s.resTxt}>무기 x{gear.weaponScrolls}</Text>
@@ -229,6 +230,10 @@ export default function CharacterSheetModal({
                   <View style={s.resPill}>
                     <Text style={s.resEmoji}>📘</Text>
                     <Text style={s.resTxt}>방어구 x{gear.armorScrolls}</Text>
+                  </View>
+                  <View style={s.resPill}>
+                    <Text style={s.resEmoji}>📒</Text>
+                    <Text style={s.resTxt}>악세 x{gear.accessoryScrolls}</Text>
                   </View>
                 </View>
 
@@ -246,12 +251,39 @@ export default function CharacterSheetModal({
                     onEnhance={() => enhance('armor')}
                     onUnequip={() => unequip('armor')}
                   />
+                  <SlotCard
+                    kind="accessory"
+                    item={gear.accessory}
+                    onEnhance={() => enhance('accessory')}
+                    onUnequip={() => unequip('accessory')}
+                  />
                 </View>
 
                 <Text style={s.pullHint}>새 장비는 뽑기의 '무기뽑기' 탭 또는 사냥터 드랍으로 획득해요</Text>
 
                 {/* 인벤토리 */}
                 <Text style={s.invTitle}>인벤토리 ({gear.inventory.length})</Text>
+
+                {/* 등급 일괄 판매 */}
+                {gear.inventory.length > 0 && (
+                  <View style={s.bulkRow}>
+                    {(['common', 'rare', 'epic', 'legendary'] as GearTier[]).map(t => {
+                      const cnt = gear.inventory.filter(i => i.tier === t).length;
+                      if (cnt === 0) return null;
+                      return (
+                        <TouchableOpacity
+                          key={t}
+                          style={[s.bulkBtn, { borderColor: TIER_CFG[t].color + '55', backgroundColor: TIER_CFG[t].color + '12' }]}
+                          onPress={() => sellTier(t)}
+                          activeOpacity={0.8}
+                        >
+                          <Text style={[s.bulkBtnTxt, { color: TIER_CFG[t].color }]}>{TIER_CFG[t].label} {cnt}개 판매</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                )}
+
                 {gear.inventory.length === 0 ? (
                   <View style={s.invEmpty}>
                     <Ionicons name="bag-outline" size={22} color={COLORS.textDisabled} />
@@ -266,9 +298,7 @@ export default function CharacterSheetModal({
                           <Text style={{ color: TIER_CFG[item.tier].color, fontWeight: '800' }}>[{TIER_CFG[item.tier].label}]</Text>
                           {' '}{item.name}{item.enh > 0 ? ` +${item.enh}` : ''}
                         </Text>
-                        <Text style={s.invStat}>
-                          {item.kind === 'weapon' ? `공격 +${gearAtk(item)}` : `방어 +${gearDef(item)} · 체력 +${gearHp(item)}`}
-                        </Text>
+                        <Text style={s.invStat}>{gearStatText(item)}</Text>
                       </View>
                       <TouchableOpacity style={s.invBtn} onPress={() => equip(item)}>
                         <Text style={s.invBtnTxt}>장착</Text>
@@ -314,11 +344,12 @@ function SlotCard({ kind, item, onEnhance, onUnequip }: {
   onEnhance: () => void;
   onUnequip: () => void;
 }) {
-  const label = kind === 'weapon' ? '무기' : '방어구';
+  const label = kindLabel(kind);
+  const emptyIcon = kind === 'weapon' ? 'flash-outline' : kind === 'armor' ? 'shield-outline' : 'diamond-outline';
   if (!item) {
     return (
       <View style={[s.slot, s.slotEmpty]}>
-        <Ionicons name={kind === 'weapon' ? 'flash-outline' : 'shield-outline'} size={20} color={COLORS.textDisabled} />
+        <Ionicons name={emptyIcon} size={20} color={COLORS.textDisabled} />
         <Text style={s.slotEmptyTxt}>{label} 없음</Text>
         <Text style={s.slotEmptySub}>인벤토리에서 장착</Text>
       </View>
@@ -334,9 +365,7 @@ function SlotCard({ kind, item, onEnhance, onUnequip }: {
       <Text style={s.slotName} numberOfLines={1}>
         {item.name}{item.enh > 0 && <Text style={{ color: COLORS.amber }}> +{item.enh}</Text>}
       </Text>
-      <Text style={s.slotStat}>
-        {kind === 'weapon' ? `공격 +${gearAtk(item)}` : `방어 +${gearDef(item)} · HP +${gearHp(item)}`}
-      </Text>
+      <Text style={s.slotStat}>{gearStatText(item)}</Text>
       <TouchableOpacity style={s.enhBtn} onPress={onEnhance} activeOpacity={0.8}>
         <Text style={s.enhBtnTxt}>강화 {rate}%</Text>
         <Text style={s.enhBtnCost}>📜1 + {cost}G</Text>
@@ -459,6 +488,13 @@ const s = StyleSheet.create({
 
   // 인벤토리
   invTitle: { fontSize: FONTS.xs, fontWeight: '800', color: COLORS.textSub, marginBottom: 6, marginTop: 4 },
+  bulkRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 },
+  bulkBtn: {
+    borderRadius: RADIUS.full,
+    borderWidth: 1,
+    paddingHorizontal: 11, paddingVertical: 6,
+  },
+  bulkBtnTxt: { fontSize: 10, fontWeight: '800' },
   invEmpty: {
     alignItems: 'center', gap: 6,
     backgroundColor: COLORS.bgCard,

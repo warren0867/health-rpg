@@ -18,7 +18,7 @@ import {
 } from '../utils/gacha';
 import {
   GEAR_PULL_COST, GearState, PullResult, TIER_CFG,
-  gearAtk, gearDef, gearHp, getGearState, pullGear, rollGear, saveGearState,
+  addScroll, gearStatText, getGearState, kindLabel, pullGear, rollGear, saveGearState, scrollEmoji,
 } from '../utils/equipment';
 
 // 등급별 아이콘 매핑
@@ -334,8 +334,7 @@ export default function GachaModal({ visible, onClose, addXpFn, onInventoryChang
       const gear = await getGearState();
       for (const r of results) {
         if (r.type === 'scroll') {
-          if (r.kind === 'weapon') gear.weaponScrolls++;
-          else gear.armorScrolls++;
+          addScroll(gear, r.kind);
         } else {
           gear.inventory.push(r.item);
         }
@@ -581,8 +580,9 @@ export default function GachaModal({ visible, onClose, addXpFn, onInventoryChang
                     { label: '희귀',   color: TIER_CFG.rare.color,      pct: '22%' },
                     { label: '영웅',   color: TIER_CFG.epic.color,      pct: '8%' },
                     { label: '전설',   color: TIER_CFG.legendary.color, pct: '2%' },
-                    { label: '무기 주문서', color: COLORS.info,        pct: '14%' },
-                    { label: '방어구 주문서', color: COLORS.info,      pct: '14%' },
+                    { label: '무기 주문서', color: COLORS.info,        pct: '11%' },
+                    { label: '방어구 주문서', color: COLORS.info,      pct: '11%' },
+                    { label: '악세사리 주문서', color: COLORS.info,    pct: '6%' },
                   ] as { label: string; color: string; pct: string }[]).map(r => (
                     <View key={r.label} style={s.rateItem}>
                       <View style={[s.rateDot, { backgroundColor: r.color }]} />
@@ -603,6 +603,10 @@ export default function GachaModal({ visible, onClose, addXpFn, onInventoryChang
                 <View style={s.gearScrollPill}>
                   <Text style={s.gearScrollEmoji}>📘</Text>
                   <Text style={s.gearScrollTxt}>방어구 주문서 x{gearState?.armorScrolls ?? 0}</Text>
+                </View>
+                <View style={s.gearScrollPill}>
+                  <Text style={s.gearScrollEmoji}>📒</Text>
+                  <Text style={s.gearScrollTxt}>악세사리 주문서 x{gearState?.accessoryScrolls ?? 0}</Text>
                 </View>
               </View>
 
@@ -633,8 +637,8 @@ export default function GachaModal({ visible, onClose, addXpFn, onInventoryChang
                   {gearResults.map((r, i) => (
                     r.type === 'scroll' ? (
                       <View key={i} style={s.gearResultRow}>
-                        <Text style={s.gearResultEmoji}>{r.kind === 'weapon' ? '📜' : '📘'}</Text>
-                        <Text style={s.gearResultName}>{r.kind === 'weapon' ? '무기' : '방어구'} 강화 주문서</Text>
+                        <Text style={s.gearResultEmoji}>{scrollEmoji(r.kind)}</Text>
+                        <Text style={s.gearResultName}>{kindLabel(r.kind)} 강화 주문서</Text>
                       </View>
                     ) : (
                       <View key={i} style={[s.gearResultRow, { borderColor: TIER_CFG[r.item.tier].color + '55', backgroundColor: TIER_CFG[r.item.tier].color + '0D' }]}>
@@ -645,7 +649,7 @@ export default function GachaModal({ visible, onClose, addXpFn, onInventoryChang
                             {' '}{r.item.name}
                           </Text>
                           <Text style={s.gearResultStat}>
-                            {r.item.kind === 'weapon' ? `공격 +${gearAtk(r.item)}` : `방어 +${gearDef(r.item)} · HP +${gearHp(r.item)}`}
+                            {gearStatText(r.item)}
                           </Text>
                         </View>
                       </View>

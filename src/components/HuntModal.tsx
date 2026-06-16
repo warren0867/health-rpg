@@ -251,10 +251,11 @@ export default function HuntModal({
 
     // 장비/주문서 드랍
     const drop = rollHuntDrops(stagesCleared);
-    if (drop.weaponScrolls || drop.armorScrolls || drop.gear) {
+    if (drop.weaponScrolls || drop.armorScrolls || drop.accessoryScrolls || drop.gear) {
       const gear = await getGearState();
       gear.weaponScrolls += drop.weaponScrolls;
       gear.armorScrolls += drop.armorScrolls;
+      gear.accessoryScrolls += drop.accessoryScrolls;
       if (drop.gear) gear.inventory.push(drop.gear);
       await saveGearState(gear);
     }
@@ -406,7 +407,7 @@ export default function HuntModal({
               </View>
 
               {/* 드랍 아이템 */}
-              {drops && (drops.weaponScrolls > 0 || drops.armorScrolls > 0 || drops.gear) && (
+              {drops && (drops.weaponScrolls > 0 || drops.armorScrolls > 0 || drops.accessoryScrolls > 0 || drops.gear) && (
                 <View style={s.dropBox}>
                   <Text style={s.dropTitle}>전리품</Text>
                   <View style={s.dropRow}>
@@ -420,6 +421,12 @@ export default function HuntModal({
                       <View style={s.dropItem}>
                         <Text style={s.dropEmoji}>📘</Text>
                         <Text style={s.dropName}>방어구 주문서 x{drops.armorScrolls}</Text>
+                      </View>
+                    )}
+                    {drops.accessoryScrolls > 0 && (
+                      <View style={s.dropItem}>
+                        <Text style={s.dropEmoji}>📒</Text>
+                        <Text style={s.dropName}>악세사리 주문서 x{drops.accessoryScrolls}</Text>
                       </View>
                     )}
                     {drops.gear && (

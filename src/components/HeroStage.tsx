@@ -44,18 +44,17 @@ const STAT_CHIP_COLORS: Record<'str' | 'end' | 'vit' | 'agi' | 'wis', string> = 
 
 // ─── 장비 슬롯 (캐릭터 옆) ──────────────────────────
 function GearSlot({ kind, item, onPress }: {
-  kind: 'weapon' | 'armor';
+  kind: 'weapon' | 'armor' | 'accessory';
   item: GearState['weapon'];
   onPress?: () => void;
 }) {
+  const label = kind === 'weapon' ? '무기' : kind === 'armor' ? '방어구' : '악세';
+  const icon = kind === 'weapon' ? 'flash-outline' : kind === 'armor' ? 'shield-outline' : 'diamond-outline';
   if (!item) {
     return (
       <Pressable style={[s.gearSlot, s.gearSlotEmpty]} onPress={onPress} hitSlop={4}>
-        <Ionicons
-          name={kind === 'weapon' ? 'flash-outline' : 'shield-outline'}
-          size={16} color={COLORS.textDisabled}
-        />
-        <Text style={s.gearSlotLabel}>{kind === 'weapon' ? '무기' : '방어구'}</Text>
+        <Ionicons name={icon} size={16} color={COLORS.textDisabled} />
+        <Text style={s.gearSlotLabel}>{label}</Text>
       </Pressable>
     );
   }
@@ -242,8 +241,9 @@ export default function HeroStage({
       <View style={s.stage}>
         {/* 장비 슬롯 (캐릭터 왼쪽 — RPG 캐릭터창 스타일) */}
         <View style={s.gearColumn}>
-          <GearSlot kind="weapon" item={gear?.weapon ?? null} onPress={onPressGear} />
-          <GearSlot kind="armor"  item={gear?.armor ?? null}  onPress={onPressGear} />
+          <GearSlot kind="weapon"    item={gear?.weapon ?? null}    onPress={onPressGear} />
+          <GearSlot kind="armor"     item={gear?.armor ?? null}     onPress={onPressGear} />
+          <GearSlot kind="accessory" item={gear?.accessory ?? null} onPress={onPressGear} />
         </View>
 
         {/* 말풍선 */}
@@ -358,17 +358,18 @@ const s = StyleSheet.create({
   score: { fontSize: 28, fontWeight: '800', fontFamily: 'monospace', letterSpacing: -1, lineHeight: 30 },
   scoreLabel: { fontSize: 9, color: COLORS.textDisabled, fontFamily: 'monospace', letterSpacing: 1.5, fontWeight: '700', marginTop: 1 },
 
-  stage: { alignItems: 'center', paddingTop: 18, paddingBottom: 4 },
+  // 슬롯 3개(무기·방어구·악세사리)가 EVO 줄과 겹치지 않도록 최소 높이 확보
+  stage: { alignItems: 'center', paddingTop: 18, paddingBottom: 4, minHeight: 158 },
 
   // 장비 슬롯 컬럼 (캐릭터 왼쪽)
   gearColumn: {
     position: 'absolute',
-    left: 4, top: 28,
-    gap: 8,
+    left: 4, top: 14,
+    gap: 6,
     zIndex: 5,
   },
   gearSlot: {
-    width: 46, height: 46,
+    width: 42, height: 42,
     borderRadius: RADIUS.md,
     borderWidth: 1.5,
     alignItems: 'center', justifyContent: 'center',
@@ -380,7 +381,7 @@ const s = StyleSheet.create({
     gap: 1,
   },
   gearSlotLabel: { fontSize: 8, color: COLORS.textDisabled, fontWeight: '700' },
-  gearSlotEmoji: { fontSize: 22 },
+  gearSlotEmoji: { fontSize: 20 },
   gearEnhBadge: {
     position: 'absolute',
     bottom: -5, alignSelf: 'center',

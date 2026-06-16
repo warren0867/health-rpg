@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { GachaBonus, PermanentStats, StatKey } from '../types';
-import { GearState, gearAtk, gearDef, gearHp } from './equipment';
+import { GearState, gearAtk, gearDef, gearHp, gearAccHp, gearCrit } from './equipment';
 
 // ────────────────────────────────────────────────────────────
 //  사냥터 — 영구 스탯이 전투력이 되는 무한 스테이지
@@ -57,16 +57,18 @@ export function calcCombatStats(
     0.92;
 
   // 장착 장비 보너스
-  const wAtk = gear ? gearAtk(gear.weapon) : 0;
-  const aDef = gear ? gearDef(gear.armor) : 0;
-  const aHp  = gear ? gearHp(gear.armor) : 0;
+  const wAtk    = gear ? gearAtk(gear.weapon) : 0;
+  const aDef    = gear ? gearDef(gear.armor) : 0;
+  const aHp     = gear ? gearHp(gear.armor) : 0;
+  const accHp   = gear ? gearAccHp(gear.accessory) : 0;   // 악세사리 체력
+  const accCrit = gear ? gearCrit(gear.accessory) : 0;    // 악세사리 치명타
 
   return {
-    maxHp: Math.round((80 + vit * 6 + level * 6 + aHp) * condMult),
+    maxHp: Math.round((80 + vit * 6 + level * 6 + aHp + accHp) * condMult),
     atk:   Math.round((10 + str * 1.4 + level * 1.0 + wAtk) * condMult * 10) / 10,
     def:   Math.round((end * 0.55 + aDef) * 10) / 10,
     dodge: Math.min(0.30, agi * 0.006),
-    crit:  Math.min(0.40, wis * 0.008),
+    crit:  Math.min(0.50, wis * 0.008 + accCrit),
     regen: 0, // calcRegen에서 maxHp 기준으로 산출
     condMult,
   };

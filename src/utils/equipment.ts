@@ -8,7 +8,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const GEAR_KEY = 'hrpg_gear';
 
-export type GearKind = 'weapon' | 'armor';
+export type GearKind = 'weapon' | 'armor' | 'accessory';
 export type GearTier = 'common' | 'rare' | 'epic' | 'legendary';
 
 export interface GearItem {
@@ -24,25 +24,29 @@ export interface GearItem {
 export interface GearState {
   weapon: GearItem | null;
   armor: GearItem | null;
+  accessory: GearItem | null;
   inventory: GearItem[];
-  weaponScrolls: number;   // 무기 강화 주문서
-  armorScrolls: number;    // 방어구 강화 주문서
-  swordRewarded: boolean;  // 최강 무기 업적 보상 지급 여부
+  weaponScrolls: number;     // 무기 강화 주문서
+  armorScrolls: number;      // 방어구 강화 주문서
+  accessoryScrolls: number;  // 악세사리 강화 주문서
+  swordRewarded: boolean;    // 최강 무기 업적 보상 지급 여부
 }
 
 export const EMPTY_GEAR: GearState = {
-  weapon: null, armor: null, inventory: [],
-  weaponScrolls: 0, armorScrolls: 0, swordRewarded: false,
+  weapon: null, armor: null, accessory: null, inventory: [],
+  weaponScrolls: 0, armorScrolls: 0, accessoryScrolls: 0, swordRewarded: false,
 };
 
 export const TIER_CFG: Record<GearTier, {
   label: string; color: string; weight: number; base: number; sell: number;
 }> = {
-  common:    { label: '일반', color: '#64748B', weight: 56, base: 3,  sell: 20 },
-  rare:      { label: '희귀', color: '#3B82F6', weight: 30, base: 6,  sell: 60 },
-  epic:      { label: '영웅', color: '#8B5CF6', weight: 11, base: 10, sell: 150 },
-  legendary: { label: '전설', color: '#F59E0B', weight: 3,  base: 16, sell: 400 },
+  common:    { label: '일반', color: '#64748B', weight: 56, base: 3,  sell: 50 },
+  rare:      { label: '희귀', color: '#3B82F6', weight: 30, base: 6,  sell: 140 },
+  epic:      { label: '영웅', color: '#8B5CF6', weight: 11, base: 10, sell: 360 },
+  legendary: { label: '전설', color: '#F59E0B', weight: 3,  base: 16, sell: 900 },
 };
+
+const KIND_LABEL: Record<GearKind, string> = { weapon: '무기', armor: '방어구', accessory: '악세사리' };
 
 const GEAR_NAMES: Record<GearKind, Record<GearTier, { name: string; emoji: string }[]>> = {
   weapon: {
@@ -56,6 +60,12 @@ const GEAR_NAMES: Record<GearKind, Record<GearTier, { name: string; emoji: strin
     rare:      [{ name: '사슬 갑옷', emoji: '⛓️' }, { name: '강철 방패', emoji: '🛡️' }],
     epic:      [{ name: '수호자의 판금', emoji: '🛡️' }, { name: '마력의 로브', emoji: '🧥' }],
     legendary: [{ name: '용비늘 갑주', emoji: '🐲' }, { name: '성기사의 갑주', emoji: '✨' }],
+  },
+  accessory: {
+    common:    [{ name: '낡은 반지', emoji: '💍' }, { name: '구리 목걸이', emoji: '📿' }],
+    rare:      [{ name: '마력의 반지', emoji: '💍' }, { name: '수정 목걸이', emoji: '🔮' }],
+    epic:      [{ name: '용의 눈', emoji: '🦎' }, { name: '현자의 부적', emoji: '🧿' }],
+    legendary: [{ name: '불멸의 인장', emoji: '♾️' }, { name: '신성한 성배', emoji: '🏆' }],
   },
 };
 
@@ -89,8 +99,14 @@ export function rollTier(): GearTier {
   return 'common';
 }
 
+/** 종류 무작위 — 무기 40% / 방어구 40% / 악세사리 20% */
+export function randomKind(): GearKind {
+  const r = Math.random();
+  return r < 0.4 ? 'weapon' : r < 0.8 ? 'armor' : 'accessory';
+}
+
 export function rollGear(kind?: GearKind, tier?: GearTier): GearItem {
-  const k: GearKind = kind ?? (Math.random() < 0.5 ? 'weapon' : 'armor');
+  const k: GearKind = kind ?? randomKind();
   const t: GearTier = tier ?? rollTier();
   const pool = GEAR_NAMES[k][t];
   const pick = pool[Math.floor(Math.random() * pool.length)];
@@ -100,15 +116,46 @@ export function rollGear(kind?: GearKind, tier?: GearTier): GearItem {
 /** 장비 뽑기 1회 — 72% 장비 / 28% 강화 주문서 */
 export function pullGear(): PullResult {
   if (Math.random() < 0.28) {
-    return { type: 'scroll', kind: Math.random() < 0.5 ? 'weapon' : 'armor' };
+    return { type: 'scroll', kind: randomKind() };
   }
   return { type: 'gear', item: rollGear() };
 }
 
+// ─── 주문서 보유/지급 헬퍼 (무기/방어구/악세사리 공통) ───────
+export function scrollCount(g: GearState, kind: GearKind): number {
+  return kind === 'weapon' ? g.weaponScrolls : kind === 'armor' ? g.armorScrolls : g.accessoryScrolls;
+}
+
+export function addScroll(g: GearState, kind: GearKind, n = 1): void {
+  if (kind === 'weapon') g.weaponScrolls += n;
+  else if (kind === 'armor') g.armorScrolls += n;
+  else g.accessoryScrolls += n;
+}
+
+export function spendScroll(g: GearState, kind: GearKind): void {
+  if (kind === 'weapon') g.weaponScrolls--;
+  else if (kind === 'armor') g.armorScrolls--;
+  else g.accessoryScrolls--;
+}
+
+export function kindLabel(kind: GearKind): string {
+  return KIND_LABEL[kind];
+}
+
+export function getEquipped(g: GearState, kind: GearKind): GearItem | null {
+  return kind === 'weapon' ? g.weapon : kind === 'armor' ? g.armor : g.accessory;
+}
+
+export function setEquipped(g: GearState, kind: GearKind, item: GearItem | null): void {
+  if (kind === 'weapon') g.weapon = item;
+  else if (kind === 'armor') g.armor = item;
+  else g.accessory = item;
+}
+
 // ─── 강화 ────────────────────────────────────────────────
-/** +N → +N+1 성공 확률. 올라갈수록 낮아지고 10%가 바닥 (한계 없음) */
+/** +N → +N+1 성공 확률. 올라갈수록 낮아지고 25%가 바닥 (한계 없음) */
 export function enhanceRate(enh: number): number {
-  return Math.max(0.10, 0.95 - enh * 0.06);
+  return Math.max(0.25, 0.97 - enh * 0.045);
 }
 
 export function enhanceGoldCost(enh: number): number {
@@ -138,8 +185,31 @@ export function gearHp(item: GearItem | null): number {
   return item.base * 5 + item.enh * 8;
 }
 
+/** 악세사리 → 치명타 확률(소수) */
+export function gearCrit(item: GearItem | null): number {
+  if (!item || item.kind !== 'accessory') return 0;
+  return item.base * 0.003 + item.enh * 0.003;
+}
+
+/** 악세사리 → 추가 체력 */
+export function gearAccHp(item: GearItem | null): number {
+  if (!item || item.kind !== 'accessory') return 0;
+  return item.base * 4 + item.enh * 6;
+}
+
 export function sellValue(item: GearItem): number {
-  return TIER_CFG[item.tier].sell + item.enh * 15;
+  return TIER_CFG[item.tier].sell + item.enh * 40;
+}
+
+/** 장비 효과를 짧은 텍스트로 (무기/방어구/악세사리 공통) */
+export function gearStatText(item: GearItem): string {
+  if (item.kind === 'weapon') return `공격 +${gearAtk(item)}`;
+  if (item.kind === 'armor') return `방어 +${gearDef(item)} · HP +${gearHp(item)}`;
+  return `치명 +${(gearCrit(item) * 100).toFixed(1)}% · HP +${gearAccHp(item)}`;
+}
+
+export function scrollEmoji(kind: GearKind): string {
+  return kind === 'weapon' ? '📜' : kind === 'armor' ? '📘' : '📒';
 }
 
 // ─── 강화 업적 ───────────────────────────────────────────
@@ -154,17 +224,19 @@ export function makeHeroSword(): GearItem {
 export interface HuntDrop {
   weaponScrolls: number;
   armorScrolls: number;
+  accessoryScrolls: number;
   gear: GearItem | null;
 }
 
 export function rollHuntDrops(stagesCleared: number): HuntDrop {
-  const drop: HuntDrop = { weaponScrolls: 0, armorScrolls: 0, gear: null };
-  if (stagesCleared >= 3 && Math.random() < 0.5) {
-    if (Math.random() < 0.5) drop.weaponScrolls++; else drop.armorScrolls++;
-  }
-  if (stagesCleared >= 8) {
-    if (Math.random() < 0.5) drop.weaponScrolls++; else drop.armorScrolls++;
-  }
+  const drop: HuntDrop = { weaponScrolls: 0, armorScrolls: 0, accessoryScrolls: 0, gear: null };
+  const bump = (kind: GearKind) => {
+    if (kind === 'weapon') drop.weaponScrolls++;
+    else if (kind === 'armor') drop.armorScrolls++;
+    else drop.accessoryScrolls++;
+  };
+  if (stagesCleared >= 3 && Math.random() < 0.5) bump(randomKind());
+  if (stagesCleared >= 8) bump(randomKind());
   // 장비 드랍 — 멀리 갈수록 확률·등급 상승
   const gearChance = Math.min(0.5, stagesCleared * 0.035);
   if (Math.random() < gearChance) {
