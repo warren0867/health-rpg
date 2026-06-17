@@ -123,7 +123,7 @@ function SleepChart({ logs }: { logs: DailyLog[] }) {
   const MAX_H = 10;
   const logsWithData = days.filter(date => logMap[date]);
   if (logsWithData.length === 0) return null;
-  const avg = logsWithData.reduce((s, date) => s + logMap[date].sleep.hours, 0) / logsWithData.length;
+  const avg = logsWithData.reduce((s, date) => s + (logMap[date].sleep?.hours ?? 0), 0) / logsWithData.length;
 
   return (
     <View>
@@ -467,45 +467,47 @@ export default function HistoryScreen() {
           </View>
         )}
 
-        {/* 전체 요약 */}
+        {/* 요약 (전체 통계 + 이번 주 리포트 통합) */}
         {avg !== null && (
-          <View style={styles.summaryCard}>
-            <SummaryItem value={String(logs.length)} label="총 기록일" />
-            <View style={styles.divider} />
-            <SummaryItem value={String(avg)} label="평균 점수" color={getRank(avg).color} />
-            <View style={styles.divider} />
-            <SummaryItem value={getRank(avg).rank} label="평균 등급" color={getRank(avg).color} />
-            {avgBS !== null && (
+          <View style={styles.card}>
+            {/* 전체 통계 스트립 */}
+            <View style={styles.summaryStrip}>
+              <SummaryItem value={String(logs.length)} label="총 기록일" />
+              <View style={styles.divider} />
+              <SummaryItem value={String(avg)} label="평균 점수" color={getRank(avg).color} />
+              <View style={styles.divider} />
+              <SummaryItem value={getRank(avg).rank} label="평균 등급" color={getRank(avg).color} />
+              {avgBS !== null && (
+                <>
+                  <View style={styles.divider} />
+                  <SummaryItem
+                    value={String(avgBS)}
+                    label="평균 혈당"
+                    color={avgBS < 100 ? COLORS.green : avgBS < 126 ? COLORS.gold : COLORS.red}
+                    unit="mg/dL"
+                  />
+                </>
+              )}
+            </View>
+
+            {/* 이번 주 리포트 */}
+            {weekLogs.length >= 3 && (
               <>
-                <View style={styles.divider} />
-                <SummaryItem
-                  value={String(avgBS)}
-                  label="평균 혈당"
-                  color={avgBS < 100 ? COLORS.green : avgBS < 126 ? COLORS.gold : COLORS.red}
-                  unit="mg/dL"
-                />
+                <View style={styles.cardDivider} />
+                <Text style={styles.weekSubTitle}>📊 이번 주</Text>
+                <View style={styles.reportGrid}>
+                  <ReportItem emoji="🏆" label="최고 점수" value={`${weekReport.best}점`} color={COLORS.gold} />
+                  <ReportItem emoji="😔" label="최저 점수" value={`${weekReport.worst}점`} color={COLORS.textMuted} />
+                  <ReportItem emoji="😴" label="평균 수면" value={`${weekReport.avgSleep}h`} color={COLORS.blue} />
+                  <ReportItem emoji="💪" label="운동한 날" value={`${weekReport.exerciseDays}일`} color={COLORS.teal} />
+                  <ReportItem emoji="🍺" label="음주한 날" value={`${weekReport.alcoholDays}일`} color={weekReport.alcoholDays > 2 ? COLORS.red : COLORS.textMuted} />
+                  <ReportItem emoji="📈" label="7일 추세" value={weekReport.trend} color={weekReport.trend === '상승↑' ? COLORS.teal : weekReport.trend === '하락↓' ? COLORS.red : COLORS.gold} />
+                </View>
+                <View style={styles.weekAdvice}>
+                  <Text style={styles.weekAdviceText}>{weekReport.advice}</Text>
+                </View>
               </>
             )}
-          </View>
-        )}
-
-        {/* 주간 리포트 */}
-        {weekLogs.length >= 3 && (
-          <View style={styles.card}>
-            <Text style={styles.sectionTitle}>📊 주간 리포트</Text>
-            <View style={styles.reportGrid}>
-              <ReportItem emoji="🏆" label="최고 점수" value={`${weekReport.best}점`} color={COLORS.gold} />
-              <ReportItem emoji="😔" label="최저 점수" value={`${weekReport.worst}점`} color={COLORS.textMuted} />
-              <ReportItem emoji="😴" label="평균 수면" value={`${weekReport.avgSleep}h`} color={COLORS.blue} />
-              <ReportItem emoji="💪" label="운동한 날" value={`${weekReport.exerciseDays}일`} color={COLORS.teal} />
-              <ReportItem emoji="🍺" label="음주한 날" value={`${weekReport.alcoholDays}일`} color={weekReport.alcoholDays > 2 ? COLORS.red : COLORS.textMuted} />
-              <ReportItem emoji="📈" label="7일 추세" value={weekReport.trend} color={weekReport.trend === '상승↑' ? COLORS.teal : weekReport.trend === '하락↓' ? COLORS.red : COLORS.gold} />
-            </View>
-
-            {/* 주간 조언 */}
-            <View style={styles.weekAdvice}>
-              <Text style={styles.weekAdviceText}>{weekReport.advice}</Text>
-            </View>
           </View>
         )}
 
@@ -911,7 +913,7 @@ function calcWeekReport(logs: DailyLog[]) {
   const scores = logs.map(l => l.conditionScore);
   const best = Math.max(...scores);
   const worst = Math.min(...scores);
-  const avgSleep = Math.round(logs.reduce((s, l) => s + l.sleep.hours, 0) / logs.length * 10) / 10;
+  const avgSleep = Math.round(logs.reduce((s, l) => s + (l.sleep?.hours ?? 0), 0) / logs.length * 10) / 10;
   const exerciseDays = logs.filter(l => {
     const types = l.exercise.types?.filter(t => t !== 'none') ?? [];
     return types.length > 0 || (l.exercise.type && l.exercise.type !== 'none');
@@ -970,11 +972,11 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: COLORS.bg },
   scroll: { padding: SPACING.md },
   pageTitle: { fontSize: FONTS.xxl, fontWeight: '900', color: COLORS.text, marginBottom: SPACING.md },
-  summaryCard: {
-    backgroundColor: COLORS.bgCard, borderRadius: RADIUS.lg, padding: SPACING.md,
-    flexDirection: 'row', justifyContent: 'space-around', flexWrap: 'wrap',
-    marginBottom: SPACING.md, borderWidth: 1, borderColor: COLORS.border, gap: 8,
+  summaryStrip: {
+    flexDirection: 'row', justifyContent: 'space-around', flexWrap: 'wrap', gap: 8,
   },
+  cardDivider: { height: 1, backgroundColor: COLORS.border, marginVertical: SPACING.md },
+  weekSubTitle: { color: COLORS.textSub, fontSize: FONTS.sm, fontWeight: '800', marginBottom: SPACING.sm },
   summaryItem: { alignItems: 'center', minWidth: 60 },
   summaryValue: { fontSize: FONTS.xl, fontWeight: '900', color: COLORS.text },
   summaryUnit: { color: COLORS.textMuted, fontSize: 11 },
