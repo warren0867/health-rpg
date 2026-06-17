@@ -191,27 +191,37 @@ export async function applyXpPotions(results: GachaPullResult[], addXpFn: (xp: n
 
 // ─── 주문서 사용 ─────────────────────────────────────────────
 
+// 스탯별 버프 누적 상한 (무한 강화 방지)
+export const STAT_BUFF_CAP = 40;
+
 export async function useScroll(scrollId: string): Promise<GachaBonus | null> {
   const inv = await getGachaInventory();
   const scroll = inv.scrolls.find(s => s.id === scrollId);
   if (!scroll) return null;
 
-  const now = new Date();
-  const expires = new Date(now);
+  const nowMs = Date.now();
+  // 같은 스탯에 활성 버프가 있으면 → 수치 누적(상한) + 기간 연장
+  const existing = inv.activeBonuses.find(
+    b => b.stat === scroll.stat && new Date(b.expiresAt).getTime() > nowMs
+  );
+
+  const stackedBonus = Math.min(STAT_BUFF_CAP, (existing?.bonus ?? 0) + scroll.bonus);
+  // 기간은 (기존 남은 만료 시각 또는 지금) + 새 주문서 일수 → 항상 늘어남
+  const baseMs = existing ? Math.max(nowMs, new Date(existing.expiresAt).getTime()) : nowMs;
+  const expires = new Date(baseMs);
   expires.setDate(expires.getDate() + scroll.durationDays);
 
   const bonus: GachaBonus = {
-    id: generateId(),
+    id: existing?.id ?? generateId(),
     name: scroll.name.replace('주문서', '강화'),
     emoji: scroll.emoji,
     rarity: scroll.rarity,
     stat: scroll.stat,
-    bonus: scroll.bonus,
+    bonus: stackedBonus,
     expiresAt: expires.toISOString(),
   };
 
   const newScrolls = inv.scrolls.filter(s => s.id !== scrollId);
-  // 같은 스탯 기존 버프 교체 (중복 방지)
   const newBonuses = [
     ...inv.activeBonuses.filter(b => b.stat !== scroll.stat),
     bonus,

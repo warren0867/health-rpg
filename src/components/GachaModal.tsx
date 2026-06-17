@@ -164,7 +164,7 @@ function ScrollCard({
         </Text>
         {activeBonusForStat > 0 && (
           <Text style={ic.replaceNote} numberOfLines={1}>
-            ⚡ 현재 {STAT_LABEL[scroll.stat]} 버프 {activeBonusForStat}pt — 사용 시 교체
+            ⚡ 현재 {STAT_LABEL[scroll.stat]} +{activeBonusForStat} — 사용 시 누적·기간 연장
           </Text>
         )}
       </View>
