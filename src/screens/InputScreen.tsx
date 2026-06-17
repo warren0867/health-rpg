@@ -1,11 +1,11 @@
 import { hapticLight, hapticMedium, hapticSuccess } from '../utils/haptics';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRefresh } from '../context/RefreshContext';
 import { Alert, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { COLORS, FONTS, RADIUS, SPACING } from '../constants/theme';
+import { COLORS, FONTS, getRank, RADIUS, SPACING } from '../constants/theme';
 import { AlcoholInput, AlcoholType, BP_STATUS_COLOR, BP_STATUS_LABEL, DailyLog, ExerciseEntry, ExerciseInput, ExerciseIntensity, ExerciseType, getBPStatus, MedLog, Medication, MED_TIME_LABEL, MOOD_EMOJI, MOOD_LABEL, MoodLevel, RootStackParamList, SleepInput } from '../types';
 import {
   addXP, deleteExerciseEntry, generateId, getAllExerciseEntries,
@@ -122,6 +122,8 @@ export default function InputScreen() {
   const [steps, setSteps] = useState('');
   const [saving, setSaving] = useState(false);
   const [hasExisting, setHasExisting] = useState(false);
+  // 실시간 예상 컨디션 점수 계산용 컨텍스트 (식단·공복혈당·목표칼로리)
+  const [scoreCtx, setScoreCtx] = useState<{ morningBS: any; foodCal: number; targetCal: number }>({ morningBS: null, foodCal: 0, targetCal: 2000 });
 
   // 약 복용
   const [medications, setMedications] = useState<Medication[]>([]);
@@ -141,10 +143,18 @@ export default function InputScreen() {
   // 선택한 날짜의 기존 데이터 불러와서 폼에 채우기
   const loadDate = useCallback(async (date: string) => {
     loadMeds(date);
-    const [existing, entries] = await Promise.all([
+    const [existing, entries, morningBS, foodEntries, profile] = await Promise.all([
       getDailyLog(date),
       getExerciseEntriesByDate(date),
+      getMorningBS(date),
+      getFoodEntriesByDate(date),
+      getUserProfile(),
     ]);
+    setScoreCtx({
+      morningBS,
+      foodCal: sumFoodEntries(foodEntries).calories,
+      targetCal: profile?.targetCalories ?? 2000,
+    });
     setExerciseEntries(entries);
     setShowExAddForm(false);
     if (existing) {
@@ -219,6 +229,18 @@ export default function InputScreen() {
   const totalExerciseCal = calcExerciseCaloriesFromEntries(exerciseEntries, 70);
   const burnCal = totalExerciseCal;
   const alcoholCal = calcAlcoholCalories(alcohol);
+
+  // ── 실시간 예상 컨디션 점수 (입력에 따라 즉시 변함 — 게임 점수 느낌) ──
+  const livePreview = useMemo(() => {
+    const types = Array.from(new Set(exerciseEntries.map(e => e.type))) as ExerciseType[];
+    const exercise: ExerciseInput = types.length > 0
+      ? { types, minutes: exerciseEntries.reduce((s, e) => s + e.minutes, 0) }
+      : { types: [], minutes: 0 };
+    const breakdown = calculateScore(sleep, exercise, alcohol, scoreCtx.morningBS, scoreCtx.foodCal, scoreCtx.targetCal);
+    return breakdown;
+  }, [sleep, exerciseEntries, alcohol, scoreCtx]);
+  const liveScore = livePreview.total;
+  const liveRank = getRank(liveScore);
 
   const toggleAlcohol = (type: AlcoholType) => {
     setAlcohol(prev => {
@@ -416,6 +438,30 @@ export default function InputScreen() {
           <Text style={c.pageSub}>
             {hasExisting ? '⚔️ 기존 기록 있음 — 수정 후 재저장' : '던전 클리어 시 캐릭터 스탯이 올라갑니다'}
           </Text>
+        </View>
+
+        {/* ── 실시간 예상 컨디션 점수 + 보상 (입력할수록 점수가 오른다) ── */}
+        <View style={[c.previewCard, { borderColor: liveRank.color + '44' }]}>
+          <View style={[c.previewGlow, { backgroundColor: liveRank.color + '10' }]} pointerEvents="none" />
+          <View style={c.previewLeft}>
+            <Text style={c.previewLabel}>예상 컨디션 점수</Text>
+            <View style={c.previewScoreRow}>
+              <Text style={[c.previewScore, { color: liveRank.color }]}>{liveScore}</Text>
+              <Text style={c.previewScoreUnit}>점</Text>
+              <View style={[c.rankBadge, { backgroundColor: liveRank.color + '22', borderColor: liveRank.color + '55' }]}>
+                <Text style={[c.rankBadgeTxt, { color: liveRank.color }]}>{liveRank.rank} · {liveRank.label}</Text>
+              </View>
+            </View>
+            <View style={c.previewTrack}>
+              <View style={[c.previewFill, { width: `${liveScore}%`, backgroundColor: liveRank.color }]} />
+            </View>
+            <View style={c.previewRewardRow}>
+              <Text style={c.previewRewardLabel}>클리어 보상</Text>
+              <Text style={c.previewChip}>✨ XP</Text>
+              <Text style={c.previewChip}>🪙 +50</Text>
+              <Text style={c.previewChip}>📈 스탯↑</Text>
+            </View>
+          </View>
         </View>
 
         {/* ── 기분 ── */}
@@ -839,6 +885,29 @@ const c = StyleSheet.create({
   pageHeader: { marginBottom: SPACING.md },
   pageTitle: { color: COLORS.text, fontSize: FONTS.xl, fontWeight: '900' },
   pageSub: { color: COLORS.textMuted, fontSize: FONTS.xs, marginTop: 2 },
+
+  // 실시간 예상 점수 카드
+  previewCard: {
+    backgroundColor: COLORS.bgCard, borderRadius: RADIUS.lg, borderWidth: 1,
+    padding: SPACING.md, marginBottom: SPACING.md, overflow: 'hidden',
+  },
+  previewGlow: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+  previewLeft: { gap: 8 },
+  previewLabel: { color: COLORS.textMuted, fontSize: FONTS.xxs, fontWeight: '800', letterSpacing: 0.5 },
+  previewScoreRow: { flexDirection: 'row', alignItems: 'baseline', gap: 6 },
+  previewScore: { fontSize: 40, fontWeight: '900', fontFamily: 'monospace', letterSpacing: -1, lineHeight: 42 },
+  previewScoreUnit: { color: COLORS.textSub, fontSize: FONTS.sm, fontWeight: '800' },
+  rankBadge: { marginLeft: 'auto', alignSelf: 'center', borderRadius: RADIUS.full, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 4 },
+  rankBadgeTxt: { fontSize: FONTS.xxs, fontWeight: '900' },
+  previewTrack: { height: 8, backgroundColor: 'rgba(15,23,42,0.06)', borderRadius: RADIUS.full, overflow: 'hidden' },
+  previewFill: { height: '100%', borderRadius: RADIUS.full },
+  previewRewardRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
+  previewRewardLabel: { color: COLORS.textMuted, fontSize: FONTS.xxs, fontWeight: '700' },
+  previewChip: {
+    fontSize: FONTS.xxs, fontWeight: '800', color: COLORS.textSub,
+    backgroundColor: COLORS.bgHighlight, borderRadius: RADIUS.full,
+    paddingHorizontal: 8, paddingVertical: 3, overflow: 'hidden',
+  },
 
   // 퀘스트 패널
   panel: { backgroundColor: COLORS.bgCard, borderRadius: RADIUS.lg, padding: SPACING.md, marginBottom: SPACING.sm, borderWidth: 1, borderColor: COLORS.border },

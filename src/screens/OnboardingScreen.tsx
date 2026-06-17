@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { hapticLight, hapticMedium, hapticSuccess } from '../utils/haptics';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   KeyboardAvoidingView, Platform, ScrollView, StyleSheet,
   Text, TextInput, TouchableOpacity, View,
@@ -14,6 +14,18 @@ import { calcBMI, calcTargetCalories, getBMILabel } from '../utils/calorieCalcul
 import { saveUserProfile } from '../utils/storage';
 
 type Nav = StackNavigationProp<RootStackParamList, 'Onboarding'>;
+
+// 생년월일(YYYY-MM-DD)로 만 나이 계산
+function calcAgeFromBirth(birthDate?: string): number | null {
+  if (!birthDate) return null;
+  const d = new Date(birthDate);
+  if (isNaN(d.getTime())) return null;
+  const now = new Date();
+  let age = now.getFullYear() - d.getFullYear();
+  const m = now.getMonth() - d.getMonth();
+  if (m < 0 || (m === 0 && now.getDate() < d.getDate())) age--;
+  return age >= 0 && age < 150 ? age : null;
+}
 
 const STEPS = ['intro', 'name', 'body', 'activity', 'goal', 'target', 'review'] as const;
 
@@ -45,6 +57,12 @@ export default function OnboardingScreen() {
   const birthDate = birthYear && birthMonth && birthDay
     ? `${birthYear}-${birthMonth.padStart(2, '0')}-${birthDay.padStart(2, '0')}`
     : undefined;
+
+  // 생년월일을 넣으면 나이를 자동 계산 — 나이를 또 입력하지 않도록
+  const derivedAge = calcAgeFromBirth(birthDate);
+  useEffect(() => {
+    if (derivedAge !== null) setAge(String(derivedAge));
+  }, [derivedAge]);
 
   const canNext = () => {
     if (step === 0) return true;
@@ -114,7 +132,7 @@ export default function OnboardingScreen() {
             birthDay={birthDay} setBirthDay={setBirthDay} />}
           {step === 2 && <BodyStep
             gender={gender} setGender={setGender}
-            age={age} setAge={setAge}
+            age={age} setAge={setAge} derivedAge={derivedAge}
             height={height} setHeight={setHeight}
             weight={weight} setWeight={setWeight}
             bmi={bmi} />}
@@ -193,7 +211,7 @@ function NameStep({ name, setName, birthYear, setBirthYear, birthMonth, setBirth
     <View style={s.stepContent}>
       <Text style={s.stepEyebrow}>STEP 1 OF 6</Text>
       <Text style={s.stepTitle}>이름과 생년월일을{'\n'}알려주세요</Text>
-      <Text style={s.stepDesc}>이름은 캐릭터에 표시됩니다. 생일은 선택입니다.</Text>
+      <Text style={s.stepDesc}>이름은 캐릭터에 표시돼요. 생년월일을 넣으면 나이가 자동 입력됩니다.</Text>
 
       <View style={s.formGroup}>
         <Text style={s.formLabel}>이름</Text>
@@ -217,7 +235,7 @@ function NameStep({ name, setName, birthYear, setBirthYear, birthMonth, setBirth
 }
 
 // ─── Step 2: Body ────────────────────────────────
-function BodyStep({ gender, setGender, age, setAge, height, setHeight, weight, setWeight, bmi }: any) {
+function BodyStep({ gender, setGender, age, setAge, derivedAge, height, setHeight, weight, setWeight, bmi }: any) {
   return (
     <View style={s.stepContent}>
       <Text style={s.stepEyebrow}>STEP 2 OF 6</Text>
@@ -235,8 +253,15 @@ function BodyStep({ gender, setGender, age, setAge, height, setHeight, weight, s
       <View style={s.formRow}>
         <View style={[s.formGroup, { flex: 1 }]}>
           <Text style={s.formLabel}>나이</Text>
-          <TextInput style={s.formInput} value={age} onChangeText={setAge}
-            keyboardType="numeric" placeholder="30" placeholderTextColor={COLORS.textDisabled} />
+          {derivedAge !== null ? (
+            <View style={[s.formInput, s.formInputAuto]}>
+              <Text style={s.formInputAutoVal}>만 {derivedAge}세</Text>
+              <Text style={s.formInputAutoTag}>생일 자동</Text>
+            </View>
+          ) : (
+            <TextInput style={s.formInput} value={age} onChangeText={setAge}
+              keyboardType="numeric" placeholder="30" placeholderTextColor={COLORS.textDisabled} />
+          )}
         </View>
         <View style={[s.formGroup, { flex: 1 }]}>
           <Text style={s.formLabel}>키 (cm)</Text>
@@ -513,6 +538,12 @@ const s = StyleSheet.create({
     paddingHorizontal: 14, paddingVertical: 14, color: COLORS.text,
     fontSize: 16, borderWidth: 1, borderColor: COLORS.border,
   },
+  formInputAuto: {
+    backgroundColor: COLORS.primaryGlow, borderColor: COLORS.primaryLine,
+    justifyContent: 'center', alignItems: 'center', gap: 1, paddingVertical: 10,
+  },
+  formInputAutoVal: { color: COLORS.primaryDark, fontSize: 16, fontWeight: '800' },
+  formInputAutoTag: { color: COLORS.primary, fontSize: 9, fontWeight: '700' },
   formRow: { flexDirection: 'row', gap: 10 },
   dateRow: { flexDirection: 'row', gap: 8 },
 
