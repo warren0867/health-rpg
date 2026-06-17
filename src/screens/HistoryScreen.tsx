@@ -286,6 +286,22 @@ export default function HistoryScreen() {
   const [weeklyReport, setWeeklyReport] = useState<string | null>(null);
   // 복구 결과(성공/실패)를 앱 내 모달로 표시 — 웹에서 Alert.alert 버튼이 안 먹는 문제 우회
   const [restoreResult, setRestoreResult] = useState<{ ok: boolean; msg: string } | null>(null);
+  // 텍스트 붙여넣기 복구 (파일 input이 안 먹는 환경용 — 항상 동작하는 안전한 경로)
+  const [showPasteModal, setShowPasteModal] = useState(false);
+  const [pasteText, setPasteText] = useState('');
+
+  // 파일/텍스트 공용 복구 처리
+  const restoreFromText = async (text: string) => {
+    try {
+      await importAllData(text);
+      hapticSuccess();
+      setShowPasteModal(false);
+      setPasteText('');
+      setRestoreResult({ ok: true, msg: '데이터를 성공적으로 불러왔어요.\n아래 버튼을 누르면 새로고침되어 적용됩니다.' });
+    } catch (e: any) {
+      setRestoreResult({ ok: false, msg: `백업을 읽지 못했어요.\n(${e?.message ?? '형식 오류'})\n파일 또는 붙여넣은 내용을 확인해주세요.` });
+    }
+  };
 
   useFocusEffect(
     useCallback(() => {
@@ -367,23 +383,27 @@ export default function HistoryScreen() {
 
   const handleImportData = () => {
     if (Platform.OS === 'web') {
-      // 웹: 파일 선택으로 복구
+      // 웹: 파일 선택으로 복구.
+      // 핵심: input을 DOM에 실제로 붙여야 실기기(특히 iOS PWA)에서 change가 안정적으로 발생.
+      // 읽기는 FileReader(구형 Safari 호환)로, 결과는 앱 내 모달로 표시(Alert 버튼은 웹에서 안 먹음).
       const input = document.createElement('input');
       input.type = 'file';
-      input.accept = '.json,application/json';
-      input.onchange = async (e: Event) => {
-        const file = (e.target as HTMLInputElement).files?.[0];
-        if (!file) return;
-        // 파일 선택 후 처리 결과를 앱 내 모달로 표시 (Alert.alert 버튼은 웹에서 안 먹음)
-        try {
-          const text = await file.text();
-          await importAllData(text);
-          hapticSuccess();
-          setRestoreResult({ ok: true, msg: '데이터를 성공적으로 불러왔어요.\n아래 버튼을 누르면 새로고침되어 적용됩니다.' });
-        } catch {
-          setRestoreResult({ ok: false, msg: '올바른 백업 파일이 아니에요.\nhealth-rpg-backup-*.json 파일을 선택해주세요.' });
-        }
-      };
+      input.accept = 'application/json,.json,text/plain';
+      input.style.position = 'fixed';
+      input.style.left = '-9999px';
+      input.style.top = '0';
+      input.style.opacity = '0';
+      document.body.appendChild(input);
+      const cleanup = () => { try { document.body.removeChild(input); } catch {} };
+
+      input.addEventListener('change', () => {
+        const file = input.files && input.files[0];
+        if (!file) { cleanup(); return; }
+        const reader = new FileReader();
+        reader.onload = () => { restoreFromText(String(reader.result ?? '')).finally(cleanup); };
+        reader.onerror = () => { setRestoreResult({ ok: false, msg: '파일을 읽는 중 오류가 났어요. 다시 시도하거나 "붙여넣기 복구"를 써보세요.' }); cleanup(); };
+        reader.readAsText(file);
+      });
       input.click();
     } else {
       Alert.alert(
@@ -598,17 +618,21 @@ export default function HistoryScreen() {
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>💾 데이터 관리</Text>
           <Text style={{ color: COLORS.textMuted, fontSize: FONTS.xs, marginBottom: SPACING.sm, lineHeight: 18 }}>
-            📤 백업: 모든 탐험 기록을 JSON 파일로 저장합니다.{'\n'}
-            📥 복구: 저장된 백업 파일을 선택해서 기록을 복원합니다.
+            📤 백업: 모든 기록을 JSON 파일로 저장합니다.{'\n'}
+            📥 파일 복구: 저장한 백업 파일을 선택해 복원합니다.{'\n'}
+            📋 붙여넣기 복구: 파일 선택이 안 될 때 — 백업 내용을 붙여넣어 복원해요.
           </Text>
           <View style={{ flexDirection: 'row', gap: 10 }}>
             <TouchableOpacity style={styles.backupBtn} onPress={handleExportData}>
               <Text style={styles.backupBtnText}>📤 백업</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.restoreBtn} onPress={handleImportData}>
-              <Text style={styles.restoreBtnText}>📥 복구</Text>
+              <Text style={styles.restoreBtnText}>📥 파일 복구</Text>
             </TouchableOpacity>
           </View>
+          <TouchableOpacity style={styles.pasteRestoreBtn} onPress={() => { setPasteText(''); setShowPasteModal(true); }}>
+            <Text style={styles.pasteRestoreText}>📋 붙여넣기로 복구</Text>
+          </TouchableOpacity>
         </View>
 
         {/* 복구 결과 모달 — 파일 선택 후 성공/실패를 명확히 안내 */}
@@ -633,6 +657,52 @@ export default function HistoryScreen() {
                   {restoreResult?.ok ? '확인하고 새로고침' : '닫기'}
                 </Text>
               </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+
+        {/* 붙여넣기 복구 모달 — 파일 선택이 안 되는 환경(특히 iOS PWA)용 안전 경로 */}
+        <Modal visible={showPasteModal} transparent animationType="fade" onRequestClose={() => setShowPasteModal(false)}>
+          <View style={styles.restoreOverlay}>
+            <View style={[styles.restoreCard, { alignItems: 'stretch' }]}>
+              <Text style={[styles.restoreTitle, { textAlign: 'center' }]}>📋 붙여넣기로 복구</Text>
+              <Text style={[styles.restoreMsg, { textAlign: 'left', marginBottom: SPACING.sm }]}>
+                백업 JSON 파일을 열어 전체 내용을 복사한 뒤 아래에 붙여넣고 복구를 누르세요.
+              </Text>
+              {Platform.OS === 'web' && (
+                <TouchableOpacity
+                  style={styles.pasteClipboardBtn}
+                  onPress={async () => {
+                    try {
+                      const t = await (navigator as any).clipboard.readText();
+                      if (t) setPasteText(t);
+                    } catch { /* 권한 없으면 직접 붙여넣기 */ }
+                  }}
+                >
+                  <Text style={styles.pasteClipboardText}>📋 클립보드에서 자동 붙여넣기</Text>
+                </TouchableOpacity>
+              )}
+              <TextInput
+                style={styles.pasteInput}
+                value={pasteText}
+                onChangeText={setPasteText}
+                placeholder='{"version":2,"data":{ ... }}'
+                placeholderTextColor={COLORS.textDisabled}
+                multiline
+                textAlignVertical="top"
+              />
+              <View style={{ flexDirection: 'row', gap: 10, marginTop: SPACING.sm }}>
+                <TouchableOpacity style={[styles.restoreModalBtn, styles.restoreModalBtnSub, { flex: 1 }]} onPress={() => setShowPasteModal(false)}>
+                  <Text style={[styles.restoreModalBtnTxt, { color: COLORS.textSub }]}>취소</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.restoreModalBtn, { flex: 1 }, !pasteText.trim() && { opacity: 0.5 }]}
+                  disabled={!pasteText.trim()}
+                  onPress={() => restoreFromText(pasteText.trim())}
+                >
+                  <Text style={styles.restoreModalBtnTxt}>복구하기</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
         </Modal>
@@ -1055,6 +1125,11 @@ const styles = StyleSheet.create({
   restoreEmoji: { fontSize: 44, marginBottom: 8 },
   restoreTitle: { fontSize: FONTS.lg, fontWeight: '900', color: COLORS.text, marginBottom: 8 },
   restoreMsg: { fontSize: FONTS.xs, color: COLORS.textSub, textAlign: 'center', lineHeight: 20, marginBottom: SPACING.lg },
+  pasteRestoreBtn: { marginTop: 10, backgroundColor: COLORS.bgHighlight, borderRadius: RADIUS.lg, paddingVertical: 11, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border, borderStyle: 'dashed' },
+  pasteRestoreText: { color: COLORS.textSub, fontWeight: '700', fontSize: FONTS.sm },
+  pasteClipboardBtn: { backgroundColor: COLORS.primaryGlow, borderRadius: RADIUS.md, paddingVertical: 10, alignItems: 'center', borderWidth: 1, borderColor: COLORS.primaryLine, marginBottom: SPACING.sm },
+  pasteClipboardText: { color: COLORS.primaryDark, fontWeight: '800', fontSize: FONTS.xs },
+  pasteInput: { backgroundColor: COLORS.bgInput, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.border, padding: 12, color: COLORS.text, fontSize: 12, height: 120, fontFamily: 'monospace' },
   restoreModalBtn: { alignSelf: 'stretch', backgroundColor: COLORS.primary, borderRadius: RADIUS.full, paddingVertical: 13, alignItems: 'center' },
   restoreModalBtnSub: { backgroundColor: COLORS.bgHighlight, borderWidth: 1, borderColor: COLORS.border },
   restoreModalBtnTxt: { fontSize: FONTS.sm, fontWeight: '900', color: '#FFFFFF' },

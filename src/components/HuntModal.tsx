@@ -56,7 +56,7 @@ export default function HuntModal({
   const [pHp, setPHp] = useState(0);
   const [floats, setFloats] = useState<FloatNum[]>([]);
   const [fast, setFast] = useState(false);
-  const [reward, setReward] = useState<{ gold: number; xp: number; newBestBonus: number } | null>(null);
+  const [reward, setReward] = useState<ReturnType<typeof calcHuntReward> | null>(null);
   const [drops, setDrops] = useState<HuntDrop | null>(null);
   const [clearedBanner, setClearedBanner] = useState(false);
   const [, forceRender] = useState(0);
@@ -406,6 +406,22 @@ export default function HuntModal({
                 <Text style={s.rewardTxt}>✨ +{reward.xp} XP</Text>
               </View>
 
+              {/* 보스 처치 · 층 마일스톤 보너스 내역 */}
+              {(reward.bossCount > 0 || reward.milestoneCount > 0) && (
+                <View style={s.bonusRow}>
+                  {reward.bossCount > 0 && (
+                    <View style={s.bonusPill}>
+                      <Text style={s.bonusPillTxt}>👹 보스 {reward.bossCount}처치  +{reward.bossBonusGold}G</Text>
+                    </View>
+                  )}
+                  {reward.milestoneCount > 0 && (
+                    <View style={[s.bonusPill, { backgroundColor: COLORS.amberGlow, borderColor: COLORS.amberLine }]}>
+                      <Text style={[s.bonusPillTxt, { color: COLORS.amber }]}>🏁 {reward.milestoneCount * 10}층 도달  +{reward.milestoneBonusGold}G</Text>
+                    </View>
+                  )}
+                </View>
+              )}
+
               {/* 드랍 아이템 */}
               {drops && (drops.weaponScrolls > 0 || drops.armorScrolls > 0 || drops.accessoryScrolls > 0 || drops.gear) && (
                 <View style={s.dropBox}>
@@ -639,6 +655,13 @@ const s = StyleSheet.create({
   resultCompare: { fontSize: FONTS.xs, color: COLORS.textSub, marginTop: 8, textAlign: 'center' },
   rewardRow: { flexDirection: 'row', gap: 18, marginTop: 14 },
   rewardTxt: { fontSize: FONTS.md, fontWeight: '900', color: COLORS.amber, fontFamily: 'monospace' },
+  bonusRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, justifyContent: 'center', marginTop: 8 },
+  bonusPill: {
+    backgroundColor: COLORS.purple + '18',
+    borderColor: COLORS.purple + '55', borderWidth: 1,
+    borderRadius: RADIUS.full, paddingHorizontal: 10, paddingVertical: 4,
+  },
+  bonusPillTxt: { fontSize: FONTS.xxs, fontWeight: '800', color: COLORS.purple },
   dropBox: {
     width: '100%',
     backgroundColor: COLORS.bgCard,

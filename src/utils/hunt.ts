@@ -143,17 +143,33 @@ export function monsterHit(m: Monster, c: CombatStats): HitResult {
 // ─── 보상 ────────────────────────────────────────────────
 export function calcHuntReward(stagesCleared: number, prevBest: number): {
   gold: number; xp: number; newBestBonus: number;
+  bossCount: number; bossBonusGold: number;
+  milestoneCount: number; milestoneBonusGold: number;
 } {
   let gold = 0, xp = 0;
+  // 층마다 도달 보상 (깊을수록 큼)
   for (let s = 1; s <= stagesCleared; s++) {
     gold += 3 + s;
     xp   += 2 + s;
   }
+  // 보스 처치 보너스 — 5층마다 보스, 보스당 +25G·+18XP
+  const bossCount = Math.floor(stagesCleared / 5);
+  const bossBonusGold = bossCount * 25;
+  const bossBonusXp = bossCount * 18;
+  // 층 마일스톤 — 10층마다 도달 시 +50G·+30XP
+  const milestoneCount = Math.floor(stagesCleared / 10);
+  const milestoneBonusGold = milestoneCount * 50;
+  const milestoneBonusXp = milestoneCount * 30;
+  // 신기록 보너스
   const newStages = Math.max(0, stagesCleared - prevBest);
   const newBestBonus = newStages * 20;
-  gold += newBestBonus;
-  xp   += newStages * 15;
-  return { gold: Math.min(500, gold), xp: Math.min(400, xp), newBestBonus };
+
+  gold += bossBonusGold + milestoneBonusGold + newBestBonus;
+  xp   += bossBonusXp + milestoneBonusXp + newStages * 15;
+  return {
+    gold: Math.min(2000, gold), xp: Math.min(1500, xp), newBestBonus,
+    bossCount, bossBonusGold, milestoneCount, milestoneBonusGold,
+  };
 }
 
 // ─── 기록 저장 ────────────────────────────────────────────

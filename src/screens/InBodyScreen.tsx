@@ -12,7 +12,7 @@ import { useRefresh } from '../context/RefreshContext';
 import { InBodyRecord } from '../types';
 import {
   deleteInBodyRecord, generateId, getInBodyRecords, getTodayKey,
-  recalcAndSavePermanentStats, saveInBodyRecord,
+  recalcAndSavePermanentStats, saveInBodyRecord, saveWeightEntry,
 } from '../utils/storage';
 
 type Form = {
@@ -94,6 +94,8 @@ export default function InBodyScreen() {
       createdAt: now,
     };
     await saveInBodyRecord(rec);
+    // 인바디 체중을 체중 로그에도 기록 → 기록 화면 '체중 변화 / BMI 추세'에 자동 반영
+    await saveWeightEntry({ id: generateId(), date: form.date, weightKg: weight, timestamp: now });
     await recalcAndSavePermanentStats();
     hapticSuccess();
     setShowForm(false);
