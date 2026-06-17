@@ -128,14 +128,26 @@ export default function PermanentStatPanel({ stats, activeBonuses = [] }: Props)
         })}
       </View>
 
-      {/* 장비 슬롯 */}
-      <View style={s.eqSection}>
-        <Text style={s.eqTitle}>장비 슬롯 <Text style={s.eqTitleSub}>(최근 7일 퀘스트)</Text></Text>
-        <EquipmentSlotRow item={eq.weapon} slotName="무기" />
-        <EquipmentSlotRow item={eq.armor}  slotName="방어구" />
-        <EquipmentSlotRow item={eq.ring}   slotName="반지" />
-        <EquipmentSlotRow item={eq.amulet} slotName="부적" />
-      </View>
+      {/* 퀘스트 장비 슬롯 — 채워진 것만 표시, 전부 비면 한 줄로 접음 */}
+      {(() => {
+        const slots: { item: EquipmentItem | null; name: string }[] = [
+          { item: eq.weapon, name: '무기' },
+          { item: eq.armor, name: '방어구' },
+          { item: eq.ring, name: '반지' },
+          { item: eq.amulet, name: '부적' },
+        ];
+        const filled = slots.filter(s => s.item && s.item.tier !== 'none');
+        return (
+          <View style={s.eqSection}>
+            <Text style={s.eqTitle}>퀘스트 장비 <Text style={s.eqTitleSub}>(최근 7일 활동)</Text></Text>
+            {filled.length === 0 ? (
+              <Text style={s.eqEmptyHint}>최근 7일 퀘스트로 얻은 장비가 없어요 — 운동·수면·식단 기록 시 생겨요</Text>
+            ) : (
+              filled.map(s => <EquipmentSlotRow key={s.name} item={s.item} slotName={s.name} />)
+            )}
+          </View>
+        );
+      })()}
     </View>
   );
 }
@@ -175,6 +187,7 @@ const s = StyleSheet.create({
   eqSection: { marginTop: SPACING.md, paddingTop: SPACING.md, borderTopWidth: 1, borderTopColor: COLORS.border, gap: 10 },
   eqTitle: { color: COLORS.textSub, fontSize: FONTS.xs, fontWeight: '700', marginBottom: 4 },
   eqTitleSub: { color: COLORS.textDisabled, fontWeight: '400' },
+  eqEmptyHint: { color: COLORS.textDisabled, fontSize: FONTS.xxs, lineHeight: 16, marginTop: 2 },
   eqRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   eqRowDecay: { opacity: 0.85 },
   eqIconBox: {
