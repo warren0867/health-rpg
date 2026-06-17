@@ -131,9 +131,9 @@ export function getScoreFactors(breakdown: ScoreBreakdown, log: DailyLog): Score
   const factors: ScoreFactor[] = [];
 
   if (breakdown.sleepBonus > 0) {
-    factors.push({ label: `수면 ${log.sleep.hours}시간`, value: breakdown.sleepBonus, emoji: '😴' });
+    factors.push({ label: `수면 ${log.sleep?.hours ?? 0}시간`, value: breakdown.sleepBonus, emoji: '😴' });
   } else if (breakdown.sleepBonus < 0) {
-    factors.push({ label: `수면 부족 (${log.sleep.hours}시간)`, value: breakdown.sleepBonus, emoji: '😵' });
+    factors.push({ label: `수면 부족 (${log.sleep?.hours ?? 0}시간)`, value: breakdown.sleepBonus, emoji: '😵' });
   }
 
   if (breakdown.exerciseBonus > 0) {

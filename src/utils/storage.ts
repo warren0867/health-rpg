@@ -707,7 +707,7 @@ export async function updateChallengeProgress(logs: DailyLog[], waterGoalMl = 15
         progress[id] = thisWeekLogs.filter(l => !l.alcohol.consumed).length;
         break;
       case 'sleep_7h_5':
-        progress[id] = thisWeekLogs.filter(l => l.sleep.hours >= 7).length;
+        progress[id] = thisWeekLogs.filter(l => (l.sleep?.hours ?? 0) >= 7).length;
         break;
       case 'water_5':
         progress[id] = Object.entries(waterLog).filter(([date, ml]) => date >= mondayStr && date <= todayStr && ml >= waterGoalMl).length;

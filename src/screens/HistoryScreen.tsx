@@ -144,7 +144,7 @@ function SleepChart({ logs }: { logs: DailyLog[] }) {
               </View>
             );
           }
-          const h = log.sleep.hours;
+          const h = log.sleep?.hours ?? 0;
           const barH = Math.max(4, Math.min(CHART_H, (h / MAX_H) * CHART_H));
           const isGood = h >= 7 && h <= 8;
           const color = isGood ? COLORS.teal : h >= 6 ? COLORS.gold : COLORS.red;
@@ -733,7 +733,7 @@ export default function HistoryScreen() {
 
                 {/* 행동 통계 */}
                 <View style={styles.logStats}>
-                  <LogStat label="수면" value={`${log.sleep.hours}h`} />
+                  <LogStat label="수면" value={`${log.sleep?.hours ?? '-'}h`} />
                   <LogStat label="운동" value={(() => {
                     const types = log.exercise.types?.filter(t => t !== 'none') ?? [];
                     const legacyType = log.exercise.type;

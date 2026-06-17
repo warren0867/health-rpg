@@ -22,6 +22,8 @@ interface Props {
   levelTitle: string;
   xpCurrent: number;
   xpNeeded: number;
+  /** 최대 레벨 도달 여부 — XP 표시를 'MAX'로 */
+  isMaxLevel?: boolean;
   todayXp: number | null;
   permStats?: PermanentStats;
   /** 가챠 주문서로 적용된 활성 버프 (스탯 칩에 +N 표시) */
@@ -136,7 +138,7 @@ function pickSpeech(p: {
  */
 export default function HeroStage({
   name, score, rank, level, levelTitle,
-  xpCurrent, xpNeeded, todayXp, permStats, activeBonuses = [], conditionInfo, statusEffects,
+  xpCurrent, xpNeeded, isMaxLevel = false, todayXp, permStats, activeBonuses = [], conditionInfo, statusEffects,
   streak = 0, questsLeft = 0, hasIllness = false, onEditName, onOpenSheet,
   gear, onPressGear,
 }: Props) {
@@ -156,7 +158,7 @@ export default function HeroStage({
   const [speech, setSpeech] = useState<string | null>(null);
 
   const rankColor = rank?.color ?? COLORS.textMuted;
-  const xpPct = Math.min(100, Math.round((xpCurrent / Math.max(1, xpNeeded)) * 100));
+  const xpPct = isMaxLevel ? 100 : Math.min(100, Math.round((xpCurrent / Math.max(1, xpNeeded)) * 100));
 
   // ─── idle 호흡 (위아래 둥실 + 그림자 호응) ───────────
   const bob = useRef(new Animated.Value(0)).current;
@@ -325,7 +327,7 @@ export default function HeroStage({
         </View>
         <Text style={s.xpMeta}>
           {todayXp != null && todayXp > 0 && <Text style={s.xpGain}>+{todayXp}  </Text>}
-          <Text style={s.xpDim}>XP {xpCurrent}/{xpNeeded}</Text>
+          <Text style={s.xpDim}>{isMaxLevel ? 'XP MAX · 최고 레벨' : `XP ${xpCurrent}/${xpNeeded}`}</Text>
         </Text>
       </View>
 

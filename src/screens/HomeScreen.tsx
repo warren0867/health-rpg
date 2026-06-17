@@ -264,6 +264,7 @@ export default function HomeScreen() {
           levelTitle={getLevelTitle(xpProgress?.level ?? 1)}
           xpCurrent={xpProgress?.current ?? 0}
           xpNeeded={xpProgress?.needed ?? 100}
+          isMaxLevel={xpProgress?.isMax ?? false}
           todayXp={todayXP}
           permStats={permStats}
           activeBonuses={gachaInv?.activeBonuses ?? []}

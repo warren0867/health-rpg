@@ -55,14 +55,15 @@ export function getXPProgress(xp: number): {
   const isMax = level >= LEVEL_THRESHOLDS.length;
   const idx = level - 1;
   const levelStart = LEVEL_THRESHOLDS[idx] ?? 0;
-  const levelEnd = LEVEL_THRESHOLDS[idx + 1] ?? levelStart + 2000;
-  const current = xp - levelStart;
-  const needed = levelEnd - levelStart;
+  const levelEnd = LEVEL_THRESHOLDS[idx + 1] ?? levelStart;
+  const needed = isMax ? 0 : levelEnd - levelStart;
+  // 최대 레벨이면 넘치는 XP를 그대로 노출하지 않고 가득 찬 상태로 표시
+  const current = isMax ? 0 : xp - levelStart;
   return {
     level,
     current,
     needed,
-    pct: isMax ? 100 : Math.min(100, Math.round((current / needed) * 100)),
+    pct: isMax ? 100 : Math.min(100, Math.round((current / Math.max(1, needed)) * 100)),
     isMax,
   };
 }
