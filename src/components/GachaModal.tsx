@@ -104,121 +104,79 @@ function ResultCard({ result }: { result: GachaPullResult }) {
   );
 }
 
-// ── 인벤토리 주문서 카드 ──────────────────────────────────────
+// ── 동일 주문서 그룹핑 (이름·등급·스탯·수치·기간이 같으면 한 묶음) ──
+type ScrollGroup = { key: string; sample: GachaScroll; count: number; ids: string[] };
+const RARITY_ORDER: Record<string, number> = { legendary: 0, epic: 1, rare: 2, common: 3 };
+function groupScrolls(scrolls: GachaScroll[]): ScrollGroup[] {
+  const map = new Map<string, ScrollGroup>();
+  for (const s of scrolls) {
+    const key = `${s.name}|${s.rarity}|${s.stat}|${s.bonus}|${s.durationDays}`;
+    let g = map.get(key);
+    if (!g) { g = { key, sample: s, count: 0, ids: [] }; map.set(key, g); }
+    g.count++; g.ids.push(s.id);
+  }
+  return [...map.values()].sort((a, b) =>
+    (RARITY_ORDER[a.sample.rarity] - RARITY_ORDER[b.sample.rarity]) || a.sample.name.localeCompare(b.sample.name)
+  );
+}
+
+// ── 인벤토리 주문서 카드 (컴팩트 · 중복은 ×개수로 묶음) ──────────
 function ScrollCard({
-  scroll, currentStatVal, activeBonusForStat, onUse,
+  scroll, count, activeBonusForStat, onUse,
 }: {
   scroll: GachaScroll;
-  currentStatVal: number;
+  count: number;
   activeBonusForStat: number;
   onUse: () => Promise<void>;
 }) {
   const color = GACHA_RARITY_COLOR[scroll.rarity];
-  const [state, setState] = useState<'idle' | 'loading' | 'done'>('idle');
-  const doneAnim = useRef(new Animated.Value(0)).current;
+  const [busy, setBusy] = useState(false);
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
   const handlePress = async () => {
-    if (state !== 'idle') return;
-    setState('loading');
-    // 버튼 눌림 피드백
+    if (busy) return;
+    setBusy(true);
     Animated.sequence([
-      Animated.timing(scaleAnim, { toValue: 0.96, duration: 80, useNativeDriver: true }),
-      Animated.timing(scaleAnim, { toValue: 1, duration: 80, useNativeDriver: true }),
+      Animated.timing(scaleAnim, { toValue: 0.97, duration: 70, useNativeDriver: true }),
+      Animated.timing(scaleAnim, { toValue: 1, duration: 70, useNativeDriver: true }),
     ]).start();
     await onUse();
-    setState('done');
-    Animated.spring(doneAnim, { toValue: 1, tension: 100, friction: 7, useNativeDriver: true }).start();
+    setBusy(false);
   };
 
-  const baseVal = currentStatVal - activeBonusForStat; // 버프 제외 순수 기본값
-  const afterVal = baseVal + activeBonusForStat + scroll.bonus;
-
   return (
-    <Animated.View style={[ic.card, { borderColor: color + '44', transform: [{ scale: scaleAnim }] }]}>
-      <View style={[ic.glowBg, { backgroundColor: color + '0C' }]} pointerEvents="none" />
-
-      {/* 완료 오버레이 */}
-      {state === 'done' && (
-        <Animated.View style={[ic.doneOverlay, { opacity: doneAnim }]}>
-          <Animated.View style={{ transform: [{ scale: doneAnim.interpolate({ inputRange: [0, 1], outputRange: [0.5, 1] }) }] }}>
-            <View style={ic.doneIconBox}>
-              <Ionicons name="checkmark" size={36} color="#FFFFFF" />
-            </View>
-            <Text style={ic.doneTxt}>강화 완료!</Text>
-            <Text style={ic.doneSub}>{STAT_FULLNAME[scroll.stat]} +{scroll.bonus} 적용됨</Text>
-          </Animated.View>
-        </Animated.View>
-      )}
-
-      {/* 상단: 아이콘 + 이름 + 등급 */}
-      <View style={ic.top}>
-        <View style={[ic.iconBox, { backgroundColor: color + '20', borderColor: color + '40', borderWidth: 1.5 }]}>
-          <Ionicons name={RARITY_ICON[scroll.rarity]} size={26} color={color} />
-        </View>
-        <View style={ic.topRight}>
-          <Text style={[ic.name, { color }]} numberOfLines={1}>{scroll.name}</Text>
-          <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
-            <View style={[ic.rarePill, { backgroundColor: color + '22', borderColor: color + '55' }]}>
-              <Text style={[ic.rareTxt, { color }]}>{GACHA_RARITY_LABEL[scroll.rarity]}</Text>
-            </View>
-            <Text style={ic.dur}>{scroll.durationDays}일 지속</Text>
+    <Animated.View style={[ic.card, { borderColor: color + '33', transform: [{ scale: scaleAnim }] }]}>
+      {/* 아이콘 + 중복 개수 배지 */}
+      <View style={[ic.iconBox, { backgroundColor: color + '18', borderColor: color + '44' }]}>
+        <Ionicons name={RARITY_ICON[scroll.rarity]} size={20} color={color} />
+        {count > 1 && (
+          <View style={[ic.countBadge, { backgroundColor: color }]}>
+            <Text style={ic.countTxt}>{count}</Text>
           </View>
-        </View>
+        )}
       </View>
 
-      {/* 스탯 임팩트 표시 */}
-      <View style={[ic.impactBox, { borderColor: color + '30', backgroundColor: color + '08' }]}>
-        <Text style={ic.impactLabel}>사용 시 변화</Text>
-        <View style={ic.impactRow}>
-          <View style={ic.impactStatBox}>
-            <Text style={[ic.impactStatKey, { color: color + 'AA' }]}>{STAT_LABEL[scroll.stat]}</Text>
-            <Text style={[ic.impactStatName, { color: COLORS.textMuted }]}>{STAT_FULLNAME[scroll.stat]}</Text>
-          </View>
-          {/* 현재값 */}
-          <View style={ic.impactValBox}>
-            <Text style={ic.impactValLabel}>현재</Text>
-            <Text style={[ic.impactVal, { color: COLORS.textSub }]}>{Math.floor(currentStatVal)}</Text>
-          </View>
-          <Ionicons name="arrow-forward" size={16} color={color} style={{ marginTop: 10 }} />
-          {/* 사용 후 */}
-          <View style={ic.impactValBox}>
-            <Text style={ic.impactValLabel}>사용 후</Text>
-            <Text style={[ic.impactVal, { color }]}>{Math.floor(afterVal)}</Text>
-          </View>
-          {/* 증가량 */}
-          <View style={[ic.deltaBadge, { backgroundColor: color + '22', borderColor: color + '55' }]}>
-            <Text style={[ic.deltaTxt, { color }]}>+{scroll.bonus}</Text>
-          </View>
-        </View>
+      {/* 정보 */}
+      <View style={ic.info}>
+        <Text style={[ic.name, { color }]} numberOfLines={1}>{scroll.name}</Text>
+        <Text style={ic.sub} numberOfLines={1}>
+          {GACHA_RARITY_LABEL[scroll.rarity]} · {STAT_LABEL[scroll.stat]} +{scroll.bonus} · {scroll.durationDays}일
+        </Text>
         {activeBonusForStat > 0 && (
-          <Text style={ic.impactNote}>
-            <Ionicons name="flash" size={10} color={COLORS.amber} />
-            {' '}현재 {STAT_LABEL[scroll.stat]} 버프 {activeBonusForStat}pt 포함됨 — 사용 시 교체
+          <Text style={ic.replaceNote} numberOfLines={1}>
+            ⚡ 현재 {STAT_LABEL[scroll.stat]} 버프 {activeBonusForStat}pt — 사용 시 교체
           </Text>
         )}
       </View>
 
       {/* 사용 버튼 */}
       <TouchableOpacity
-        style={[ic.useBtn, { backgroundColor: state === 'done' ? COLORS.good : color }, state === 'loading' && { opacity: 0.7 }]}
+        style={[ic.useBtn, { backgroundColor: color }, busy && { opacity: 0.6 }]}
         onPress={handlePress}
         activeOpacity={0.8}
-        disabled={state !== 'idle'}
+        disabled={busy}
       >
-        {state === 'loading' ? (
-          <ActivityIndicator color="#FFFFFF" size="small" />
-        ) : state === 'done' ? (
-          <>
-            <Ionicons name="checkmark-circle" size={16} color="#FFFFFF" />
-            <Text style={ic.useBtnTxt}>강화 완료</Text>
-          </>
-        ) : (
-          <>
-            <Text style={ic.useBtnTxt}>사용하기</Text>
-            <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
-          </>
-        )}
+        {busy ? <ActivityIndicator color="#FFFFFF" size="small" /> : <Text style={ic.useBtnTxt}>사용</Text>}
       </TouchableOpacity>
     </Animated.View>
   );
@@ -798,16 +756,19 @@ export default function GachaModal({ visible, onClose, addXpFn, onInventoryChang
                       );
                     }
 
-                    return (
-                      <ScrollCard
-                        key={scroll.id}
-                        scroll={scroll}
-                        currentStatVal={permStats ? permStats[scroll.stat] : 0}
-                        activeBonusForStat={activeBonusByStatMap[scroll.stat] ?? 0}
-                        onUse={() => handleUseScroll(scroll.id)}
-                      />
-                    );
+                    return null;
                   })}
+
+                  {/* 사용 모드: 동일 주문서를 ×개수로 묶어 컴팩트하게 표시 */}
+                  {!fuseMode && groupScrolls(inv.scrolls).map(group => (
+                    <ScrollCard
+                      key={group.key}
+                      scroll={group.sample}
+                      count={group.count}
+                      activeBonusForStat={activeBonusByStatMap[group.sample.stat] ?? 0}
+                      onUse={() => handleUseScroll(group.ids[0])}
+                    />
+                  ))}
 
                   {/* 합성 실행 버튼 */}
                   {fuseMode && (
@@ -1113,51 +1074,30 @@ const rc = StyleSheet.create({
 // ── 인벤토리 카드 스타일 ──────────────────────────────────────
 const ic = StyleSheet.create({
   card: {
-    backgroundColor: COLORS.bgCard, borderRadius: RADIUS.lg,
-    borderWidth: 1, marginBottom: 12, overflow: 'hidden',
-    position: 'relative', padding: SPACING.md, gap: 12,
+    flexDirection: 'row', alignItems: 'center', gap: 11,
+    backgroundColor: COLORS.bgCard, borderRadius: RADIUS.md,
+    borderWidth: 1, marginBottom: 8, padding: 10,
   },
-  glowBg: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
-  // 완료 오버레이
-  doneOverlay: {
-    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-    backgroundColor: COLORS.good + 'EE',
-    zIndex: 10, alignItems: 'center', justifyContent: 'center', gap: 8,
-    borderRadius: RADIUS.lg,
+  iconBox: {
+    width: 44, height: 44, borderRadius: 12, borderWidth: 1.5,
+    alignItems: 'center', justifyContent: 'center', position: 'relative',
   },
-  doneIconBox: {
-    width: 64, height: 64, borderRadius: 32,
-    backgroundColor: '#000', alignItems: 'center', justifyContent: 'center',
+  countBadge: {
+    position: 'absolute', top: -7, right: -7,
+    minWidth: 19, height: 19, borderRadius: 10, paddingHorizontal: 4,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 2, borderColor: COLORS.bgCard,
   },
-  doneTxt: { fontSize: FONTS.xl, fontWeight: '900', color: '#FFFFFF' },
-  doneSub: { fontSize: FONTS.sm, color: '#FFFFFF', fontWeight: '700', opacity: 0.8 },
-  // 카드 본체
-  top: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  iconBox: { width: 52, height: 52, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  topRight: { flex: 1, gap: 6 },
-  name: { fontSize: FONTS.md, fontWeight: '900' },
-  rarePill: { borderRadius: RADIUS.full, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, alignSelf: 'flex-start' },
-  rareTxt: { fontSize: 10, fontWeight: '900', fontFamily: 'monospace' },
-  dur: { fontSize: FONTS.xxs, color: COLORS.textMuted, fontFamily: 'monospace' },
-  // 임팩트 박스
-  impactBox: { borderRadius: RADIUS.md, padding: 12, borderWidth: 1, gap: 10 },
-  impactLabel: { fontSize: 10, color: COLORS.textDisabled, fontFamily: 'monospace', fontWeight: '800', letterSpacing: 1 },
-  impactRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
-  impactStatBox: { alignItems: 'center', marginBottom: 2 },
-  impactStatKey: { fontSize: 11, fontFamily: 'monospace', fontWeight: '900', letterSpacing: 1 },
-  impactStatName: { fontSize: 9, fontFamily: 'monospace', marginTop: 1 },
-  impactValBox: { alignItems: 'center', gap: 2 },
-  impactValLabel: { fontSize: 9, color: COLORS.textDisabled, fontFamily: 'monospace' },
-  impactVal: { fontSize: FONTS.xl, fontWeight: '900', fontFamily: 'monospace', letterSpacing: -1 },
-  deltaBadge: {
-    borderRadius: RADIUS.full, paddingHorizontal: 10, paddingVertical: 4,
-    borderWidth: 1, marginBottom: 4,
+  countTxt: { fontSize: 10, fontWeight: '900', color: '#FFFFFF', fontFamily: 'monospace' },
+  info: { flex: 1, gap: 2 },
+  name: { fontSize: FONTS.sm, fontWeight: '800' },
+  sub: { fontSize: FONTS.xxs, color: COLORS.textMuted, fontFamily: 'monospace' },
+  replaceNote: { fontSize: 9, color: COLORS.amber, fontWeight: '700' },
+  useBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    borderRadius: RADIUS.full, paddingHorizontal: 18, paddingVertical: 9, minWidth: 60,
   },
-  deltaTxt: { fontSize: FONTS.sm, fontWeight: '900', fontFamily: 'monospace' },
-  impactNote: { fontSize: FONTS.xxs, color: COLORS.textDisabled, lineHeight: 16 },
-  // 사용 버튼
-  useBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: RADIUS.md, paddingVertical: 14 },
-  useBtnTxt: { fontSize: FONTS.sm, fontWeight: '900', color: '#FFFFFF' },
+  useBtnTxt: { fontSize: FONTS.xs, fontWeight: '900', color: '#FFFFFF' },
 });
 
 // ── 버프 카드 스타일 ──────────────────────────────────────────
